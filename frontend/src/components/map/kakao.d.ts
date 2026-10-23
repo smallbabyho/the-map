@@ -25,6 +25,10 @@ declare namespace kakao.maps {
     constructor(options: { position: LatLng; content: HTMLElement | string; yAnchor?: number; xAnchor?: number; zIndex?: number; clickable?: boolean })
     setMap(map: Map | null): void
   }
+  class Circle {
+    constructor(options: { center: LatLng; radius: number; strokeWeight?: number; strokeColor?: string; strokeOpacity?: number; fillColor?: string; fillOpacity?: number })
+    setMap(map: Map | null): void
+  }
   class Polyline {
     constructor(options: { path: LatLng[]; strokeWeight?: number; strokeColor?: string; strokeOpacity?: number; strokeStyle?: string })
     setMap(map: Map | null): void

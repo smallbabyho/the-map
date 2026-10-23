@@ -75,3 +75,6 @@ export const PaletteIcon = (p: IconProps) => (
 export const PinIcon = (p: IconProps) => (
   <Svg {...p}><path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21z" /><circle cx="12" cy="9.5" r="2.5" /></Svg>
 )
+export const LocateIcon = (p: IconProps) => (
+  <Svg {...p}><circle cx="12" cy="12" r="3.5" /><circle cx="12" cy="12" r="7.5" /><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22" /></Svg>
+)

@@ -40,3 +40,11 @@ export function createLegLabelElement(leg: MapLegView, routeColor: string): HTML
   el.textContent = legLabel(leg.mode, leg.durationMin)
   return el
 }
+
+/** 내 위치 파란 점 (.tm-me, app/globals.css) */
+export function createMyLocationElement(): HTMLElement {
+  const el = document.createElement('div')
+  el.className = 'tm-me tm-overlay'
+  el.setAttribute('aria-label', '내 위치')
+  return el
+}

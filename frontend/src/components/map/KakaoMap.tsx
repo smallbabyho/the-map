@@ -2,9 +2,10 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { loadKakao } from './loadKakao'
-import { createLegLabelElement, createMarkerElement } from './markerElement'
+import { createLegLabelElement, createMarkerElement, createMyLocationElement } from './markerElement'
 import { MapControls } from './MapControls'
 import { DEFAULT_CENTER, NO_INSETS, type MapViewProps } from './types'
+import { useMyLocation, type MyPosition } from './useMyLocation'
 
 interface Props extends MapViewProps {
   onLoadError: (message: string) => void
@@ -14,6 +15,7 @@ export function KakaoMap({ pins, legs, theme, selectedPinId, onSelectPin, insets
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<kakao.maps.Map | null>(null)
   const [ready, setReady] = useState(false)
+  const me = useMyLocation()
 
   // 최신 콜백/값을 이벤트 핸들러에서 쓰기 위한 ref (effect 재실행 없이)
   const onSelectRef = useRef(onSelectPin)
@@ -131,6 +133,40 @@ export function KakaoMap({ pins, legs, theme, selectedPinId, onSelectPin, insets
     map.panBy(-(ins.left - ins.right) / 2, -(ins.top - ins.bottom) / 2)
   }, [ready, selectedPinId])
 
+  // 5) 내 위치 (파란 점 + 오차 범위)
+  useEffect(() => {
+    const map = mapRef.current
+    if (!ready || !map || !me.pos) return
+    const k = window.kakao!
+    const center = new k.maps.LatLng(me.pos.lat, me.pos.lng)
+    const circle = new k.maps.Circle({
+      center,
+      radius: Math.min(me.pos.accuracy, 500),
+      strokeWeight: 1,
+      strokeColor: '#3b82f6',
+      strokeOpacity: 0.4,
+      fillColor: '#3b82f6',
+      fillOpacity: 0.12,
+    })
+    const dot = new k.maps.CustomOverlay({ position: center, content: createMyLocationElement(), yAnchor: 0.5, xAnchor: 0.5, zIndex: 5 })
+    circle.setMap(map)
+    dot.setMap(map)
+    return () => {
+      circle.setMap(null)
+      dot.setMap(null)
+    }
+  }, [ready, me.pos])
+
+  const goToMe = () =>
+    me.locate((p: MyPosition) => {
+      const map = mapRef.current
+      if (!map) return
+      if (map.getLevel() > 4) map.setLevel(4)
+      const ins = insetsRef.current
+      map.setCenter(new window.kakao!.maps.LatLng(p.lat, p.lng))
+      map.panBy(-(ins.left - ins.right) / 2, -(ins.top - ins.bottom) / 2)
+    })
+
   return (
     <>
       {/* 테마 톤(필터)은 바깥 div 에 건다. 카카오가 지도 컨테이너의 class 를 건드릴 수 있어서. */}
@@ -143,7 +179,19 @@ export function KakaoMap({ pins, legs, theme, selectedPinId, onSelectPin, insets
           onZoomIn={() => mapRef.current?.setLevel(Math.max(1, mapRef.current.getLevel() - 1))}
           onZoomOut={() => mapRef.current?.setLevel(Math.min(14, mapRef.current.getLevel() + 1))}
           onFit={pins.length > 0 ? fitAll : undefined}
+          onLocate={goToMe}
+          locating={me.locating}
+          located={me.pos != null}
         />
+      )}
+      {me.error && (
+        <div
+          role="alert"
+          className="tm-float absolute left-1/2 z-40 w-max max-w-[calc(100%-32px)] -translate-x-1/2 rounded-2xl bg-gray-900/90 px-4 py-2.5 text-center text-sm font-medium text-white backdrop-blur"
+          style={{ top: insets.top + 12, marginLeft: (insets.left - insets.right) / 2 }}
+        >
+          {me.error}
+        </div>
       )}
     </>
   )

@@ -35,7 +35,8 @@ npm run dev                 # 3. 개발 서버 실행 → http://localhost:3000
 
 ### 자주 막히는 것
 
-- **화면이 바뀐 코드를 반영하지 않을 때** (특히 `app/globals.css`): 개발 서버를 끄고 `rm -rf .next` 후 다시 `npm run dev`.
+- **화면이 이상하게 옛날 상태로 보일 때**: 개발 서버를 끄고 `rm -rf .next` 후 다시 `npm run dev`.
+- **내 위치 버튼이 안 될 때**: 브라우저 주소창 왼쪽 아이콘에서 위치 권한을 허용하세요. (`localhost` 또는 `https` 에서만 동작)
 - **데이터 초기화**: 지금은 브라우저 localStorage 에 저장됩니다. 개발자도구 → Application → Local Storage → `the-map:mock-db:v1` 삭제.
 
 ### 명령어

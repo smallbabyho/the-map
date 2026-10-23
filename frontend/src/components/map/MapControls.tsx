@@ -1,6 +1,6 @@
 'use client'
 
-import { FitIcon, MinusIcon, PlusIcon } from '../icons'
+import { FitIcon, LocateIcon, MinusIcon, PlusIcon } from '../icons'
 import type { MapInsets } from './types'
 
 interface Props {
@@ -8,10 +8,13 @@ interface Props {
   onZoomIn?: () => void
   onZoomOut?: () => void
   onFit?: () => void
+  onLocate?: () => void
+  locating?: boolean
+  located?: boolean
 }
 
 /** 지도 오른쪽 아래에 떠 있는 확대/축소/전체보기 버튼 */
-export function MapControls({ insets, onZoomIn, onZoomOut, onFit }: Props) {
+export function MapControls({ insets, onZoomIn, onZoomOut, onFit, onLocate, locating, located }: Props) {
   const btn =
     'grid size-10 place-items-center text-gray-700 transition hover:bg-gray-50 active:bg-gray-100 disabled:opacity-40'
   return (
@@ -20,6 +23,18 @@ export function MapControls({ insets, onZoomIn, onZoomOut, onFit }: Props) {
       className="absolute right-3 top-[68px] z-10 flex flex-col gap-2 md:top-auto md:bottom-(--ctl-bottom)"
       style={{ ['--ctl-bottom' as string]: `${insets.bottom + 16}px` }}
     >
+      {onLocate && (
+        <button
+          type="button"
+          onClick={onLocate}
+          disabled={locating}
+          className={`tm-float rounded-xl bg-white ${btn} ${located ? 'text-blue-600' : ''}`}
+          aria-label="내 위치"
+          title="내 위치"
+        >
+          <LocateIcon size={18} className={locating ? 'animate-pulse' : ''} />
+        </button>
+      )}
       {onFit && (
         <button type="button" onClick={onFit} className={`tm-float rounded-xl bg-white ${btn}`} aria-label="핀 전체 보기" title="핀 전체 보기">
           <FitIcon size={18} />

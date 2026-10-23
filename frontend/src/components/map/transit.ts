@@ -73,7 +73,7 @@ interface OdsaySubPath {
 interface OdsayResponse {
   result?: {
     path?: {
-      info: { totalTime: number; payment?: number; busTransitCount?: number; subwayTransitCount?: number; totalDistance?: number }
+      info: { totalTime: number; payment?: number; busTransitCount?: number; subwayTransitCount?: number; totalDistance?: number; mapObj?: string }
       subPath: OdsaySubPath[]
     }[]
   }
@@ -83,8 +83,23 @@ interface OdsayResponse {
 /** "수도권 2호선" → "2호선" */
 const shortLine = (name: string) => name.replace(/^(수도권|부산|대구|광주|대전)\s*/, '')
 
-/** ODsay 응답 → 화면용 정보. 경로가 없으면 null */
-export function parseOdsay(data: OdsayResponse, from: LatLngLike, to: LatLngLike): TransitResult | null {
+interface OdsayLaneResponse {
+  result?: { lane?: { class: number; section: { graphPos: { x: number; y: number }[] }[] }[] }
+  error?: unknown
+}
+
+/** loadLane 응답 → 타는 구간(버스·지하철)별 실제 노선 모양 (도로·선로를 따라감), 타는 순서대로 */
+export function parseLanes(data: OdsayLaneResponse): LatLngLike[][] | null {
+  const lanes = data.result?.lane
+  if (!lanes?.length) return null
+  return lanes.map((l) => l.section.flatMap((s) => s.graphPos.map((g) => ({ lat: g.y, lng: g.x }))))
+}
+
+/**
+ * ODsay 응답 → 화면용 정보. 경로가 없으면 null.
+ * lanes(loadLane 결과)가 있으면 버스·지하철 선을 실제 노선 모양으로, 없으면 정류장을 이은 선으로.
+ */
+export function parseOdsay(data: OdsayResponse, from: LatLngLike, to: LatLngLike, lanes?: LatLngLike[][] | null): TransitResult | null {
   const best = data.result?.path?.[0]
   if (!best) return null
   const subs = best.subPath
@@ -92,6 +107,11 @@ export function parseOdsay(data: OdsayResponse, from: LatLngLike, to: LatLngLike
   // 타는 구간의 시작/끝 좌표 (걷기 구간은 좌표가 없어서 앞뒤 구간에서 가져온다)
   const startOf = (s: OdsaySubPath): LatLngLike | null => (s.startY != null && s.startX != null ? { lat: +s.startY, lng: +s.startX } : null)
   const endOf = (s: OdsaySubPath): LatLngLike | null => (s.endY != null && s.endX != null ? { lat: +s.endY, lng: +s.endX } : null)
+
+  // 타는 구간 수와 노선 모양 수가 같을 때만 순서대로 맞춰 쓴다
+  const rideCount = subs.filter((s) => s.trafficType !== 3).length
+  const shapes = lanes && lanes.length === rideCount ? lanes : null
+  let ride = 0
 
   const steps: TransitStep[] = subs.map((s, i) => {
     if (s.trafficType === 3) {
@@ -101,7 +121,8 @@ export function parseOdsay(data: OdsayResponse, from: LatLngLike, to: LatLngLike
     }
     const lanes = s.lane ?? []
     const stations = s.passStopList?.stations.map((st) => ({ lat: +st.y, lng: +st.x })) ?? []
-    const path = stations.length >= 2 ? stations : [startOf(s) ?? from, endOf(s) ?? to]
+    const shape = shapes?.[ride++]
+    const path = shape && shape.length >= 2 ? shape : stations.length >= 2 ? stations : [startOf(s) ?? from, endOf(s) ?? to]
     if (s.trafficType === 1) {
       const lane = lanes[0]
       return {
@@ -154,5 +175,16 @@ export async function searchTransit(from: LatLngLike, to: LatLngLike): Promise<T
   if (!res.ok) throw new Error(`대중교통 길찾기 실패 (${res.status})`)
   const data = (await res.json()) as OdsayResponse
   if (data.error) return null
-  return parseOdsay(data, from, to)
+  const mapObj = data.result?.path?.[0]?.info.mapObj
+  const lanes = mapObj ? await loadLanes(mapObj).catch(() => null) : null
+  return parseOdsay(data, from, to, lanes)
+}
+
+/** 노선 실제 모양 (실패하면 null → 정류장을 이은 선으로 대신) */
+async function loadLanes(mapObj: string): Promise<LatLngLike[][] | null> {
+  const q = new URLSearchParams({ mapObject: `0:0@${mapObj}`, apiKey: KEY })
+  const res = await fetch(`https://api.odsay.com/v1/api/loadLane?${q}`)
+  if (!res.ok) return null
+  const data = (await res.json()) as OdsayLaneResponse
+  return data.error ? null : parseLanes(data)
 }

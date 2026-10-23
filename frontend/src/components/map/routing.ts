@@ -82,7 +82,21 @@ async function fetchRoad(from: LatLngLike, to: LatLngLike, mode: Exclude<TravelM
 async function fetchTransit(from: LatLngLike, to: LatLngLike): Promise<Route> {
   const r = await searchTransit(from, to)
   if (!r) return estimate(from, to, 'transit')
-  return { path: r.path, distanceM: r.distanceM, durationMin: Math.max(1, r.durationMin), estimated: false, transit: r.info }
+  // 걷는 부분(정류장·역까지)도 실제 길을 따라가게. 실패하면 직선 그대로.
+  const steps = await Promise.all(
+    r.info.steps.map(async (s) => {
+      if (s.kind !== 'walk' || s.distanceM <= 0) return s
+      const walk = await fetchRoad(s.path[0], s.path[s.path.length - 1], 'walk').catch(() => null)
+      return walk ? { ...s, path: walk.path } : s
+    }),
+  )
+  return {
+    path: [from, ...steps.flatMap((s) => s.path), to],
+    distanceM: r.distanceM,
+    durationMin: Math.max(1, r.durationMin),
+    estimated: false,
+    transit: { ...r.info, steps },
+  }
 }
 
 // 같은 구간은 한 번만 요청 (지도 · 목록 · 저장이 같은 결과를 공유)

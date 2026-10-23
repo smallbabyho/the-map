@@ -10,7 +10,7 @@ import { PinList } from '../components/editor/PinList'
 import { PlaceSearchBox } from '../components/editor/PlaceSearchBox'
 import { ThemePicker } from '../components/editor/ThemePicker'
 import { useMapDraft } from '../components/editor/useMapDraft'
-import { CheckIcon, ChevronLeftIcon, GlobeIcon, LockIcon, PinIcon } from '../components/icons'
+import { CheckIcon, ChevronLeftIcon, ChevronRightIcon, GlobeIcon, LockIcon, PinIcon } from '../components/icons'
 import { MapView, type MapInsets } from '../components/map'
 import { getTheme, themeVars } from '../components/themes'
 
@@ -260,6 +260,18 @@ export function MapEditorPage() {
               {map.isPublic ? '공개' : '비공개'}
             </button>
           </div>
+
+          <Link
+            href={`/meetups/new?mapId=${map.id}`}
+            onClick={(e) => {
+              if (draft.dirty && !window.confirm('저장하지 않은 변경이 있어요. 저장하지 않고 모임 만들기로 갈까요?')) e.preventDefault()
+            }}
+            className="flex items-center gap-2 rounded-xl bg-(--c-accent)/10 px-3 py-2 text-[13px] font-semibold text-(--c-accent) transition hover:bg-(--c-accent)/15"
+          >
+            <span aria-hidden>🚶</span>
+            이 지도로 성지순례 모집하기
+            <ChevronRightIcon size={14} className="ml-auto" />
+          </Link>
 
           {/* 모바일에서는 테마를 패널 안에 */}
           <div className="tm-scroll -mx-4 overflow-x-auto px-4 md:hidden">

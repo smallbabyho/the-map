@@ -8,36 +8,67 @@ import type {
   LegInput,
   MapDetail,
   MapInput,
+  MapRankingEntry,
+  Meetup,
+  MeetupFilter,
+  MeetupInput,
+  MeetupStatus,
+  MeetupSummary,
   Pin,
   PinInput,
   Place,
+  PublicMapSummary,
   User,
 } from '../types'
-import { mockCurrentUser } from '../auth/mock'
+import { mockCurrentUser, mockUserById } from '../auth/mock'
 
 const STORAGE_KEY = 'the-map:mock-db:v1'
+
+interface MemberRow {
+  meetupId: string
+  userId: string
+  joinedAt: string
+}
+/** 지도 사용 기록 (월간 순위용): 누가 언제 이 지도를 사용했는지 */
+interface UseRow {
+  mapId: string
+  userId: string
+  usedAt: string
+  kind: 'copy' | 'meetup'
+}
 
 interface Db {
   maps: ConceptMap[]
   places: Place[]
   pins: (Omit<Pin, 'place'> & { placeId: string })[]
   legs: Leg[]
+  meetups: Meetup[]
+  members: MemberRow[]
+  uses: UseRow[]
+  seeded?: boolean
 }
 
 function emptyDb(): Db {
-  return { maps: [], places: [], pins: [], legs: [] }
+  return { maps: [], places: [], pins: [], legs: [], meetups: [], members: [], uses: [] }
 }
 
 function load(): Db {
+  let db = emptyDb()
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return emptyDb()
-    const parsed = JSON.parse(raw) as Partial<Db>
-    return { ...emptyDb(), ...parsed }
+    if (raw) db = { ...emptyDb(), ...(JSON.parse(raw) as Partial<Db>) }
   } catch {
     // 저장된 값이 깨졌거나 localStorage 를 못 쓰는 환경이면 빈 DB 로 시작
-    return emptyDb()
   }
+  if (!db.seeded) {
+    seed(db)
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(db))
+    } catch {
+      // 저장 실패해도 화면은 동작
+    }
+  }
+  return db
 }
 
 function persist(db: Db) {
@@ -322,4 +353,388 @@ function resizeToDataUrl(file: File, maxSide: number, quality: number): Promise<
     }
     img.src = url
   })
+}
+
+// ===========================================================================
+// 성지순례 (모임)
+// ===========================================================================
+
+function toMeetupSummary(db: Db, m: Meetup): MeetupSummary {
+  const map = db.maps.find((x) => x.id === m.mapId)
+  const members = db.members
+    .filter((r) => r.meetupId === m.id)
+    .sort((a, b) => a.joinedAt.localeCompare(b.joinedAt))
+    .map((r) => ({ userId: r.userId, nickname: mockUserById(r.userId).nickname, joinedAt: r.joinedAt }))
+  return {
+    ...m,
+    host: mockUserById(m.hostId),
+    members,
+    map: {
+      id: m.mapId,
+      title: map?.title || '삭제된 지도',
+      theme: map?.theme ?? 'default',
+      pinCount: db.pins.filter((p) => p.mapId === m.mapId).length,
+    },
+  }
+}
+
+function recordUse(db: Db, mapId: string, userId: string, kind: UseRow['kind']) {
+  const map = db.maps.find((m) => m.id === mapId)
+  if (!map || map.ownerId === userId) return // 내 지도를 내가 쓰는 건 세지 않음
+  db.uses.push({ mapId, userId, usedAt: now(), kind })
+}
+
+/**
+ * 성지순례 모임 목록 (가까운 날짜 순, 취소된 모임 제외).
+ * filter: 'all' 전체 · 'joined' 내가 참여한 · 'hosting' 내가 연
+ *
+ * @example
+ * const list = await getMeetups('joined')
+ */
+export async function getMeetups(filter: MeetupFilter = 'all'): Promise<MeetupSummary[]> {
+  await tick()
+  const db = load()
+  const me = mockCurrentUser()
+  if (filter !== 'all' && !me) return []
+  return db.meetups
+    .filter((m) => m.status !== 'canceled' || m.hostId === me?.id)
+    .filter((m) => {
+      if (filter === 'hosting') return m.hostId === me!.id
+      if (filter === 'joined') return db.members.some((r) => r.meetupId === m.id && r.userId === me!.id)
+      return true
+    })
+    .map((m) => toMeetupSummary(db, m))
+    .sort((a, b) => a.meetAt.localeCompare(b.meetAt))
+}
+
+/**
+ * 모임 1개 + 순례할 지도. 없으면 null.
+ *
+ * @example
+ * const res = await getMeetup(id)
+ * res?.meetup.members; res?.mapDetail.pins
+ */
+export async function getMeetup(meetupId: string): Promise<{ meetup: MeetupSummary; mapDetail: MapDetail | null } | null> {
+  await tick()
+  const db = load()
+  const m = db.meetups.find((x) => x.id === meetupId)
+  if (!m) return null
+  const map = db.maps.find((x) => x.id === m.mapId)
+  // 모임 지도는 비공개여도 모임 화면에서는 보여준다
+  const mapDetail: MapDetail | null = map
+    ? {
+        map,
+        pins: db.pins.filter((p) => p.mapId === map.id).sort((a, b) => a.order - b.order).map((p) => toPin(db, p)),
+        legs: db.legs.filter((l) => l.mapId === map.id),
+      }
+    : null
+  return { meetup: toMeetupSummary(db, m), mapDetail }
+}
+
+/**
+ * 모임 만들기(id 없음) / 고치기(id 있음, 주최자만). 주최자는 자동으로 참여자가 된다.
+ * 내 지도뿐 아니라 남의 공개 지도로도 모임을 열 수 있다 (그 지도의 '사용'으로 기록).
+ *
+ * @example
+ * const m = await saveMeetup({ mapId, title: '성수 빵지순례', description: '', meetAt: '2026-11-01T11:00',
+ *   meetPoint: '성수역 3번 출구', capacity: 6 })
+ */
+export async function saveMeetup(input: MeetupInput): Promise<MeetupSummary> {
+  await tick()
+  const db = load()
+  const me = requireUser()
+  const title = input.title.trim()
+  if (!title) throw new Error('모임 이름을 입력해 주세요.')
+  if (!input.meetAt || Number.isNaN(Date.parse(input.meetAt))) throw new Error('모이는 날짜와 시간을 정해 주세요.')
+  if (Date.parse(input.meetAt) < Date.now()) throw new Error('지난 시간으로는 모임을 만들 수 없어요.')
+  if (!input.meetPoint.trim()) throw new Error('모이는 곳을 입력해 주세요.')
+  const capacity = Math.round(input.capacity)
+  if (!(capacity >= 2 && capacity <= 50)) throw new Error('정원은 2명에서 50명 사이로 정해 주세요.')
+  const map = db.maps.find((x) => x.id === input.mapId)
+  if (!map || (!map.isPublic && map.ownerId !== me.id)) throw new Error('이 지도로는 모임을 열 수 없어요.')
+
+  const fields = {
+    mapId: input.mapId,
+    title,
+    description: input.description.trim(),
+    meetAt: new Date(input.meetAt).toISOString(),
+    meetPoint: input.meetPoint.trim(),
+    capacity,
+  }
+  let meetup: Meetup
+  if (input.id) {
+    const found = db.meetups.find((x) => x.id === input.id)
+    if (!found) throw new Error('모임을 찾을 수 없어요.')
+    if (found.hostId !== me.id) throw new Error('주최자만 고칠 수 있어요.')
+    const count = db.members.filter((r) => r.meetupId === found.id).length
+    if (capacity < count) throw new Error(`이미 ${count}명이 참여했어요. 정원을 ${count}명 이상으로 정해 주세요.`)
+    Object.assign(found, fields)
+    meetup = found
+  } else {
+    meetup = { id: newId(), hostId: me.id, status: 'open', createdAt: now(), ...fields }
+    db.meetups.push(meetup)
+    db.members.push({ meetupId: meetup.id, userId: me.id, joinedAt: now() })
+    recordUse(db, map.id, me.id, 'meetup')
+  }
+  persist(db)
+  return toMeetupSummary(db, meetup)
+}
+
+/**
+ * 모임 참여. 모집 중이고 자리가 있어야 한다.
+ *
+ * @example
+ * await joinMeetup(id) // 실패 시 '정원이 다 찼어요.' 등
+ */
+export async function joinMeetup(meetupId: string): Promise<MeetupSummary> {
+  await tick()
+  const db = load()
+  const me = requireUser()
+  const m = db.meetups.find((x) => x.id === meetupId)
+  if (!m) throw new Error('모임을 찾을 수 없어요.')
+  if (m.status === 'canceled') throw new Error('취소된 모임이에요.')
+  if (m.status === 'closed' || Date.parse(m.meetAt) < Date.now()) throw new Error('모집이 끝난 모임이에요.')
+  const members = db.members.filter((r) => r.meetupId === m.id)
+  if (members.some((r) => r.userId === me.id)) throw new Error('이미 참여한 모임이에요.')
+  if (members.length >= m.capacity) throw new Error('정원이 다 찼어요.')
+  db.members.push({ meetupId: m.id, userId: me.id, joinedAt: now() })
+  recordUse(db, m.mapId, me.id, 'meetup')
+  persist(db)
+  return toMeetupSummary(db, m)
+}
+
+/**
+ * 참여 취소. 주최자는 나갈 수 없다 (모임 취소를 쓴다).
+ *
+ * @example
+ * await leaveMeetup(id)
+ */
+export async function leaveMeetup(meetupId: string): Promise<MeetupSummary> {
+  await tick()
+  const db = load()
+  const me = requireUser()
+  const m = db.meetups.find((x) => x.id === meetupId)
+  if (!m) throw new Error('모임을 찾을 수 없어요.')
+  if (m.hostId === me.id) throw new Error('주최자는 나갈 수 없어요. 모임을 취소해 주세요.')
+  db.members = db.members.filter((r) => !(r.meetupId === m.id && r.userId === me.id))
+  persist(db)
+  return toMeetupSummary(db, m)
+}
+
+/**
+ * 모집 상태 바꾸기 (주최자만): 'open' 모집 중 · 'closed' 모집 마감 · 'canceled' 모임 취소
+ *
+ * @example
+ * await setMeetupStatus(id, 'closed')
+ */
+export async function setMeetupStatus(meetupId: string, status: MeetupStatus): Promise<MeetupSummary> {
+  await tick()
+  const db = load()
+  const me = requireUser()
+  const m = db.meetups.find((x) => x.id === meetupId)
+  if (!m) throw new Error('모임을 찾을 수 없어요.')
+  if (m.hostId !== me.id && me.role !== 'admin') throw new Error('주최자만 바꿀 수 있어요.')
+  m.status = status
+  persist(db)
+  return toMeetupSummary(db, m)
+}
+
+// ===========================================================================
+// 공개 지도 · 가져오기 · 월간 순위
+// ===========================================================================
+
+function toPublicSummary(db: Db, map: ConceptMap): PublicMapSummary {
+  return { map, owner: mockUserById(map.ownerId), pinCount: db.pins.filter((p) => p.mapId === map.id).length }
+}
+
+/**
+ * 지도 주인 정보 (읽기 전용 화면에서 "누구의 지도" 표시용)
+ *
+ * @example
+ * const owner = await getUser(map.ownerId)
+ */
+export async function getUser(userId: string): Promise<User> {
+  await tick()
+  return mockUserById(userId)
+}
+
+/**
+ * 남의 공개 지도를 내 지도로 복사 ('사용'으로 기록되어 순위에 반영). 새 지도를 돌려준다.
+ *
+ * @example
+ * const mine = await copyMap(publicMapId); router.push(`/maps/${mine.id}`)
+ */
+export async function copyMap(mapId: string): Promise<ConceptMap> {
+  await tick()
+  const db = load()
+  const me = requireUser()
+  const src = db.maps.find((m) => m.id === mapId)
+  if (!src || (!src.isPublic && src.ownerId !== me.id)) throw new Error('가져올 수 없는 지도예요.')
+  const copy: ConceptMap = {
+    id: newId(),
+    ownerId: me.id,
+    title: src.ownerId === me.id ? `${src.title} (복사본)` : src.title,
+    theme: src.theme,
+    isPublic: false,
+    createdAt: now(),
+    updatedAt: now(),
+  }
+  db.maps.push(copy)
+  const idMap = new Map<string, string>()
+  for (const p of db.pins.filter((x) => x.mapId === src.id)) {
+    const id = newId()
+    idMap.set(p.id, id)
+    db.pins.push({ ...p, id, mapId: copy.id })
+  }
+  for (const l of db.legs.filter((x) => x.mapId === src.id)) {
+    const from = idMap.get(l.fromPinId)
+    const to = idMap.get(l.toPinId)
+    if (from && to) db.legs.push({ ...l, id: newId(), mapId: copy.id, fromPinId: from, toPinId: to })
+  }
+  recordUse(db, src.id, me.id, 'copy')
+  persist(db)
+  return copy
+}
+
+/**
+ * 월간 지도 순위: 그 달에 공개 지도를 '사용'한 사람 수(주인 제외, 한 사람은 한 번) 순.
+ * 사용 = 내 지도로 가져오기 / 그 지도로 열린 성지순례 참여·개설.
+ * month: 'YYYY-MM' (기본 이번 달)
+ *
+ * @example
+ * const top = await getMonthlyRanking('2026-10') // [{ rank: 1, users: 12, map, owner, pinCount }, …]
+ */
+export async function getMonthlyRanking(month?: string, limit = 30): Promise<MapRankingEntry[]> {
+  await tick()
+  const db = load()
+  const ym = month ?? new Date().toISOString().slice(0, 7)
+  const usersByMap = new Map<string, Set<string>>()
+  for (const u of db.uses) {
+    if (!sameMonth(u.usedAt, ym)) continue
+    const set = usersByMap.get(u.mapId) ?? new Set<string>()
+    set.add(u.userId)
+    usersByMap.set(u.mapId, set)
+  }
+  const rows = [...usersByMap.entries()]
+    .map(([mapId, set]) => ({ map: db.maps.find((m) => m.id === mapId), users: set.size }))
+    .filter((r): r is { map: ConceptMap; users: number } => !!r.map && r.map.isPublic && r.users > 0)
+    .sort((a, b) => b.users - a.users || a.map.title.localeCompare(b.map.title))
+    .slice(0, limit)
+  // 사용자 수가 같으면 같은 순위
+  let rank = 0
+  return rows.map((r, i) => {
+    if (i === 0 || r.users !== rows[i - 1].users) rank = i + 1
+    return { ...toPublicSummary(db, r.map), rank, users: r.users }
+  })
+}
+
+/** 로컬 시간 기준 'YYYY-MM' 비교 */
+function sameMonth(iso: string, ym: string) {
+  const d = new Date(iso)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` === ym
+}
+
+// ===========================================================================
+// 샘플 데이터 (처음 한 번): 다른 사용자들의 공개 지도 · 모임 · 사용 기록
+// ===========================================================================
+
+function seed(db: Db) {
+  db.seeded = true
+  const day = 864e5
+  const at = (days: number, hour = 12) => {
+    const d = new Date(Date.now() + days * day)
+    d.setHours(hour, 0, 0, 0)
+    return d.toISOString()
+  }
+  const place = (externalId: string, name: string, lat: number, lng: number): Place => {
+    let p = db.places.find((x) => x.externalId === externalId)
+    if (!p) {
+      p = { id: newId(), externalId, name, lat, lng }
+      db.places.push(p)
+    }
+    return p
+  }
+  const makeMap = (
+    ownerId: string,
+    title: string,
+    theme: ConceptMap['theme'],
+    stops: { place: Place; icon: string; color: string; memo?: string }[],
+    modes: Leg['mode'][],
+  ) => {
+    const map: ConceptMap = { id: newId(), ownerId, title, theme, isPublic: true, createdAt: at(-30), updatedAt: at(-2) }
+    db.maps.push(map)
+    const ids = stops.map((s, i) => {
+      const id = newId()
+      db.pins.push({ id, mapId: map.id, placeId: s.place.id, order: i, icon: s.icon, color: s.color, memo: s.memo ?? '', photoUrl: null, visitedAt: null })
+      return id
+    })
+    ids.slice(1).forEach((to, i) =>
+      db.legs.push({ id: newId(), mapId: map.id, fromPinId: ids[i], toPinId: to, mode: modes[i] ?? 'walk', durationMin: 10 + i * 5, isManual: true }),
+    )
+    return map
+  }
+
+  const seongsuBakery = place('sample-16', '성수 베이커리 카페', 37.542, 127.056)
+  const seongsuCafe = place('sample-1', '성수 카페거리', 37.5446, 127.0559)
+  const seoulForest = place('sample-2', '서울숲', 37.5444, 127.0374)
+  const gyeongbok = place('sample-6', '경복궁', 37.5796, 126.977)
+  const bukchon = place('sample-7', '북촌 한옥마을', 37.5826, 126.9831)
+  const ikseon = place('sample-5', '익선동 한옥거리', 37.5741, 126.9895)
+  const hannam = place('sample-12', '한남동 카페 골목', 37.5378, 127.001)
+  const itaewon = place('sample-9', '이태원 베이커리 골목', 37.5345, 126.9946)
+  const mangwon = place('sample-4', '망원시장', 37.556, 126.906)
+  const yeonnam = place('sample-3', '연남동 경의선숲길', 37.56, 126.923)
+
+  const bread = makeMap('u-bread', '성수 빵지순례 🥐', 'pastel', [
+    { place: seongsuBakery, icon: '🍞', color: '#f9a8d4', memo: '소금빵 필수' },
+    { place: seongsuCafe, icon: '☕', color: '#a5b4fc' },
+    { place: seoulForest, icon: '🌳', color: '#86efac', memo: '빵 들고 피크닉' },
+  ], ['walk', 'walk'])
+  const drama = makeMap('u-drama', '도깨비 촬영지 투어', 'vintage', [
+    { place: gyeongbok, icon: '🏛️', color: '#b45309' },
+    { place: bukchon, icon: '🎬', color: '#7c2d12', memo: '2화 그 골목' },
+    { place: ikseon, icon: '📸', color: '#4d7c0f' },
+  ], ['walk', 'bus'])
+  const cafe = makeMap('u-cafe', '한남·이태원 카페 산책', 'default', [
+    { place: hannam, icon: '☕', color: '#f97316' },
+    { place: itaewon, icon: '🍰', color: '#ef4444' },
+  ], ['walk'])
+  const mangwonMap = makeMap('u-cafe', '망원·연남 먹방 코스', 'dark', [
+    { place: mangwon, icon: '🍜', color: '#facc15' },
+    { place: yeonnam, icon: '🍺', color: '#22d3ee' },
+  ], ['walk'])
+
+  const meetup = (mapId: string, hostId: string, title: string, description: string, meetAt: string, meetPoint: string, capacity: number, memberIds: string[], status: MeetupStatus = 'open') => {
+    const m: Meetup = { id: newId(), mapId, hostId, title, description, meetAt, meetPoint, capacity, status, createdAt: at(-5) }
+    db.meetups.push(m)
+    ;[hostId, ...memberIds].forEach((userId, i) => db.members.push({ meetupId: m.id, userId, joinedAt: at(-5 + i * 0.3) }))
+  }
+  meetup(bread.id, 'u-bread', '성수 빵지순례 같이 돌아요 🥐', '오픈런부터 서울숲 피크닉까지! 빵 좋아하시는 분 누구나 환영해요. 각자 먹고 싶은 빵 하나씩 사서 나눠 먹어요 🥐', at(3, 11), '성수역 3번 출구', 6, ['u-drama', 'u-cafe'])
+  meetup(drama.id, 'u-drama', '도깨비 촬영지 정주행 투어', '경복궁에서 시작해서 북촌, 익선동까지 걸어요. 드라마 장면 사진 들고 오시면 똑같이 찍어 드려요 📸', at(8, 14), '경복궁역 5번 출구', 4, ['u-bread', 'u-cafe'])
+  meetup(cafe.id, 'u-cafe', '한남동 카페 3곳 도장깨기', '커피 3잔 각오하고 오세요. 디카페인도 있어요!', at(1, 15), '한강진역 1번 출구', 3, ['u-bread', 'u-drama'], 'closed')
+  meetup(mangwonMap.id, 'u-cafe', '망원시장 먹방 번개', '시장 한 바퀴 돌고 연남동에서 마무리', at(12, 18), '망원역 2번 출구', 8, [])
+
+  // 사용 기록: 이번 달과 지난 달 (가상 사용자 포함)
+  const thisMonth = (d: number) => {
+    const t = new Date()
+    t.setDate(Math.max(1, Math.min(t.getDate(), 1 + d)))
+    return t.toISOString()
+  }
+  const lastMonth = (d: number) => {
+    const t = new Date()
+    t.setDate(1)
+    t.setMonth(t.getMonth() - 1)
+    t.setDate(1 + d)
+    return t.toISOString()
+  }
+  const addUses = (mapId: string, count: number, when: (i: number) => string) => {
+    for (let i = 0; i < count; i++) db.uses.push({ mapId, userId: `u-guest-${i}`, usedAt: when(i % 20), kind: i % 3 === 0 ? 'meetup' : 'copy' })
+  }
+  addUses(bread.id, 14, thisMonth)
+  addUses(drama.id, 9, thisMonth)
+  addUses(cafe.id, 9, thisMonth)
+  addUses(mangwonMap.id, 4, thisMonth)
+  addUses(drama.id, 17, lastMonth)
+  addUses(bread.id, 11, lastMonth)
+  addUses(cafe.id, 6, lastMonth)
 }

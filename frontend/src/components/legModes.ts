@@ -1,10 +1,14 @@
 import type { TravelMode } from '../types'
 
-export const LEG_MODES: { id: TravelMode; label: string; icon: string }[] = [
-  { id: 'walk', label: '도보', icon: '🚶' },
-  { id: 'bus', label: '버스', icon: '🚌' },
-  { id: 'subway', label: '지하철', icon: '🚇' },
-  { id: 'car', label: '자동차', icon: '🚗' },
+/**
+ * 이동수단 4가지. line 은 지도 경로선 모양.
+ * kakao: 카카오 Polyline strokeStyle / svg: 미리보기 지도 stroke-dasharray
+ */
+export const LEG_MODES: { id: TravelMode; label: string; icon: string; line: { kakao: string; svg?: string } }[] = [
+  { id: 'walk', label: '도보', icon: '🚶', line: { kakao: 'shortdot', svg: '0.1 9' } },
+  { id: 'transit', label: '대중교통', icon: '🚇', line: { kakao: 'shortdash', svg: '10 7' } },
+  { id: 'car', label: '자동차', icon: '🚗', line: { kakao: 'solid' } },
+  { id: 'bike', label: '자전거', icon: '🚲', line: { kakao: 'dash', svg: '16 7' } },
 ]
 
 export function modeMeta(mode: TravelMode) {

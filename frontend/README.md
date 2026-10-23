@@ -96,3 +96,4 @@ src/
 - **`src/pages` 가 아니라 `src/views` 인 이유**: Next 는 `src/pages` 를 Pages Router 로 인식해 `app/` 과 같이 있으면 빌드가 실패합니다.
 - **백엔드 연결**: `src/db/index.ts`(Supabase 버전)가 준비되면 `src/db/api.ts` 의 `'./mock'` 한 줄만 `'./index'` 로 바꾸면 됩니다.
 - **지도 교체 (예: Mapbox)**: `src/components/map/` 안만 바꾸면 됩니다. 다른 곳은 `MapView`, `searchPlaces` 만 씁니다.
+- **길찾기 (핀 사이 경로)**: `src/components/map/routing.ts`. 도보·자전거·자동차는 OpenStreetMap 공개 길찾기 서버(키 없음, 개발용), 대중교통은 ODsay(`transit.ts`, `.env.local` 의 `NEXT_PUBLIC_ODSAY_KEY`)로 버스 번호·지하철 노선·환승·요금까지 보여주고, 키가 없으면 직선거리 예상치입니다. 도로 길찾기를 카카오모빌리티 등으로 바꿀 땐 `fetchRoad()` 만 고치면 됩니다.

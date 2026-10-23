@@ -1,6 +1,6 @@
 import type { Pin } from '../../types'
 import { legLabel } from '../legModes'
-import type { MapLegView } from './types'
+import type { Segment } from './segments'
 
 // 카카오 CustomOverlay 에 넣을 DOM 요소. 모양은 app/globals.css 의 .tm-marker 참고.
 // 이름 등 사용자 입력은 textContent 로만 넣는다 (HTML 주입 방지).
@@ -33,7 +33,7 @@ export function createMarkerElement(pin: Pin, index: number, selected: boolean, 
   return el
 }
 
-export function createLegLabelElement(leg: MapLegView, routeColor: string): HTMLElement {
+export function createLegLabelElement(leg: Pick<Segment, 'mode' | 'durationMin'>, routeColor: string): HTMLElement {
   const el = document.createElement('div')
   el.className = 'tm-leg-label tm-overlay'
   el.style.setProperty('--route', routeColor)

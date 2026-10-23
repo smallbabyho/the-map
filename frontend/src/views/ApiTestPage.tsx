@@ -70,7 +70,7 @@ const ENDPOINTS: Endpoint[] = [
   { group: '핀·구간', name: 'deletePin', method: 'DELETE', auth: 'login', desc: '핀 삭제 (연결된 구간 함께)', params: [ID('pinId')], run: (a) => api.deletePin(s(a.pinId)) },
   {
     group: '핀·구간', name: 'saveLeg', method: 'POST', auth: 'login', desc: '이동구간 생성/수정 (같은 from→to 면 덮어씀)',
-    params: [ID('mapId'), { name: 'legData', type: 'json', initial: JSON.stringify({ fromPinId: '', toPinId: '', mode: 'subway', durationMin: 15, isManual: true }, null, 2) }],
+    params: [ID('mapId'), { name: 'legData', type: 'json', initial: JSON.stringify({ fromPinId: '', toPinId: '', mode: 'transit', durationMin: 15, isManual: true }, null, 2) }],
     run: (a) => api.saveLeg(s(a.mapId), a.legData as Parameters<typeof api.saveLeg>[1]),
   },
   { group: '핀·구간', name: 'deleteLeg', method: 'DELETE', auth: 'login', desc: '이동구간 삭제', params: [ID('legId')], run: (a) => api.deleteLeg(s(a.legId)) },

@@ -63,6 +63,8 @@ function load(): Db {
   } catch {
     // 저장된 값이 깨졌거나 localStorage 를 못 쓰는 환경이면 빈 DB 로 시작
   }
+  // 예전 이동수단(버스·지하철)은 대중교통으로
+  for (const leg of db.legs) if ((leg.mode as string) === 'bus' || (leg.mode as string) === 'subway') leg.mode = 'transit'
   if (!db.seeded) {
     seed(db)
     try {
@@ -276,7 +278,7 @@ export async function deletePin(pinId: string): Promise<void> {
  * 핀 사이 이동구간 생성/수정. 같은 (fromPinId, toPinId) 구간이 있으면 덮어쓴다.
  *
  * @example
- * await saveLeg(mapId, { fromPinId: a.id, toPinId: b.id, mode: 'subway', durationMin: 15, isManual: true })
+ * await saveLeg(mapId, { fromPinId: a.id, toPinId: b.id, mode: 'transit', durationMin: 15, isManual: true })
  */
 export async function saveLeg(mapId: string, legData: LegInput): Promise<Leg> {
   await tick()
@@ -697,7 +699,7 @@ function seed(db: Db) {
     { place: gyeongbok, icon: '🏛️', color: '#b45309' },
     { place: bukchon, icon: '🎬', color: '#7c2d12', memo: '2화 그 골목' },
     { place: ikseon, icon: '📸', color: '#4d7c0f' },
-  ], ['walk', 'bus'])
+  ], ['walk', 'transit'])
   const cafe = makeMap('u-cafe', '한남·이태원 카페 산책', 'default', [
     { place: hannam, icon: '☕', color: '#f97316' },
     { place: itaewon, icon: '🍰', color: '#ef4444' },

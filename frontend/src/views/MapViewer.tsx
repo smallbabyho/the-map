@@ -8,13 +8,15 @@ import { AppRail } from '../components/AppRail'
 import { Avatar } from '../components/Avatar'
 import { ChevronLeftIcon, CopyIcon, UsersIcon } from '../components/icons'
 import { legLabel } from '../components/legModes'
-import { MapView, type MapInsets } from '../components/map'
+import { MapView, useRoutes, type MapInsets } from '../components/map'
 import { getTheme, themeVars } from '../components/themes'
+import { TransitSteps } from '../components/TransitSteps'
 import { copyMap, getUser } from '../db/api'
-import type { MapDetail, User } from '../types'
+import type { MapDetail, Pin, User } from '../types'
 
 const RAIL_W = 72
 const PANEL_W = 380
+const at = (p: Pin) => ({ lat: p.place.lat, lng: p.place.lng })
 
 /** 남의 공개 지도 (읽기 전용): 코스 보기 · 내 지도로 가져오기 · 성지순례 모집 */
 export function MapViewer({ detail }: { detail: MapDetail }) {
@@ -54,6 +56,16 @@ export function MapViewer({ detail }: { detail: MapDetail }) {
   const meetupHref = me ? `/meetups/new?mapId=${map.id}` : `/login?next=${encodeURIComponent(`/meetups/new?mapId=${map.id}`)}`
   const totalMin = legs.reduce((s, l) => s + (l.durationMin ?? 0), 0)
   const legAfter = (pinId: string) => legs.find((l) => l.fromPinId === pinId)
+  // 대중교통 구간의 버스·지하철 정보 (지도와 같은 길찾기 결과를 공유)
+  const transitLegs = pins.slice(1).flatMap((to, i) => {
+    const leg = legAfter(pins[i].id)
+    return leg?.mode === 'transit' && leg.toPinId === to.id ? [{ pinId: pins[i].id, from: at(pins[i]), to: at(to) }] : []
+  })
+  const { routeOf } = useRoutes(transitLegs.map((t) => ({ ...t, mode: 'transit' as const })))
+  const transitAfter = (pinId: string) => {
+    const t = transitLegs.find((x) => x.pinId === pinId)
+    return t ? routeOf(t.from, t.to, 'transit')?.transit : undefined
+  }
   const insets: MapInsets = desktop ? { top: 0, right: 0, bottom: 0, left: RAIL_W + PANEL_W } : { top: 0, right: 0, bottom: 0, left: 0 }
 
   return (
@@ -128,7 +140,10 @@ export function MapViewer({ detail }: { detail: MapDetail }) {
                   )}
                 </button>
                 {leg && i < pins.length - 1 && (
-                  <p className="ml-[27px] border-l-2 border-dotted border-(--c-border) py-1.5 pl-6 text-xs text-(--c-muted)">{legLabel(leg.mode, leg.durationMin)}</p>
+                  <div className="ml-[27px] border-l-2 border-dotted border-(--c-border) py-1.5 pl-6 text-xs text-(--c-muted)">
+                    {legLabel(leg.mode, leg.durationMin)}
+                    {transitAfter(p.id) && <TransitSteps info={transitAfter(p.id)!} className="mt-1.5 text-(--c-text)" />}
+                  </div>
                 )}
               </li>
             )

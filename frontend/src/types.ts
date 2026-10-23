@@ -2,7 +2,8 @@
 // DB 는 snake_case, 여기는 camelCase. 변환은 src/db 안에서만 한다.
 
 export type ThemeId = 'default' | 'pastel' | 'dark' | 'vintage'
-export type TravelMode = 'walk' | 'bus' | 'subway' | 'car'
+/** 이동수단: 도보 · 대중교통 · 자동차 · 자전거 */
+export type TravelMode = 'walk' | 'transit' | 'car' | 'bike'
 
 export type UserRole = 'user' | 'admin'
 

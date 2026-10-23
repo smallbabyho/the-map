@@ -6,9 +6,13 @@ import type { LatLngLike } from './routing'
 const KEY = (process.env.NEXT_PUBLIC_ODSAY_KEY ?? '').trim()
 export const hasTransitKey = KEY.length > 0
 
-export type TransitStepKind = 'walk' | 'bus' | 'subway'
+/**
+ * 단계 종류. walk: 걷기 / bus · subway: 시내 / train: 기차 / intercityBus: 고속·시외버스 / air: 비행기
+ * access: 장거리일 때 출발지 → 역·공항, 역·공항 → 도착지 이동 (ODsay 가 안 알려줘서 예상치)
+ */
+export type TransitStepKind = 'walk' | 'bus' | 'subway' | 'train' | 'intercityBus' | 'air' | 'access'
 
-/** 대중교통 구간 안의 한 단계: 걷기 / 버스 타기 / 지하철 타기 */
+/** 대중교통 구간 안의 한 단계 */
 export interface TransitStep {
   kind: TransitStepKind
   minutes: number
@@ -23,6 +27,8 @@ export interface TransitStep {
   /** 지나는 정류장 수 */
   stops?: number
   path: LatLngLike[]
+  /** 예상치 (access 단계) */
+  estimated?: boolean
 }
 
 export interface TransitInfo {
@@ -31,6 +37,19 @@ export interface TransitInfo {
   fare: number | null
   /** 환승 횟수 */
   transfers: number
+  /** 도시 간 이동(기차·고속버스·비행기)이면 true */
+  intercity: boolean
+}
+
+/** 단계 아이콘 */
+export const STEP_ICON: Record<TransitStepKind, string> = {
+  walk: '🚶',
+  bus: '🚌',
+  subway: '🚇',
+  train: '🚄',
+  intercityBus: '🚍',
+  air: '✈️',
+  access: '🚕',
 }
 
 export interface TransitResult {
@@ -49,6 +68,21 @@ const SUBWAY_COLORS: Record<number, string> = {
 const BUS_COLORS: Record<number, string> = { 11: '#3D5BAB', 12: '#5BB025', 13: '#F2B70A', 14: '#E60012', 4: '#E60012', 15: '#E60012', 3: '#53B332', 6: '#AA9872' }
 const DEFAULT_SUBWAY = '#6b7280'
 const DEFAULT_BUS = '#3D5BAB'
+const TRAIN_COLORS = { KTX: '#1B4C9C', SRT: '#6B2C5F', 일반열차: '#4B5563' }
+const INTERCITY_BUS_COLOR = '#7C3AED'
+const AIR_COLOR = '#0284C7'
+/** SRT 가 서는 수도권 역 (ODsay 는 KTX·SRT 를 구분해 주지 않아서 역으로 판단) */
+const SRT_STATIONS = ['수서', '동탄', '평택지제']
+
+/**
+ * 열차 이름. ODsay 의 trainType 은 믿기 어려워서 평균 속도로 고속열차인지 본다 (110km/h 이상).
+ * 서울→부산 402km/138분 = 175km/h → KTX, 수서 출발 → SRT
+ */
+function trainName(s: { distance: number; sectionTime: number; startName?: string; endName?: string }): keyof typeof TRAIN_COLORS {
+  const kmh = s.distance / 1000 / (s.sectionTime / 60)
+  if (kmh < 110) return '일반열차'
+  return SRT_STATIONS.includes(s.startName ?? '') || SRT_STATIONS.includes(s.endName ?? '') ? 'SRT' : 'KTX'
+}
 
 interface OdsayLane {
   name?: string
@@ -57,7 +91,8 @@ interface OdsayLane {
   subwayCode?: number
 }
 interface OdsaySubPath {
-  trafficType: 1 | 2 | 3
+  /** 1 지하철, 2 버스, 3 걷기, 4 기차, 5 고속버스, 6 시외버스, 7 비행기 */
+  trafficType: 1 | 2 | 3 | 4 | 5 | 6 | 7
   distance: number
   sectionTime: number
   stationCount?: number
@@ -73,7 +108,7 @@ interface OdsaySubPath {
 interface OdsayResponse {
   result?: {
     path?: {
-      info: { totalTime: number; payment?: number; busTransitCount?: number; subwayTransitCount?: number; totalDistance?: number; mapObj?: string }
+      info: { totalTime: number; payment?: number; totalPayment?: number; busTransitCount?: number; subwayTransitCount?: number; totalDistance?: number; mapObj?: string }
       subPath: OdsaySubPath[]
     }[]
   }
@@ -123,6 +158,16 @@ export function parseOdsay(data: OdsayResponse, from: LatLngLike, to: LatLngLike
     const stations = s.passStopList?.stations.map((st) => ({ lat: +st.y, lng: +st.x })) ?? []
     const shape = shapes?.[ride++]
     const path = shape && shape.length >= 2 ? shape : stations.length >= 2 ? stations : [startOf(s) ?? from, endOf(s) ?? to]
+    const common = { minutes: s.sectionTime, distanceM: s.distance, from: s.startName, to: s.endName, path }
+    // 도시 간: 기차 · 고속/시외버스 · 비행기 (노선 모양이 없어서 역끼리 직선)
+    if (s.trafficType === 4) {
+      const name = trainName(s)
+      return { kind: 'train', ...common, name, color: TRAIN_COLORS[name] }
+    }
+    if (s.trafficType === 5 || s.trafficType === 6) {
+      return { kind: 'intercityBus', ...common, name: s.trafficType === 5 ? '고속버스' : '시외버스', color: INTERCITY_BUS_COLOR }
+    }
+    if (s.trafficType === 7) return { kind: 'air', ...common, name: '비행기', color: AIR_COLOR }
     if (s.trafficType === 1) {
       const lane = lanes[0]
       return {
@@ -153,8 +198,9 @@ export function parseOdsay(data: OdsayResponse, from: LatLngLike, to: LatLngLike
   })
 
   const rides = steps.filter((s) => s.kind !== 'walk').length
+  const intercity = steps.some((s) => s.kind === 'train' || s.kind === 'intercityBus' || s.kind === 'air')
   return {
-    info: { steps, fare: best.info.payment ?? null, transfers: Math.max(0, rides - 1) },
+    info: { steps, fare: best.info.payment ?? best.info.totalPayment ?? null, transfers: Math.max(0, rides - 1), intercity },
     path: [from, ...steps.flatMap((s) => s.path), to],
     distanceM: best.info.totalDistance ?? steps.reduce((sum, s) => sum + s.distanceM, 0),
     durationMin: best.info.totalTime,

@@ -33,11 +33,11 @@ export function createMarkerElement(pin: Pin, index: number, selected: boolean, 
   return el
 }
 
-export function createLegLabelElement(leg: Pick<Segment, 'mode' | 'durationMin'>, routeColor: string): HTMLElement {
+export function createLegLabelElement(leg: Pick<Segment, 'mode' | 'durationMin' | 'icon'>, routeColor: string): HTMLElement {
   const el = document.createElement('div')
   el.className = 'tm-leg-label tm-overlay'
   el.style.setProperty('--route', routeColor)
-  el.textContent = legLabel(leg.mode, leg.durationMin)
+  el.textContent = legLabel(leg.mode, leg.durationMin, leg.icon)
   return el
 }
 

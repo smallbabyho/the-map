@@ -8,7 +8,7 @@ import { createLegLabelElement, createMarkerElement, createMyLocationElement } f
 import { MapControls } from './MapControls'
 import { PickPopup } from './PickPopup'
 import { pathMidpoint } from './routing'
-import type { Segment } from './segments'
+import { partLine, type Segment } from './segments'
 import { useLongPress } from './useLongPress'
 import { DEFAULT_CENTER, NO_INSETS, type MapViewProps, type PickedPoint } from './types'
 import { useMyLocation, type MyPosition } from './useMyLocation'
@@ -82,7 +82,7 @@ export function KakaoMap({ pins, segments, theme, selectedPinId, onSelectPin, in
     // 대중교통 상세가 있으면 단계별로: 걷기는 점선, 버스·지하철은 노선 색 실선
     for (const seg of segments) {
       const lines = seg.parts?.length
-        ? seg.parts.map((p) => ({ path: p.path, color: p.walk ? theme.route : (p.color ?? theme.route), style: p.walk ? 'shortdot' : 'solid' }))
+        ? seg.parts.map((p) => ({ path: p.path, color: p.color ?? theme.route, style: partLine(p.kind).kakao }))
         : [{ path: seg.path, color: theme.route, style: modeMeta(seg.mode).line.kakao }]
       for (const l of lines) {
         const path = l.path.map((p) => new k.maps.LatLng(p.lat, p.lng))

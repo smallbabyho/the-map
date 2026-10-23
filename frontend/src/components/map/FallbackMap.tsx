@@ -5,7 +5,7 @@ import { legLabel, modeMeta } from '../legModes'
 import { MapControls } from './MapControls'
 import { PickPopup } from './PickPopup'
 import { pathMidpoint } from './routing'
-import type { Segment } from './segments'
+import { partLine, type Segment } from './segments'
 import { DEFAULT_CENTER, NO_INSETS, type MapViewProps, type PickedPoint } from './types'
 import { useLongPress } from './useLongPress'
 
@@ -90,7 +90,7 @@ export function FallbackMap({ pins, segments, theme, selectedPinId, onSelectPin,
         <svg className="pointer-events-none absolute inset-0" width={size.w} height={size.h}>
           {segments.map((seg) => {
             const lines = seg.parts?.length
-              ? seg.parts.map((p) => ({ path: p.path, color: p.walk ? theme.route : (p.color ?? theme.route), dash: p.walk ? modeMeta('walk').line.svg : undefined }))
+              ? seg.parts.map((p) => ({ path: p.path, color: p.color ?? theme.route, dash: partLine(p.kind).svg }))
               : [{ path: seg.path, color: theme.route, dash: modeMeta(seg.mode).line.svg }]
             return (
               <g key={seg.key} fill="none" strokeLinejoin="round" strokeLinecap="round" opacity={seg.loading ? 0.4 : 1}>
@@ -119,7 +119,7 @@ export function FallbackMap({ pins, segments, theme, selectedPinId, onSelectPin,
               className="tm-leg-label absolute -translate-x-1/2 -translate-y-1/2"
               style={{ left: p.x, top: p.y, ['--route' as string]: theme.route }}
             >
-              {legLabel(seg.mode, seg.durationMin)}
+              {legLabel(seg.mode, seg.durationMin, seg.icon)}
             </div>
           )
         })}

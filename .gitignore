@@ -1,13 +1,18 @@
 # 의존성 / 빌드 결과물
 node_modules/
 dist/
+build/
 .next/
 out/
 
-# 환경 변수 (키가 들어가므로 절대 커밋 금지, .env.example만 커밋)
-.env
-.env.*
-!.env.example
+# Python (백엔드 스크립트 등)
+__pycache__/
+venv/
+.venv/
+
+# 로컬 DB 파일
+*.db
+*.sqlite3
 
 # Supabase CLI 로컬 임시 파일
 backend/supabase/.temp/
@@ -19,3 +24,9 @@ backend/supabase/.branches/
 !.vscode/extensions.json
 .idea/
 *.log
+
+# 환경 변수 (키가 들어가므로 절대 커밋 금지, .env.example만 커밋)
+# ⚠️ 이 블록은 항상 파일 맨 아래에 두세요. 아래에 .env.* 를 다시 쓰면 .env.example 까지 무시됩니다.
+.env
+.env.*
+!.env.example

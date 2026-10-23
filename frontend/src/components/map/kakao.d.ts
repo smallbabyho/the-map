@@ -46,8 +46,8 @@ declare namespace kakao.maps.event {
   interface MouseEvent {
     latLng: LatLng
   }
-  function addListener(target: Map, type: 'rightclick' | 'click' | 'dragstart' | 'zoom_start', handler: (e: MouseEvent) => void): void
-  function removeListener(target: Map, type: 'rightclick' | 'click' | 'dragstart' | 'zoom_start', handler: (e: MouseEvent) => void): void
+  function addListener(target: Map, type: 'rightclick' | 'click' | 'dragstart' | 'zoom_start' | 'zoom_changed', handler: (e: MouseEvent) => void): void
+  function removeListener(target: Map, type: 'rightclick' | 'click' | 'dragstart' | 'zoom_start' | 'zoom_changed', handler: (e: MouseEvent) => void): void
 }
 
 declare namespace kakao.maps.services {

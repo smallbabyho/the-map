@@ -160,6 +160,11 @@ body {
   to { transform: scale(3.2); opacity: 0; }
 }
 
+/* 확대·축소 중에는 경로선(SVG)을 숨겨서 버벅임을 줄인다 (KakaoMap.tsx 8번) */
+.tm-zooming svg {
+  visibility: hidden;
+}
+
 /* 테마별 카카오 지도 톤. 마커·라벨은 반대 필터로 원래 색을 유지한다. */
 .tm-map-dark {
   filter: invert(1) hue-rotate(180deg) brightness(0.95) contrast(0.9);

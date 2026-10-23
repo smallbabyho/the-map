@@ -37,7 +37,29 @@ npm run dev                 # 3. 개발 서버 실행 → http://localhost:3000
 
 - **화면이 이상하게 옛날 상태로 보일 때**: 개발 서버를 끄고 `rm -rf .next` 후 다시 `npm run dev`.
 - **내 위치 버튼이 안 될 때**: 브라우저 주소창 왼쪽 아이콘에서 위치 권한을 허용하세요. (`localhost` 또는 `https` 에서만 동작)
-- **데이터 초기화**: 지금은 브라우저 localStorage 에 저장됩니다. 개발자도구 → Application → Local Storage → `the-map:mock-db:v1` 삭제.
+- **데이터 초기화**: 지금은 브라우저 localStorage 에 저장됩니다. `/dev/api` 의 **데이터 초기화** 버튼을 누르세요.
+
+### 체험 계정 (백엔드 연결 전 mock)
+
+로그인 화면의 **체험 계정으로 채우기** 버튼을 눌러도 됩니다. 캡차는 Turnstile 키가 없으면 "로봇이 아닙니다" 체크박스로 대신해요.
+
+| 이메일 | 비밀번호 | 역할 |
+|---|---|---|
+| `test@example.com` | `test1234` | 일반 회원 (테스터) |
+| `bread@example.com` · `drama@example.com` · `cafe@example.com` | `test1234` | 샘플 지도·모임 주인 (다른 사람 역할 테스트용) |
+| `admin@example.com` | `test1234` | 관리자 → `/admin` |
+
+### 화면
+
+| 주소 | 화면 |
+|---|---|
+| `/` | 내 지도 목록 |
+| `/maps/:id` | 지도 편집 (내 지도) / 읽기 전용 (남의 공개 지도: 가져오기·성지순례 모집) |
+| `/meetups` · `/meetups/:id` · `/meetups/new` | 성지순례 목록 · 상세 · 만들기 |
+| `/ranking` | 월간 지도 순위 (다른 사람이 가져가거나 성지순례에 참여한 사람 수) |
+| `/login` | 로그인 · 회원가입 · 내 계정 |
+| `/admin` | 관리자: 현황 · 회원 관리 (admin 만) |
+| `/dev/api` | **API 테스트 콘솔**: 데이터·로그인 함수를 골라 직접 실행하고 결과(JSON)를 확인, mock 데이터 초기화 |
 
 ### 명령어
 
@@ -67,7 +89,8 @@ src/
   db/
     api.ts                 ← 화면은 데이터 함수를 반드시 여기서 import
     mock.ts                localStorage 가짜 데이터 (백엔드 연결 전)
-  auth/  lib/supabase.ts   (백엔드 담당)
+  auth/                    로그인 (index.ts 로만 import, 지금은 mock.ts)
+  lib/supabase.ts          (백엔드 연결 시)
 ```
 
 - **`src/pages` 가 아니라 `src/views` 인 이유**: Next 는 `src/pages` 를 Pages Router 로 인식해 `app/` 과 같이 있으면 빌드가 실패합니다.

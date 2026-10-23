@@ -4,9 +4,12 @@
 export type ThemeId = 'default' | 'pastel' | 'dark' | 'vintage'
 export type TravelMode = 'walk' | 'bus' | 'subway' | 'car'
 
+export type UserRole = 'user' | 'admin'
+
 export interface User {
   id: string
   nickname: string
+  role?: UserRole // 없으면 'user'
 }
 
 // 전역 Map(자바스크립트 Map)과 이름이 겹치지 않도록 코드에서는 ConceptMap 을 쓴다.
@@ -88,4 +91,61 @@ export interface LegInput {
   mode: TravelMode
   durationMin: number | null
   isManual: boolean
+}
+
+// ---- 성지순례(모임) ----
+
+export type MeetupStatus = 'open' | 'closed' | 'canceled'
+
+export interface Meetup {
+  id: string
+  mapId: string
+  hostId: string
+  title: string
+  description: string
+  meetAt: string // ISO 날짜·시간
+  meetPoint: string // 모이는 곳 (예: 첫 번째 핀 이름)
+  capacity: number // 주최자 포함 최대 인원
+  status: MeetupStatus
+  createdAt: string
+}
+
+export interface MeetupMember {
+  userId: string
+  nickname: string
+  joinedAt: string
+}
+
+/** 목록·상세에서 쓰는 모임 정보 (주최자·참여자·지도 요약 포함) */
+export interface MeetupSummary extends Meetup {
+  host: User
+  members: MeetupMember[] // 주최자 포함
+  map: { id: string; title: string; theme: ThemeId; pinCount: number }
+}
+
+export interface MeetupInput {
+  id?: string
+  mapId: string
+  title: string
+  description: string
+  meetAt: string
+  meetPoint: string
+  capacity: number
+}
+
+export type MeetupFilter = 'all' | 'joined' | 'hosting'
+
+// ---- 지도 사용 · 월간 순위 ----
+
+/** 공개 지도 요약 (주인 닉네임 포함) */
+export interface PublicMapSummary {
+  map: ConceptMap
+  owner: User
+  pinCount: number
+}
+
+export interface MapRankingEntry extends PublicMapSummary {
+  rank: number
+  /** 그 달에 이 지도를 사용한 사람 수 (주인 제외, 중복 제외) */
+  users: number
 }

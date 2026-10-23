@@ -78,3 +78,24 @@ export const PinIcon = (p: IconProps) => (
 export const LocateIcon = (p: IconProps) => (
   <Svg {...p}><circle cx="12" cy="12" r="3.5" /><circle cx="12" cy="12" r="7.5" /><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22" /></Svg>
 )
+export const UsersIcon = (p: IconProps) => (
+  <Svg {...p}><circle cx="9" cy="8" r="3.5" /><path d="M2.5 20a6.5 6.5 0 0 1 13 0" /><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18 14a6.5 6.5 0 0 1 3.5 6" /></Svg>
+)
+export const TrophyIcon = (p: IconProps) => (
+  <Svg {...p}><path d="M7 4h10v5a5 5 0 0 1-10 0V4z" /><path d="M17 6h3v1.5A3.5 3.5 0 0 1 16.5 11M7 6H4v1.5A3.5 3.5 0 0 0 7.5 11M12 14v4M8 21h8M9 18h6" /></Svg>
+)
+export const ShieldIcon = (p: IconProps) => (
+  <Svg {...p}><path d="M12 3 4.5 6v5.5c0 4.5 3.2 8.2 7.5 9.5 4.3-1.3 7.5-5 7.5-9.5V6L12 3z" /><path d="m9 12 2 2 4-4" /></Svg>
+)
+export const CalendarIcon = (p: IconProps) => (
+  <Svg {...p}><rect x="3.5" y="5" width="17" height="15.5" rx="2" /><path d="M3.5 10h17M8 3v4M16 3v4" /></Svg>
+)
+export const LinkIcon = (p: IconProps) => (
+  <Svg {...p}><path d="M10 14a4.5 4.5 0 0 0 6.4 0l3-3a4.5 4.5 0 0 0-6.4-6.4l-1 1" /><path d="M14 10a4.5 4.5 0 0 0-6.4 0l-3 3a4.5 4.5 0 0 0 6.4 6.4l1-1" /></Svg>
+)
+export const CopyIcon = (p: IconProps) => (
+  <Svg {...p}><rect x="8" y="8" width="12" height="12" rx="2" /><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2" /></Svg>
+)
+export const CodeIcon = (p: IconProps) => (
+  <Svg {...p}><path d="m8 7-5 5 5 5M16 7l5 5-5 5M14 4l-4 16" /></Svg>
+)

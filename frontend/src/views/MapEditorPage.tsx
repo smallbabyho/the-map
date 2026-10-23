@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
+import { useCurrentUser } from '../auth'
 import { AppRail } from '../components/AppRail'
 import { PinEditPanel } from '../components/editor/PinEditPanel'
 import { PinList } from '../components/editor/PinList'
@@ -84,6 +85,14 @@ export function MapEditorPage() {
   const router = useRouter()
   const draft = useMapDraft(mapId)
   const { map, pins, legs } = draft
+  const user = useCurrentUser()
+  const isOwner = !!user && !!map && map.ownerId === user.id
+
+  // 로그인 안 한 상태에서 지도를 못 찾으면 (내 비공개 지도일 수 있으니) 로그인으로
+  const needLogin = user === null && draft.status === 'notfound'
+  useEffect(() => {
+    if (needLogin) router.replace(`/login?next=${encodeURIComponent(`/maps/${mapId}`)}`)
+  }, [needLogin, mapId, router])
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const vp = useViewport()
   const sheet = useBottomSheet(vp.h || 800)
@@ -127,7 +136,7 @@ export function MapEditorPage() {
     router.push('/')
   }
 
-  if (draft.status === 'loading') return <EditorLoading />
+  if (draft.status === 'loading' || user === undefined || needLogin) return <EditorLoading />
   if (draft.status !== 'ready' || !map) {
     return (
       <div className="grid h-dvh place-items-center px-6 text-center">
@@ -141,6 +150,11 @@ export function MapEditorPage() {
         </div>
       </div>
     )
+  }
+
+  if (!isOwner) {
+    // 남의 공개 지도 (읽기 전용 화면은 MapViewer 에서)
+    return <NotMine />
   }
 
   // 지도에서 패널이 가리는 부분 (핀 전체보기 때 피해서 맞춤)
@@ -315,6 +329,20 @@ export function MapEditorPage() {
           </section>
         </>
       )}
+    </div>
+  )
+}
+
+function NotMine() {
+  return (
+    <div className="grid h-dvh place-items-center px-6 text-center">
+      <div>
+        <div className="text-5xl" aria-hidden>👀</div>
+        <h1 className="mt-4 text-lg font-bold">다른 사람의 지도예요</h1>
+        <Link href="/" className="mt-6 inline-block rounded-full bg-gray-900 px-5 py-2.5 text-sm font-semibold text-white">
+          내 지도로
+        </Link>
+      </div>
     </div>
   )
 }

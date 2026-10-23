@@ -13,9 +13,9 @@ import type {
   Place,
   User,
 } from '../types'
+import { mockCurrentUser } from '../auth/mock'
 
 const STORAGE_KEY = 'the-map:mock-db:v1'
-const MOCK_USER: User = { id: 'mock-user', nickname: '테스터' }
 
 interface Db {
   maps: ConceptMap[]
@@ -59,7 +59,9 @@ const now = () => new Date().toISOString()
 const tick = () => new Promise((r) => setTimeout(r, 80))
 
 function requireUser(): User {
-  return MOCK_USER
+  const user = mockCurrentUser()
+  if (!user) throw new Error('로그인이 필요해요.')
+  return user
 }
 
 function toPin(db: Db, row: Db['pins'][number]): Pin {
@@ -78,7 +80,6 @@ function ownMapOrThrow(db: Db, mapId: string): ConceptMap {
 
 /**
  * 로그인한 사용자. 로그인 안 했으면 null.
- * mock 에서는 항상 '테스터'로 로그인된 상태.
  *
  * @example
  * const user = await getCurrentUser()
@@ -86,7 +87,7 @@ function ownMapOrThrow(db: Db, mapId: string): ConceptMap {
  */
 export async function getCurrentUser(): Promise<User | null> {
   await tick()
-  return MOCK_USER
+  return mockCurrentUser()
 }
 
 /**
@@ -116,7 +117,7 @@ export async function getMap(mapId: string): Promise<MapDetail | null> {
   const db = load()
   const map = db.maps.find((m) => m.id === mapId)
   if (!map) return null
-  if (!map.isPublic && map.ownerId !== requireUser().id) return null
+  if (!map.isPublic && map.ownerId !== mockCurrentUser()?.id) return null
   const pins = db.pins
     .filter((p) => p.mapId === mapId)
     .sort((a, b) => a.order - b.order)

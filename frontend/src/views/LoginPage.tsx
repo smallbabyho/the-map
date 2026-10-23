@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useState, type FormEvent } from 'react'
 import { CaptchaWidget, DEMO_ACCOUNT, signIn, signOut, signUp, useCurrentUser } from '../auth'
+import { AppearanceOptions } from '../components/AppearanceButton'
 import { AppRail, MobileTabBar } from '../components/AppRail'
 import { Avatar } from '../components/Avatar'
 import { ChevronLeftIcon } from '../components/icons'
@@ -85,6 +86,10 @@ export function LoginPage() {
                     <p className="text-sm text-(--c-muted)">{user.role === 'admin' ? '관리자' : '회원'}</p>
                   </div>
                 </div>
+                <section className="mt-4 rounded-2xl border border-(--c-border) bg-(--c-surface) p-1.5">
+                  <p className="px-3 pb-1 pt-2 text-xs font-semibold text-(--c-muted)">화면</p>
+                  <AppearanceOptions />
+                </section>
                 <div className="mt-4 grid gap-2">
                   <Link href={next} className="grid h-12 place-items-center rounded-xl bg-(--c-text) text-[15px] font-bold text-(--c-surface)">
                     {next === '/' ? '내 지도로' : '계속하기'}

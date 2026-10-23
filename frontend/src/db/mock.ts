@@ -3,6 +3,9 @@
 // 화면 코드는 반드시 src/db/api.ts 를 통해서만 이 함수들을 쓴다.
 
 import type {
+  AdminStats,
+  AdminUser,
+  AdminUserRow,
   ConceptMap,
   Leg,
   LegInput,
@@ -20,7 +23,7 @@ import type {
   PublicMapSummary,
   User,
 } from '../types'
-import { mockCurrentUser, mockUserById } from '../auth/mock'
+import { mockCurrentUser, mockDeleteUser, mockListUsers, mockUpdateUser, mockUserById } from '../auth/mock'
 
 const STORAGE_KEY = 'the-map:mock-db:v1'
 
@@ -737,4 +740,79 @@ function seed(db: Db) {
   addUses(drama.id, 17, lastMonth)
   addUses(bread.id, 11, lastMonth)
   addUses(cafe.id, 6, lastMonth)
+}
+
+// ===========================================================================
+// 관리자 (role === 'admin' 만)
+// ===========================================================================
+
+/**
+ * 관리자 대시보드 숫자.
+ *
+ * @example
+ * const stats = await adminGetStats() // { users: 5, maps: 12, … }
+ */
+export async function adminGetStats(): Promise<AdminStats> {
+  await tick()
+  const users = mockListUsers() // 관리자 아니면 여기서 에러
+  const db = load()
+  const ym = new Date().toISOString().slice(0, 7)
+  return {
+    users: users.length,
+    suspended: users.filter((u) => u.suspended).length,
+    maps: db.maps.length,
+    publicMaps: db.maps.filter((m) => m.isPublic).length,
+    meetupsOpen: db.meetups.filter((m) => m.status === 'open' && Date.parse(m.meetAt) >= Date.now()).length,
+    usesThisMonth: db.uses.filter((u) => sameMonth(u.usedAt, ym)).length,
+  }
+}
+
+/**
+ * 회원 목록 + 활동 수 (가입 최신순).
+ *
+ * @example
+ * const users = await adminListUsers()
+ */
+export async function adminListUsers(): Promise<AdminUser[]> {
+  await tick()
+  const rows = mockListUsers()
+  const db = load()
+  return rows.map((u) => ({
+    ...u,
+    mapCount: db.maps.filter((m) => m.ownerId === u.id).length,
+    meetupCount: db.meetups.filter((m) => m.hostId === u.id).length,
+  }))
+}
+
+/**
+ * 회원 정보 수정: 닉네임 · 권한(role) · 정지(suspended).
+ *
+ * @example
+ * await adminUpdateUser(id, { suspended: true })
+ * await adminUpdateUser(id, { role: 'admin' })
+ */
+export async function adminUpdateUser(userId: string, patch: Partial<Pick<AdminUserRow, 'nickname' | 'role' | 'suspended'>>): Promise<AdminUserRow> {
+  await tick()
+  return mockUpdateUser(userId, patch)
+}
+
+/**
+ * 회원 탈퇴 처리: 계정 + 그 사람의 지도·핀·구간·연 모임·참여 기록을 모두 지운다.
+ *
+ * @example
+ * await adminDeleteUser(id)
+ */
+export async function adminDeleteUser(userId: string): Promise<void> {
+  await tick()
+  mockDeleteUser(userId) // 권한 확인 포함
+  const db = load()
+  const mapIds = new Set(db.maps.filter((m) => m.ownerId === userId).map((m) => m.id))
+  const meetupIds = new Set(db.meetups.filter((m) => m.hostId === userId || mapIds.has(m.mapId)).map((m) => m.id))
+  db.maps = db.maps.filter((m) => !mapIds.has(m.id))
+  db.pins = db.pins.filter((p) => !mapIds.has(p.mapId))
+  db.legs = db.legs.filter((l) => !mapIds.has(l.mapId))
+  db.meetups = db.meetups.filter((m) => !meetupIds.has(m.id))
+  db.members = db.members.filter((r) => r.userId !== userId && !meetupIds.has(r.meetupId))
+  db.uses = db.uses.filter((u) => u.userId !== userId && !mapIds.has(u.mapId))
+  persist(db)
 }

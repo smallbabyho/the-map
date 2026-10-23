@@ -1,7 +1,7 @@
 // 백엔드(Supabase Auth)가 붙기 전까지 쓰는 가짜 회원 기능 (브라우저 localStorage).
 // 진짜 버전도 함수 이름·입력·반환·에러 메시지 형태를 똑같이 맞춘다. 화면은 src/auth/index.ts 로만 import.
 
-import type { User, UserRole } from '../types'
+import type { AdminUserRow, User, UserRole } from '../types'
 
 const STORAGE_KEY = 'the-map:mock-auth:v1'
 const MIN_PASSWORD = 6
@@ -16,6 +16,8 @@ interface StoredUser extends User {
 interface AuthStore {
   users: StoredUser[]
   sessionUserId: string | null
+  /** 체험 계정을 넣었는지 (한 번만 넣어야 관리자가 지운 계정이 되살아나지 않는다) */
+  demoSeeded?: boolean
 }
 
 // 체험용 계정 (비밀번호 모두 test1234). '테스터'는 기존 mock 데이터의 주인과 같은 id.
@@ -45,11 +47,19 @@ function load(): AuthStore {
   } catch {
     // 깨졌으면 새로 시작
   }
-  // 체험 계정이 없으면 채워 넣기
-  for (const d of DEMO_USERS) {
+  // 체험 계정은 처음 한 번만 채워 넣기
+  for (const d of store.demoSeeded ? [] : DEMO_USERS) {
     if (!store.users.some((u) => u.id === d.id)) {
       const { daysAgo, ...rest } = d
       store.users.push({ ...rest, passwordHash: hash(DEMO_PASSWORD), suspended: false, createdAt: new Date(Date.now() - daysAgo * 864e5).toISOString() })
+    }
+  }
+  if (!store.demoSeeded) {
+    store.demoSeeded = true
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(store))
+    } catch {
+      // 저장 실패해도 화면은 동작
     }
   }
   // 예전 형식 데이터 보정
@@ -188,15 +198,6 @@ export function onAuthChange(callback: (user: User | null) => void): () => void 
 }
 
 // ---- 관리자용 (admin 만) ----
-
-export interface AdminUserRow {
-  id: string
-  email: string
-  nickname: string
-  role: UserRole
-  suspended: boolean
-  createdAt: string
-}
 
 const toRow = (u: StoredUser): AdminUserRow => ({
   id: u.id,

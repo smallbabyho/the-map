@@ -149,3 +149,28 @@ export interface MapRankingEntry extends PublicMapSummary {
   /** 그 달에 이 지도를 사용한 사람 수 (주인 제외, 중복 제외) */
   users: number
 }
+
+// ---- 관리자 ----
+
+export interface AdminUserRow {
+  id: string
+  email: string
+  nickname: string
+  role: UserRole
+  suspended: boolean
+  createdAt: string
+}
+
+export interface AdminUser extends AdminUserRow {
+  mapCount: number
+  meetupCount: number // 연 모임 수
+}
+
+export interface AdminStats {
+  users: number
+  suspended: number
+  maps: number
+  publicMaps: number
+  meetupsOpen: number
+  usesThisMonth: number
+}

@@ -175,6 +175,7 @@ export function MapEditorPage() {
           selectedPinId={selectedId}
           onSelectPin={(id) => setSelectedId((cur) => (cur === id ? null : id))}
           insets={insets}
+          onAddPlace={(place) => setSelectedId(draft.addPlace(place))}
         />
       </div>
 
@@ -272,7 +273,9 @@ export function MapEditorPage() {
                 <PinIcon size={28} />
               </span>
               <p className="mt-4 font-semibold">첫 장소를 추가해 보세요</p>
-              <p className="mt-1 text-sm text-(--c-muted)">위 검색창에서 장소를 찾아 누르면 핀이 생겨요. 순서대로 선이 이어져요.</p>
+              <p className="mt-1 text-sm text-(--c-muted)">
+                위 검색창에서 장소를 찾거나, 지도에서 {vp.desktop ? '우클릭' : '길게 눌러'} 원하는 곳에 핀을 꽂아 보세요. 순서대로 선이 이어져요.
+              </p>
             </div>
           ) : (
             <PinList
@@ -302,6 +305,7 @@ export function MapEditorPage() {
               index={selectedIndex}
               theme={theme}
               onChange={(patch) => draft.updatePin(selectedPin.id, patch)}
+              onRename={(name) => draft.renamePlace(selectedPin.id, name)}
               onDelete={() => {
                 draft.removePin(selectedPin.id)
                 setSelectedId(null)

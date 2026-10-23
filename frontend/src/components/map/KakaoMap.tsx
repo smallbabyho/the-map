@@ -1,28 +1,43 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { loadKakao } from './loadKakao'
 import { createLegLabelElement, createMarkerElement, createMyLocationElement } from './markerElement'
 import { MapControls } from './MapControls'
-import { DEFAULT_CENTER, NO_INSETS, type MapViewProps } from './types'
+import { PickPopup } from './PickPopup'
+import { useLongPress } from './useLongPress'
+import { DEFAULT_CENTER, NO_INSETS, type MapViewProps, type PickedPoint } from './types'
 import { useMyLocation, type MyPosition } from './useMyLocation'
 
 interface Props extends MapViewProps {
   onLoadError: (message: string) => void
 }
 
-export function KakaoMap({ pins, legs, theme, selectedPinId, onSelectPin, insets = NO_INSETS, onLoadError }: Props) {
+export function KakaoMap({ pins, legs, theme, selectedPinId, onSelectPin, insets = NO_INSETS, onAddPlace, onLoadError }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<kakao.maps.Map | null>(null)
   const [ready, setReady] = useState(false)
   const me = useMyLocation()
+  const canPick = onAddPlace != null
+  const [picked, setPicked] = useState<PickedPoint | null>(null)
+  const pickedAtRef = useRef(0)
+  // 우클릭 팝업을 그릴 DOM (카카오 CustomOverlay 안에 React 포털로 렌더)
+  const popupHost = useMemo(() => {
+    if (typeof document === 'undefined') return null
+    const el = document.createElement('div')
+    el.className = 'tm-overlay'
+    return el
+  }, [])
 
   // 최신 콜백/값을 이벤트 핸들러에서 쓰기 위한 ref (effect 재실행 없이)
   const onSelectRef = useRef(onSelectPin)
   const onErrorRef = useRef(onLoadError)
   const insetsRef = useRef(insets)
   const pinsRef = useRef(pins)
+  const onAddRef = useRef(onAddPlace)
   useEffect(() => {
+    onAddRef.current = onAddPlace
     onSelectRef.current = onSelectPin
     onErrorRef.current = onLoadError
     insetsRef.current = insets
@@ -157,6 +172,45 @@ export function KakaoMap({ pins, legs, theme, selectedPinId, onSelectPin, insets
     }
   }, [ready, me.pos])
 
+  // 6) 우클릭 → 그 지점에 팝업. 지도 빈 곳을 누르면 닫힘.
+  useEffect(() => {
+    const map = mapRef.current
+    if (!ready || !map || !canPick) return
+    const ev = window.kakao!.maps.event
+    const onRight = (e: kakao.maps.event.MouseEvent) => setPicked({ lat: e.latLng.getLat(), lng: e.latLng.getLng() })
+    // 길게 누르기 직후 손을 떼면 click 이 같이 오므로, 방금 연 팝업은 닫지 않는다
+    const onClick = () => Date.now() - pickedAtRef.current > 700 && setPicked(null)
+    ev.addListener(map, 'rightclick', onRight)
+    ev.addListener(map, 'click', onClick)
+    return () => {
+      ev.removeListener(map, 'rightclick', onRight)
+      ev.removeListener(map, 'click', onClick)
+    }
+  }, [ready, canPick])
+
+  // 모바일: 길게 누르기 = 우클릭
+  const pressRef = useRef<HTMLDivElement>(null)
+  useLongPress(pressRef, ready && canPick, (x, y) => {
+    const ll = mapRef.current?.getProjection().coordsFromContainerPoint(new window.kakao!.maps.Point(x, y))
+    if (!ll) return
+    pickedAtRef.current = Date.now()
+    setPicked({ lat: ll.getLat(), lng: ll.getLng() })
+  })
+
+  useEffect(() => {
+    const map = mapRef.current
+    if (!ready || !map || !picked || !popupHost) return
+    const overlay = new window.kakao!.maps.CustomOverlay({
+      position: new window.kakao!.maps.LatLng(picked.lat, picked.lng),
+      content: popupHost,
+      yAnchor: 1,
+      zIndex: 20,
+      clickable: true,
+    })
+    overlay.setMap(map)
+    return () => overlay.setMap(null)
+  }, [ready, picked, popupHost])
+
   const goToMe = () =>
     me.locate((p: MyPosition) => {
       const map = mapRef.current
@@ -170,9 +224,26 @@ export function KakaoMap({ pins, legs, theme, selectedPinId, onSelectPin, insets
   return (
     <>
       {/* 테마 톤(필터)은 바깥 div 에 건다. 카카오가 지도 컨테이너의 class 를 건드릴 수 있어서. */}
-      <div className={`absolute inset-0 ${theme.id !== 'default' ? `tm-map-${theme.id}` : ''}`}>
+      <div
+        className={`absolute inset-0 ${theme.id !== 'default' ? `tm-map-${theme.id}` : ''}`}
+        ref={pressRef}
+        onContextMenu={(e) => canPick && e.preventDefault()}
+      >
         <div ref={containerRef} className="absolute inset-0" />
       </div>
+      {picked &&
+        popupHost &&
+        createPortal(
+          <PickPopup
+            point={picked}
+            onAdd={(place) => {
+              onAddRef.current?.(place)
+              setPicked(null)
+            }}
+            onClose={() => setPicked(null)}
+          />,
+          popupHost,
+        )}
       {ready && (
         <MapControls
           insets={insets}

@@ -52,3 +52,40 @@ function searchSamples(q: string): PlaceSearchResult[] {
     return words.every((w) => hay.includes(w))
   })
 }
+
+/** 직접 찍은 위치의 externalId. 카카오 장소 ID 와 겹치지 않도록 'custom:' 으로 시작한다. */
+export const CUSTOM_PREFIX = 'custom:'
+export const isCustomPlace = (externalId: string) => externalId.startsWith(CUSTOM_PREFIX)
+
+/**
+ * 좌표 → 이름/주소 (카카오 주소 변환). 키가 없거나 실패하면 '지정한 위치'.
+ *
+ * @example
+ * const place = await describePoint(37.5446, 127.0559)
+ * // { externalId: 'custom:37.544600,127.055900', name: '성수동 카페거리', address: '서울 성동구 …', … }
+ */
+export async function describePoint(lat: number, lng: number): Promise<PlaceSearchResult> {
+  const base: PlaceSearchResult = {
+    externalId: `${CUSTOM_PREFIX}${lat.toFixed(6)},${lng.toFixed(6)}`,
+    name: '지정한 위치',
+    lat,
+    lng,
+    address: `${lat.toFixed(5)}, ${lng.toFixed(5)}`,
+    category: '직접 지정',
+  }
+  if (!hasKakaoKey) return base
+  try {
+    const k = await loadKakao()
+    const result = await new Promise<kakao.maps.services.Coord2AddressResult | null>((resolve) => {
+      new k.maps.services.Geocoder().coord2Address(lng, lat, (data, status) =>
+        resolve(status === k.maps.services.Status.OK ? (data[0] ?? null) : null),
+      )
+    })
+    if (!result) return base
+    const address = result.road_address?.address_name || result.address?.address_name || base.address
+    const name = result.road_address?.building_name || address
+    return { ...base, name, address }
+  } catch {
+    return base
+  }
+}

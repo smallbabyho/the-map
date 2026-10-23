@@ -137,6 +137,12 @@ export function useMapDraft(mapId: string) {
     touch()
   }
 
+  /** 직접 찍은 위치(custom:)의 장소 이름 바꾸기 */
+  const renamePlace = (pinId: string, name: string) => {
+    setPins((ps) => ps.map((p) => (p.id === pinId ? { ...p, place: { ...p.place, name } } : p)))
+    touch()
+  }
+
   const removePin = (pinId: string) => {
     setPins((ps) => ps.filter((p) => p.id !== pinId))
     if (!pinId.startsWith(TMP)) setRemovedPinIds((ids) => [...ids, pinId])
@@ -177,7 +183,7 @@ export function useMapDraft(mapId: string) {
       for (const [i, pin] of pins.entries()) {
         const saved = await savePin(map.id, {
           id: pin.id.startsWith(TMP) ? undefined : pin.id,
-          place: { externalId: pin.place.externalId, name: pin.place.name, lat: pin.place.lat, lng: pin.place.lng },
+          place: { externalId: pin.place.externalId, name: pin.place.name.trim() || '지정한 위치', lat: pin.place.lat, lng: pin.place.lng },
           order: i,
           icon: pin.icon,
           color: pin.color,
@@ -229,6 +235,7 @@ export function useMapDraft(mapId: string) {
     setTheme,
     addPlace,
     updatePin,
+    renamePlace,
     removePin,
     movePin,
     updateLeg,

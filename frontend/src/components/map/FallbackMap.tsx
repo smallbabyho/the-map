@@ -3,7 +3,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { legLabel } from '../legModes'
 import { MapControls } from './MapControls'
-import { NO_INSETS, type MapViewProps } from './types'
+import { PickPopup } from './PickPopup'
+import { DEFAULT_CENTER, NO_INSETS, type MapViewProps, type PickedPoint } from './types'
+import { useLongPress } from './useLongPress'
 
 interface Props extends MapViewProps {
   notice: string
@@ -13,9 +15,11 @@ interface Props extends MapViewProps {
  * 카카오 키가 없거나 불러오기 실패했을 때 보여주는 미리보기 지도.
  * 실제 지도 타일 없이 핀 위치·순서·경로만 비율대로 그린다.
  */
-export function FallbackMap({ pins, legs, theme, selectedPinId, onSelectPin, insets = NO_INSETS, notice }: Props) {
+export function FallbackMap({ pins, legs, theme, selectedPinId, onSelectPin, insets = NO_INSETS, onAddPlace, notice }: Props) {
   const ref = useRef<HTMLDivElement>(null)
   const [size, setSize] = useState({ w: 0, h: 0 })
+  const [picked, setPicked] = useState<PickedPoint | null>(null)
+  const pickedAtRef = useRef(0)
 
   useEffect(() => {
     const el = ref.current
@@ -35,8 +39,9 @@ export function FallbackMap({ pins, legs, theme, selectedPinId, onSelectPin, ins
     w: Math.max(40, size.w - insets.left - insets.right - pad * 2),
     h: Math.max(40, size.h - insets.top - insets.bottom - pad * 2),
   }
-  const lats = pins.map((p) => p.place.lat)
-  const lngs = pins.map((p) => p.place.lng)
+  // 핀이 없으면 서울시청 주변을 기준으로 그린다
+  const lats = pins.length ? pins.map((p) => p.place.lat) : [DEFAULT_CENTER.lat]
+  const lngs = pins.length ? pins.map((p) => p.place.lng) : [DEFAULT_CENTER.lng]
   const minLat = Math.min(...lats), maxLat = Math.max(...lats)
   const minLng = Math.min(...lngs), maxLng = Math.max(...lngs)
   const spanLat = Math.max(maxLat - minLat, 0.002)
@@ -48,12 +53,29 @@ export function FallbackMap({ pins, legs, theme, selectedPinId, onSelectPin, ins
     x: cx + (lng - (minLng + maxLng) / 2) * scale,
     y: cy - (lat - (minLat + maxLat) / 2) * scale,
   })
+  const unproject = (x: number, y: number): PickedPoint => ({
+    lat: (cy - y) / scale + (minLat + maxLat) / 2,
+    lng: (x - cx) / scale + (minLng + maxLng) / 2,
+  })
   const pos = new Map(pins.map((p) => [p.id, project(p.place.lat, p.place.lng)]))
+  const canPick = onAddPlace != null
+  useLongPress(ref, canPick, (x, y) => {
+    pickedAtRef.current = Date.now()
+    setPicked(unproject(x, y))
+  })
+  const pickedAt = picked ? project(picked.lat, picked.lng) : null
 
   return (
     <div
       ref={ref}
       className="absolute inset-0 overflow-hidden"
+      onContextMenu={(e) => {
+        if (!canPick) return
+        e.preventDefault()
+        const rect = e.currentTarget.getBoundingClientRect()
+        setPicked(unproject(e.clientX - rect.left, e.clientY - rect.top))
+      }}
+      onClick={() => Date.now() - pickedAtRef.current > 700 && setPicked(null)}
       style={{
         backgroundColor: 'var(--c-map-bg)',
         backgroundImage:
@@ -113,6 +135,19 @@ export function FallbackMap({ pins, legs, theme, selectedPinId, onSelectPin, ins
             </div>
           )
         })}
+
+      {picked && pickedAt && (
+        <div className="absolute z-20 -translate-x-1/2 -translate-y-full" style={{ left: pickedAt.x, top: pickedAt.y }}>
+          <PickPopup
+            point={picked}
+            onAdd={(place) => {
+              onAddPlace?.(place)
+              setPicked(null)
+            }}
+            onClose={() => setPicked(null)}
+          />
+        </div>
+      )}
 
       <div
         className="tm-float absolute left-1/2 z-10 max-w-[90%] -translate-x-1/2 rounded-full bg-white/95 px-3.5 py-1.5 text-center text-xs font-medium text-gray-600 backdrop-blur"

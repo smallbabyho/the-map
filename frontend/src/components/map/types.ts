@@ -1,5 +1,6 @@
 import type { Pin, TravelMode } from '../../types'
 import type { Theme } from '../themes'
+import type { PlaceSearchResult } from './placeSearch'
 
 /** 지도 위에 패널이 덮고 있는 영역(px). 핀을 화면에 맞출 때 이만큼 피해서 보여준다. */
 export interface MapInsets {
@@ -23,6 +24,14 @@ export interface MapViewProps {
   selectedPinId: string | null
   onSelectPin: (pinId: string) => void
   insets?: MapInsets
+  /** 지도 우클릭(모바일은 길게 누르기) → 팝업의 [핀 추가]를 누르면 호출. 없으면 우클릭 기능 꺼짐. */
+  onAddPlace?: (place: PlaceSearchResult) => void
+}
+
+/** 우클릭으로 고른 지점 */
+export interface PickedPoint {
+  lat: number
+  lng: number
 }
 
 export const NO_INSETS: MapInsets = { top: 0, right: 0, bottom: 0, left: 0 }

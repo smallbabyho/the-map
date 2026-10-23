@@ -4,6 +4,7 @@ import { useRef, useState } from 'react'
 import { uploadPinPhoto } from '../../db/api'
 import type { Pin } from '../../types'
 import { CheckIcon, CloseIcon, ImageIcon, TrashIcon } from '../icons'
+import { isCustomPlace } from '../map'
 import { PIN_EMOJIS, type Theme } from '../themes'
 
 interface Props {
@@ -11,12 +12,14 @@ interface Props {
   index: number
   theme: Theme
   onChange: (patch: Partial<Pick<Pin, 'icon' | 'color' | 'memo' | 'photoUrl' | 'visitedAt'>>) => void
+  onRename: (name: string) => void
   onDelete: () => void
   onClose: () => void
 }
 
 /** 핀 꾸미기: 아이콘 · 색상 · 방문일 · 메모 · 사진 */
-export function PinEditPanel({ pin, index, theme, onChange, onDelete, onClose }: Props) {
+export function PinEditPanel({ pin, index, theme, onChange, onRename, onDelete, onClose }: Props) {
+  const custom = isCustomPlace(pin.place.externalId)
   const fileRef = useRef<HTMLInputElement>(null)
   const [uploading, setUploading] = useState(false)
   const [photoError, setPhotoError] = useState('')
@@ -46,8 +49,21 @@ export function PinEditPanel({ pin, index, theme, onChange, onDelete, onClose }:
           {pin.icon}
         </span>
         <div className="min-w-0 flex-1 pt-0.5">
-          <p className="text-xs font-semibold text-(--c-accent)">{index + 1}번째 장소</p>
-          <h2 className="truncate text-lg font-bold">{pin.place.name}</h2>
+          <p className="text-xs font-semibold text-(--c-accent)">
+            {index + 1}번째 장소{custom && <span className="ml-1.5 font-medium text-(--c-muted)">· 직접 지정</span>}
+          </p>
+          {custom ? (
+            <input
+              value={pin.place.name}
+              onChange={(e) => onRename(e.target.value)}
+              maxLength={40}
+              placeholder="장소 이름"
+              className="-ml-1 w-full rounded-md bg-transparent px-1 text-lg font-bold outline-none hover:bg-black/[0.04] focus:bg-black/[0.04]"
+              aria-label="장소 이름"
+            />
+          ) : (
+            <h2 className="truncate text-lg font-bold">{pin.place.name}</h2>
+          )}
         </div>
         <button type="button" onClick={onClose} className="grid size-9 shrink-0 place-items-center rounded-full text-(--c-muted) hover:bg-black/5" aria-label="닫기">
           <CloseIcon size={20} />

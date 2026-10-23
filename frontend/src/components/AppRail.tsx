@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { signOut, useCurrentUser } from '../auth'
+import { AppearanceButton } from './AppearanceButton'
 import { Avatar } from './Avatar'
 import { MapIcon, ShieldIcon, TrophyIcon, UserIcon, UsersIcon } from './icons'
 
@@ -38,7 +39,7 @@ const railItem = (on: boolean) =>
 export function AppRail({ active }: { active: NavKey }) {
   const user = useCurrentUser()
   return (
-    <nav className="absolute inset-y-0 left-0 z-30 hidden w-[72px] flex-col items-center gap-1.5 border-r border-(--c-border) bg-(--c-surface) py-4 md:flex">
+    <nav className="fixed inset-y-0 left-0 z-30 hidden w-[72px] flex-col items-center gap-1.5 border-r border-(--c-border) bg-(--c-surface) py-4 md:flex">
       <Link href="/" className="mb-3 grid size-10 place-items-center rounded-xl bg-(--c-accent) text-lg shadow-sm" aria-label="컨셉지도 홈">
         <span aria-hidden>📍</span>
       </Link>
@@ -49,6 +50,7 @@ export function AppRail({ active }: { active: NavKey }) {
         </Link>
       ))}
       <div className="flex-1" />
+      <AppearanceButton variant="rail" />
       {user === undefined ? (
         <span className="size-9" />
       ) : user ? (

@@ -145,7 +145,7 @@ export function MapEditorPage() {
           <div className="text-5xl" aria-hidden>🧭</div>
           <h1 className="mt-4 text-lg font-bold">{draft.status === 'notfound' ? '지도를 찾을 수 없어요' : '지도를 불러오지 못했어요'}</h1>
           <p className="mt-1 text-sm text-(--c-muted)">{draft.status === 'notfound' ? '삭제됐거나 볼 수 없는 지도예요.' : draft.loadError}</p>
-          <Link href="/" className="mt-6 inline-block rounded-full bg-gray-900 px-5 py-2.5 text-sm font-semibold text-white">
+          <Link href="/" className="mt-6 inline-block rounded-full bg-(--c-text) px-5 py-2.5 text-sm font-semibold text-(--c-surface)">
             내 지도로
           </Link>
         </div>
@@ -171,7 +171,7 @@ export function MapEditorPage() {
       onClick={save}
       disabled={draft.saving || !draft.dirty}
       className={`tm-float inline-flex h-10 items-center gap-1.5 rounded-full px-5 text-sm font-bold transition ${
-        draft.dirty ? 'bg-(--c-accent) text-(--c-accent-text) hover:opacity-90' : 'bg-white text-gray-500'
+        draft.dirty ? 'bg-(--c-accent) text-(--c-accent-text) hover:opacity-90' : 'bg-(--c-surface) text-(--c-muted)'
       }`}
     >
       {!draft.dirty && draft.justSaved && <CheckIcon size={16} />}
@@ -201,7 +201,7 @@ export function MapEditorPage() {
         <button
           type="button"
           onClick={goBack}
-          className="tm-float pointer-events-auto grid size-10 place-items-center rounded-full bg-white text-gray-800 md:hidden"
+          className="tm-float pointer-events-auto grid size-10 place-items-center rounded-full bg-(--c-surface) text-(--c-text) md:hidden"
           aria-label="내 지도로"
         >
           <ChevronLeftIcon size={20} />

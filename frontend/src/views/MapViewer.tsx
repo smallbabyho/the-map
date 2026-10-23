@@ -75,7 +75,7 @@ export function MapViewer({ detail }: { detail: MapDetail }) {
       {/* 지도: 모바일은 위쪽, 데스크톱은 전체 */}
       <div className="relative h-[42dvh] shrink-0 md:absolute md:inset-0 md:h-auto">
         <MapView pins={pins} legs={legs} theme={theme} selectedPinId={selectedId} onSelectPin={(id) => setSelectedId((c) => (c === id ? null : id))} insets={insets} />
-        <button type="button" onClick={() => router.back()} className="tm-float absolute left-3 top-3 z-20 grid size-10 place-items-center rounded-full bg-white text-gray-800 md:hidden" aria-label="뒤로">
+        <button type="button" onClick={() => router.back()} className="tm-float absolute left-3 top-3 z-20 grid size-10 place-items-center rounded-full bg-(--c-surface) text-(--c-text) md:hidden" aria-label="뒤로">
           <ChevronLeftIcon size={20} />
         </button>
       </div>
@@ -126,9 +126,9 @@ export function MapViewer({ detail }: { detail: MapDetail }) {
                   onClick={() => setSelectedId(p.id)}
                   className={`flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left transition ${selectedId === p.id ? 'bg-(--c-accent)/10' : 'hover:bg-black/[0.03]'}`}
                 >
-                  <span className="relative grid size-10 shrink-0 place-items-center rounded-full text-lg shadow-sm ring-2 ring-white" style={{ background: p.color }}>
+                  <span className="relative grid size-10 shrink-0 place-items-center rounded-full text-lg shadow-sm ring-2 ring-(--c-surface)" style={{ background: p.color }}>
                     {p.icon}
-                    <span className="absolute -right-1 -top-1 grid h-[18px] min-w-[18px] place-items-center rounded-full bg-gray-900 px-1 text-[10px] font-bold text-white ring-2 ring-white">{i + 1}</span>
+                    <span className="absolute -right-1 -top-1 grid h-[18px] min-w-[18px] place-items-center rounded-full bg-gray-900 px-1 text-[10px] font-bold text-white ring-2 ring-(--c-surface)">{i + 1}</span>
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-[15px] font-semibold">{p.place.name}</span>

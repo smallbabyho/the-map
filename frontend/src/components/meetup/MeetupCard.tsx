@@ -16,7 +16,7 @@ export function MemberStack({ members, max = 5, size = 26 }: { members: MeetupSu
         <Avatar key={m.userId} id={m.userId} nickname={m.nickname} size={size} ring />
       ))}
       {members.length > max && (
-        <span className="grid place-items-center rounded-full bg-gray-200 text-[11px] font-bold text-gray-600 ring-2 ring-(--c-surface)" style={{ width: size, height: size }}>
+        <span className="grid place-items-center rounded-full bg-(--c-border) text-[11px] font-bold text-(--c-muted) ring-2 ring-(--c-surface)" style={{ width: size, height: size }}>
           +{members.length - max}
         </span>
       )}

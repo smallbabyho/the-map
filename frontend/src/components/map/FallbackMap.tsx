@@ -161,7 +161,7 @@ export function FallbackMap({ pins, segments, theme, selectedPinId, onSelectPin,
       )}
 
       <div
-        className="tm-float absolute left-1/2 z-10 max-w-[90%] -translate-x-1/2 rounded-full bg-white/95 px-3.5 py-1.5 text-center text-xs font-medium text-gray-600 backdrop-blur"
+        className="tm-float absolute left-1/2 z-10 max-w-[90%] -translate-x-1/2 rounded-full bg-(--c-surface) px-3.5 py-1.5 text-center text-xs font-medium text-(--c-muted)"
         style={{ top: insets.top + 12, marginLeft: (insets.left - insets.right) / 2 }}
       >
         {notice}

@@ -79,7 +79,7 @@ export function AdminPage() {
             <div className="text-5xl" aria-hidden>🔒</div>
             <h1 className="mt-4 text-lg font-bold">관리자만 볼 수 있어요</h1>
             <p className="mt-1 text-sm text-(--c-muted)">관리자 계정으로 로그인해 주세요. (체험: admin@example.com / test1234)</p>
-            <Link href="/login?next=/admin" className="mt-6 inline-block rounded-full bg-gray-900 px-5 py-2.5 text-sm font-semibold text-white">
+            <Link href="/login?next=/admin" className="mt-6 inline-block rounded-full bg-(--c-text) px-5 py-2.5 text-sm font-semibold text-(--c-surface)">
               {me ? '다른 계정으로 로그인' : '로그인'}
             </Link>
           </div>
@@ -148,7 +148,7 @@ export function AdminPage() {
         </div>
 
         {error && <p role="alert" className="mt-4 rounded-xl bg-red-500/10 px-4 py-3 text-sm text-red-600">{error}</p>}
-        {notice && <p role="status" className="tm-float fixed bottom-20 left-1/2 z-50 -translate-x-1/2 rounded-full bg-gray-900 px-4 py-2 text-sm font-medium text-white md:bottom-8">{notice}</p>}
+        {notice && <p role="status" className="tm-float fixed bottom-20 left-1/2 z-50 -translate-x-1/2 rounded-full bg-(--c-text) px-4 py-2 text-sm font-medium text-(--c-surface) md:bottom-8">{notice}</p>}
 
         {/* 회원 목록 */}
         <section className="mt-4 overflow-hidden rounded-2xl border border-(--c-border) bg-(--c-surface)">

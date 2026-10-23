@@ -259,9 +259,9 @@ export function KakaoMap({ pins, segments, theme, selectedPinId, onSelectPin, in
 
   return (
     <>
-      {/* 테마 톤(필터)은 바깥 div 에 건다. 카카오가 지도 컨테이너의 class 를 건드릴 수 있어서. */}
+      {/* 다크 모드 필터(.tm-map-tiles, globals.css)는 바깥 div 에 건다. 카카오가 지도 컨테이너의 class 를 건드릴 수 있어서. */}
       <div
-        className={`absolute inset-0 ${theme.id !== 'default' ? `tm-map-${theme.id}` : ''}`}
+        className="tm-map-tiles absolute inset-0"
         ref={pressRef}
         onContextMenu={(e) => canPick && e.preventDefault()}
       >

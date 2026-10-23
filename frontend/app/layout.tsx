@@ -1,5 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import { EARLY_APPEARANCE_SCRIPT } from "@/src/components/appearanceScript";
+import { AppearanceSync } from "@/src/components/AppearanceSync";
 
 export const metadata: Metadata = {
   title: "컨셉지도",
@@ -14,15 +16,21 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="ko" className="h-full">
+    // data-mode(라이트/다크)는 아래 스크립트가 그리기 전에 정한다 → 서버 HTML 과 달라서 경고 끔
+    <html lang="ko" className="h-full" suppressHydrationWarning>
       <head>
+        {/* 밤에 흰 화면이 번쩍이지 않게 첫 그리기 전에 라이트/다크 결정 */}
+        <script dangerouslySetInnerHTML={{ __html: EARLY_APPEARANCE_SCRIPT }} />
         {/* 한글 폰트: Pretendard (필요한 글자만 내려받는 dynamic subset) */}
         <link
           rel="stylesheet"
           href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css"
         />
       </head>
-      <body className="min-h-full">{children}</body>
+      <body className="min-h-full">
+        {children}
+        <AppearanceSync />
+      </body>
     </html>
   );
 }

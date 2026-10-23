@@ -1,7 +1,10 @@
 // 프론트·백엔드 공용 타입. 바꿀 때는 두 담당자가 같이 확인한다.
 // DB 는 snake_case, 여기는 camelCase. 변환은 src/db 안에서만 한다.
 
-export type ThemeId = 'default' | 'pastel' | 'dark' | 'vintage'
+/** 색 테마 프리셋. 배경(라이트/다크)은 테마가 아니라 보는 사람 설정 (components/appearance.ts) */
+export type ThemePreset = 'default' | 'pastel' | 'vintage' | 'neon' | 'forest'
+/** 지도 색 테마: 프리셋 id 또는 직접 고른 색 '#rrggbb' */
+export type ThemeId = ThemePreset | `#${string}`
 /** 이동수단: 도보 · 대중교통 · 자동차 · 자전거 */
 export type TravelMode = 'walk' | 'transit' | 'car' | 'bike'
 

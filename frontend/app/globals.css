@@ -1,16 +1,32 @@
 @import "tailwindcss";
 
-/* 기본 색 (테마가 없는 화면용). 지도 편집 화면은 themeVars() 로 이 값들을 덮어쓴다. */
+/*
+ * 화면 색. 라이트/다크는 <html data-mode> 로 바뀐다 (components/appearance.ts — 기본은 일출·일몰 자동).
+ * 지도 화면은 themeVars() 로 강조색(--c-accent)과 배경 틴트(--c-bg)를 덮어쓴다.
+ */
 :root {
-  --c-bg: #f5f6f8;
+  --c-base-bg: #f5f6f8;
+  --c-base-map-bg: #eef1f5;
+  --c-bg: var(--c-base-bg);
   --c-surface: #ffffff;
   --c-text: #111827;
   --c-muted: #6b7280;
   --c-border: #e7e9ee;
   --c-accent: #f97316;
   --c-accent-text: #ffffff;
-  --c-map-bg: #eef1f5;
+  --c-map-bg: var(--c-base-map-bg);
   --c-map-grid: #e0e5ec;
+  color-scheme: light;
+}
+:root[data-mode="dark"] {
+  --c-base-bg: #0b1020;
+  --c-base-map-bg: #111729;
+  --c-surface: #151b2e;
+  --c-text: #e5e7eb;
+  --c-muted: #94a3b8;
+  --c-border: #273049;
+  --c-map-grid: #1d2640;
+  color-scheme: dark;
 }
 
 @theme inline {
@@ -165,16 +181,12 @@ body {
   visibility: hidden;
 }
 
-/* 테마별 카카오 지도 톤. 마커·라벨은 반대 필터로 원래 색을 유지한다. */
-.tm-map-dark {
+/* 다크 모드의 카카오 지도: 타일을 반전해 어둡게. 마커·라벨은 반대 필터로 원래 색을 유지한다. */
+:root[data-mode="dark"] .tm-map-tiles {
   filter: invert(1) hue-rotate(180deg) brightness(0.95) contrast(0.9);
 }
-.tm-map-dark .tm-overlay {
+:root[data-mode="dark"] .tm-map-tiles .tm-overlay,
+:root[data-mode="dark"] .tm-map-tiles svg {
+  /* 경로선(SVG)도 노선 색이 뒤집히지 않게 */
   filter: invert(1) hue-rotate(180deg);
-}
-.tm-map-vintage {
-  filter: sepia(0.35) saturate(0.85);
-}
-.tm-map-pastel {
-  filter: saturate(0.75) brightness(1.04);
 }

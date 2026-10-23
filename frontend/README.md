@@ -96,4 +96,5 @@ src/
 - **`src/pages` 가 아니라 `src/views` 인 이유**: Next 는 `src/pages` 를 Pages Router 로 인식해 `app/` 과 같이 있으면 빌드가 실패합니다.
 - **백엔드 연결**: `src/db/index.ts`(Supabase 버전)가 준비되면 `src/db/api.ts` 의 `'./mock'` 한 줄만 `'./index'` 로 바꾸면 됩니다.
 - **지도 교체 (예: Mapbox)**: `src/components/map/` 안만 바꾸면 됩니다. 다른 곳은 `MapView`, `searchPlaces` 만 씁니다.
+- **라이트/다크 · 색 테마**: 배경 라이트/다크는 보는 사람 설정(`src/components/appearance.ts`, 기본은 서울 기준 일출·일몰 자동, 색은 `app/globals.css` 의 `:root[data-mode="dark"]`). 지도에 저장되는 건 색 테마만(`themes.ts`: 프리셋 또는 직접 고른 `#rrggbb`). 새 화면은 `bg-white`·`text-gray-*` 대신 `bg-(--c-surface)`·`text-(--c-text)` 같은 변수를 쓰면 다크에서도 맞습니다.
 - **길찾기 (핀 사이 경로)**: `src/components/map/routing.ts`. 도보·자전거·자동차는 OpenStreetMap 공개 길찾기 서버(키 없음, 개발용), 대중교통은 ODsay(`transit.ts`, `.env.local` 의 `NEXT_PUBLIC_ODSAY_KEY`)로 버스 번호·지하철 노선·환승·요금까지 보여주고, 키가 없으면 직선거리 예상치입니다. 도로 길찾기를 카카오모빌리티 등으로 바꿀 땐 `fetchRoad()` 만 고치면 됩니다.

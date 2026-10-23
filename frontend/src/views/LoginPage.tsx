@@ -218,7 +218,7 @@ function Illustration() {
       ))}
       <div className="absolute bottom-12 left-12 right-12">
         <p className="text-sm font-semibold text-orange-600">컨셉지도</p>
-        <h2 className="mt-2 text-3xl font-bold leading-snug tracking-tight text-gray-900">
+        <h2 className="mt-2 text-3xl font-bold leading-snug tracking-tight text-(--c-text)">
           나만의 테마로
           <br />
           지도를 꾸미고, 함께 걸어요

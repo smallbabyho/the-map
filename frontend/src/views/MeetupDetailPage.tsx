@@ -50,7 +50,7 @@ export function MeetupDetailPage() {
         <div>
           <div className="text-5xl" aria-hidden>🧭</div>
           <h1 className="mt-4 text-lg font-bold">모임을 찾을 수 없어요</h1>
-          <Link href="/meetups" className="mt-6 inline-block rounded-full bg-gray-900 px-5 py-2.5 text-sm font-semibold text-white">성지순례 목록</Link>
+          <Link href="/meetups" className="mt-6 inline-block rounded-full bg-(--c-text) px-5 py-2.5 text-sm font-semibold text-(--c-surface)">성지순례 목록</Link>
         </div>
       </div>
     )
@@ -99,7 +99,7 @@ export function MeetupDetailPage() {
       type="button"
       onClick={join}
       disabled={busy || !canJoin}
-      className="h-12 w-full rounded-xl bg-(--c-accent) text-[15px] font-bold text-(--c-accent-text) transition hover:opacity-90 disabled:bg-gray-300 disabled:text-gray-600"
+      className="h-12 w-full rounded-xl bg-(--c-accent) text-[15px] font-bold text-(--c-accent-text) transition hover:opacity-90 disabled:bg-(--c-border) disabled:text-(--c-muted)"
     >
       {canJoin ? (user ? `참여하기 · ${left}자리 남음` : '로그인하고 참여하기') : badge.label}
     </button>

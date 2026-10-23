@@ -45,7 +45,7 @@ export function PinEditPanel({ pin, index, theme, onChange, onRename, onDelete, 
     <div className="flex h-full min-h-0 flex-col">
       {/* 머리 */}
       <div className="flex items-start gap-3 border-b border-(--c-border) px-5 pb-4 pt-5">
-        <span className="grid size-12 shrink-0 place-items-center rounded-full text-2xl shadow-sm ring-2 ring-white" style={{ background: pin.color }}>
+        <span className="grid size-12 shrink-0 place-items-center rounded-full text-2xl shadow-sm ring-2 ring-(--c-surface)" style={{ background: pin.color }}>
           {pin.icon}
         </span>
         <div className="min-w-0 flex-1 pt-0.5">

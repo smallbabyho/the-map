@@ -63,6 +63,8 @@ function load(): Db {
   } catch {
     // 저장된 값이 깨졌거나 localStorage 를 못 쓰는 환경이면 빈 DB 로 시작
   }
+  // 예전 '다크' 테마는 색만 남겨 네온으로 (배경 라이트/다크는 이제 보는 사람 설정)
+  for (const m of db.maps) if ((m.theme as string) === 'dark') m.theme = 'neon'
   // 예전 이동수단(버스·지하철)은 대중교통으로
   for (const leg of db.legs) if ((leg.mode as string) === 'bus' || (leg.mode as string) === 'subway') leg.mode = 'transit'
   if (!db.seeded) {
@@ -704,7 +706,7 @@ function seed(db: Db) {
     { place: hannam, icon: '☕', color: '#f97316' },
     { place: itaewon, icon: '🍰', color: '#ef4444' },
   ], ['walk'])
-  const mangwonMap = makeMap('u-cafe', '망원·연남 먹방 코스', 'dark', [
+  const mangwonMap = makeMap('u-cafe', '망원·연남 먹방 코스', 'neon', [
     { place: mangwon, icon: '🍜', color: '#facc15' },
     { place: yeonnam, icon: '🍺', color: '#22d3ee' },
   ], ['walk'])

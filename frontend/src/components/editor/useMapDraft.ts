@@ -37,6 +37,7 @@ export function useMapDraft(mapId: string) {
   const [legDrafts, setLegDrafts] = useState<Record<string, LegDraft>>({})
   const [removedPinIds, setRemovedPinIds] = useState<string[]>([])
   const serverLegs = useRef<Leg[]>([])
+  const [loadedLegs, setLoadedLegs] = useState<Leg[]>([])
   const [dirty, setDirty] = useState(false)
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState('')
@@ -51,6 +52,7 @@ export function useMapDraft(mapId: string) {
       ),
     )
     serverLegs.current = d.legs
+    setLoadedLegs(d.legs)
     setRemovedPinIds([])
     setDirty(false)
   }, [])
@@ -224,6 +226,8 @@ export function useMapDraft(mapId: string) {
   return {
     status,
     loadError,
+    /** 마지막으로 불러온(저장된) 이동구간 — 읽기 전용 화면용 */
+    serverLegs: loadedLegs,
     map,
     pins,
     legs,

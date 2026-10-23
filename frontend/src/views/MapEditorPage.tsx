@@ -13,6 +13,7 @@ import { useMapDraft } from '../components/editor/useMapDraft'
 import { CheckIcon, ChevronLeftIcon, ChevronRightIcon, GlobeIcon, LockIcon, PinIcon } from '../components/icons'
 import { MapView, type MapInsets } from '../components/map'
 import { getTheme, themeVars } from '../components/themes'
+import { MapViewer } from './MapViewer'
 
 const RAIL_W = 72
 const PANEL_W = 380
@@ -153,8 +154,8 @@ export function MapEditorPage() {
   }
 
   if (!isOwner) {
-    // 남의 공개 지도 (읽기 전용 화면은 MapViewer 에서)
-    return <NotMine />
+    // 남의 공개 지도 → 읽기 전용
+    return <MapViewer detail={{ map, pins, legs: draft.serverLegs }} />
   }
 
   // 지도에서 패널이 가리는 부분 (핀 전체보기 때 피해서 맞춤)
@@ -345,16 +346,3 @@ export function MapEditorPage() {
   )
 }
 
-function NotMine() {
-  return (
-    <div className="grid h-dvh place-items-center px-6 text-center">
-      <div>
-        <div className="text-5xl" aria-hidden>👀</div>
-        <h1 className="mt-4 text-lg font-bold">다른 사람의 지도예요</h1>
-        <Link href="/" className="mt-6 inline-block rounded-full bg-gray-900 px-5 py-2.5 text-sm font-semibold text-white">
-          내 지도로
-        </Link>
-      </div>
-    </div>
-  )
-}

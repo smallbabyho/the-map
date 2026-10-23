@@ -1,26 +1,151 @@
 @import "tailwindcss";
 
+/* 기본 색 (테마가 없는 화면용). 지도 편집 화면은 themeVars() 로 이 값들을 덮어쓴다. */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --c-bg: #f5f6f8;
+  --c-surface: #ffffff;
+  --c-text: #111827;
+  --c-muted: #6b7280;
+  --c-border: #e7e9ee;
+  --c-accent: #f97316;
+  --c-accent-text: #ffffff;
+  --c-map-bg: #eef1f5;
+  --c-map-grid: #e0e5ec;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, system-ui, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html,
+body {
+  height: 100%;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--c-bg);
+  color: var(--c-text);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  letter-spacing: -0.01em;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* 떠 있는 패널 그림자 */
+.tm-float {
+  box-shadow: 0 1px 2px rgb(15 23 42 / 0.06), 0 6px 24px rgb(15 23 42 / 0.10);
+}
+
+.tm-scroll {
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--c-muted) 35%, transparent) transparent;
+}
+
+/* ---------------------------------------------------------------------------
+   지도 마커 (카카오 CustomOverlay 와 미리보기 지도가 같이 씀)
+   구조: .tm-marker > .tm-marker-head(이모지) + .tm-marker-no(순번) + .tm-marker-label(이름)
+   wrapper 의 맨 아래(꼬리 끝)가 실제 좌표다.
+--------------------------------------------------------------------------- */
+.tm-marker {
+  position: relative;
+  display: block;
+  width: 40px;
+  height: 50px;
+  cursor: pointer;
+  background: none;
+  border: 0;
+  padding: 0;
+  transition: transform 0.15s ease;
+  transform-origin: 50% 100%;
+}
+.tm-marker:hover {
+  transform: scale(1.08);
+}
+.tm-marker[data-selected="true"] {
+  transform: scale(1.18);
+  z-index: 2;
+}
+.tm-marker-head {
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 40px;
+  border-radius: 9999px 9999px 9999px 4px;
+  transform: rotate(-45deg);
+  background: var(--pin, #f97316);
+  border: 3px solid #fff;
+  box-shadow: 0 3px 10px rgb(15 23 42 / 0.28);
+}
+.tm-marker-emoji {
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  font-size: 18px;
+  line-height: 1;
+}
+.tm-marker-no {
+  position: absolute;
+  top: -6px;
+  right: -8px;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  border-radius: 9999px;
+  background: #111827;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  display: grid;
+  place-items: center;
+  border: 2px solid #fff;
+}
+.tm-marker-label {
+  position: absolute;
+  top: calc(100% + 2px);
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: 140px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: rgb(255 255 255 / 0.95);
+  color: #111827;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  box-shadow: 0 1px 4px rgb(15 23 42 / 0.18);
+  pointer-events: none;
+}
+.tm-marker[data-selected="true"] .tm-marker-label {
+  background: #111827;
+  color: #fff;
+}
+
+.tm-leg-label {
+  padding: 3px 8px;
+  border-radius: 9999px;
+  background: #fff;
+  color: #111827;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  box-shadow: 0 1px 4px rgb(15 23 42 / 0.2);
+  border: 1.5px solid var(--route, #f97316);
+}
+
+/* 테마별 카카오 지도 톤. 마커·라벨은 반대 필터로 원래 색을 유지한다. */
+.tm-map-dark {
+  filter: invert(1) hue-rotate(180deg) brightness(0.95) contrast(0.9);
+}
+.tm-map-dark .tm-overlay {
+  filter: invert(1) hue-rotate(180deg);
+}
+.tm-map-vintage {
+  filter: sepia(0.35) saturate(0.85);
+}
+.tm-map-pastel {
+  filter: saturate(0.75) brightness(1.04);
 }

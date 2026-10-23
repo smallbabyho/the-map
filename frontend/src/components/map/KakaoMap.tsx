@@ -109,7 +109,11 @@ export function KakaoMap({ pins, legs, theme, selectedPinId, onSelectPin, insets
     }
     const bounds = new k.maps.LatLngBounds()
     list.forEach((p) => bounds.extend(new k.maps.LatLng(p.place.lat, p.place.lng)))
-    const ins = insetsRef.current
+    // 패널이 너무 많이 가려서 보이는 영역이 작으면 그 방향 여백은 무시 (지도가 지나치게 축소되는 것 방지)
+    const el = containerRef.current
+    const ins = { ...insetsRef.current }
+    if (el && el.clientHeight - ins.top - ins.bottom < 220) ins.bottom = 0
+    if (el && el.clientWidth - ins.left - ins.right < 220) ins.left = 0
     map.setBounds(bounds, ins.top + 60, ins.right + 60, ins.bottom + 60, ins.left + 60)
   }
   const pinCount = pins.length
@@ -117,17 +121,22 @@ export function KakaoMap({ pins, legs, theme, selectedPinId, onSelectPin, insets
     if (ready) fitAll()
   }, [ready, pinCount])
 
-  // 4) 선택한 핀으로 이동
+  // 4) 선택한 핀으로 이동. 패널이 가린 부분을 빼고 '보이는 영역'의 가운데로 온다.
   useEffect(() => {
     const map = mapRef.current
     const pin = pinsRef.current.find((p) => p.id === selectedPinId)
     if (!ready || !map || !pin) return
-    map.panTo(new window.kakao!.maps.LatLng(pin.place.lat, pin.place.lng))
+    const ins = insetsRef.current
+    map.setCenter(new window.kakao!.maps.LatLng(pin.place.lat, pin.place.lng))
+    map.panBy(-(ins.left - ins.right) / 2, -(ins.top - ins.bottom) / 2)
   }, [ready, selectedPinId])
 
   return (
     <>
-      <div ref={containerRef} className={`absolute inset-0 ${theme.id !== 'default' ? `tm-map-${theme.id}` : ''}`} />
+      {/* 테마 톤(필터)은 바깥 div 에 건다. 카카오가 지도 컨테이너의 class 를 건드릴 수 있어서. */}
+      <div className={`absolute inset-0 ${theme.id !== 'default' ? `tm-map-${theme.id}` : ''}`}>
+        <div ref={containerRef} className="absolute inset-0" />
+      </div>
       {ready && (
         <MapControls
           insets={insets}

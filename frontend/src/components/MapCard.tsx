@@ -15,7 +15,7 @@ function seededDots(seed: string, count: number) {
   let h = 0
   for (const ch of seed) h = (h * 31 + ch.charCodeAt(0)) >>> 0
   const rand = () => ((h = (h * 1664525 + 1013904223) >>> 0) / 2 ** 32)
-  return Array.from({ length: count }, () => ({ x: 12 + rand() * 76, y: 18 + rand() * 60 }))
+  return Array.from({ length: count }, () => ({ x: 12 + rand() * 76, y: 18 + rand() * 60 })).sort((a, b) => a.x - b.x)
 }
 
 export function MapCard({ map, onDelete }: Props) {

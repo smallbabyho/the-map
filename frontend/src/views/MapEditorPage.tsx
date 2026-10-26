@@ -19,7 +19,18 @@ import { MapView, type MapInsets } from '../components/map'
 import { getTheme, themeVars } from '../components/themes'
 import { getMapCollab } from '../db/api'
 import type { MapCollab } from '../types'
+import { Tour, type TourStep } from '../components/onboarding/Tour'
 import { MapViewer } from './MapViewer'
+
+/** 지도 편집 화면을 처음 연 사람에게 한 번 보여주는 안내 */
+const EDITOR_TOUR: TourStep[] = [
+  { target: 'place-search', title: '장소 추가', body: '검색해서 핀을 꽂아요. 지도를 길게 누르면(컴퓨터는 우클릭) 아무 곳이나 찍을 수 있어요.' },
+  { target: 'pins', title: '핀 목록', body: '핀을 누르면 사진 · 다녀온 날짜 · 메모를 남겨요. 끌어서 순서를 바꾸면 길이 다시 이어져요.' },
+  { target: 'map-look', title: '꾸미기', body: '테마 색, 마커 모양, 선 스타일로 지도에 표정을 줘요.' },
+  { target: 'collab', title: '함께 꾸미기', body: '초대 링크를 보내면 친구와 한 지도를 같이 짜요.' },
+  { target: 'map-public', title: '공개 설정', body: '공개하면 둘러보기에 올라가요. 비공개면 나와 함께 꾸미는 사람만 봐요.' },
+  { target: 'save', title: '저장', body: '고친 내용은 저장을 눌러야 남아요.' },
+]
 
 /** 왼쪽 세로 메뉴를 없앴다 (오른쪽 위 HeaderActions 로) */
 const RAIL_W = 0
@@ -227,18 +238,18 @@ export function MapEditorPage() {
           <ChevronLeftIcon size={20} />
         </button>
         <div className="pointer-events-auto flex items-center gap-2">
-          <div className="hidden md:block">
+          <div className="hidden md:block" data-tour="map-look">
             <ThemePicker value={map.theme} onChange={draft.setTheme} />
           </div>
           <div className="hidden md:block">
             <MapLookPicker look={map} coverUrl={map.coverUrl} onChange={draft.updateMap} />
           </div>
           {collab && user && (
-            <div className="hidden md:block">
+            <div className="hidden md:block" data-tour="collab">
               <CollabButton mapId={map.id} myId={user.id} collab={collab} onChange={loadCollab} />
             </div>
           )}
-          {saveButton}
+          <div data-tour="save">{saveButton}</div>
           <HeaderActions user={user} active="maps" floating />
         </div>
       </div>
@@ -248,6 +259,8 @@ export function MapEditorPage() {
           {draft.saveError}
         </div>
       )}
+
+      <Tour id="editor" userId={user?.id} steps={EDITOR_TOUR} />
 
       {/* 왼쪽 패널 (데스크톱) / 하단 시트 (모바일) */}
       <section
@@ -285,6 +298,7 @@ export function MapEditorPage() {
                 map.isPublic ? 'border-(--c-accent) bg-(--c-accent)/10 text-(--c-accent)' : 'border-(--c-border) text-(--c-muted)'
               }`}
               aria-pressed={map.isPublic}
+              data-tour="map-public"
               title={!isOwner ? '공개 여부는 지도 주인만 바꿀 수 있어요' : map.isPublic ? '누구나 볼 수 있어요' : '나와 함께 꾸미는 사람만 볼 수 있어요'}
             >
               {map.isPublic ? <GlobeIcon size={14} /> : <LockIcon size={14} />}
@@ -322,19 +336,23 @@ export function MapEditorPage() {
           <StoryCardButton className="h-9 text-[13px]" data={{ map, pins, legs, theme, ownerName: user?.nickname }} />
 
           {/* 모바일에서는 테마 · 꾸미기를 패널 안에 */}
-          <div className="tm-scroll -mx-4 overflow-x-auto px-4 md:hidden">
+          <div className="tm-scroll -mx-4 overflow-x-auto px-4 md:hidden" data-tour="map-look">
             <div className="w-max">
               <ThemePicker value={map.theme} onChange={draft.setTheme} />
             </div>
           </div>
           <div className="flex flex-wrap gap-2 md:hidden">
             <MapLookPicker look={map} coverUrl={map.coverUrl} onChange={draft.updateMap} variant="inline" />
-            {collab && user && <CollabButton mapId={map.id} myId={user.id} collab={collab} onChange={loadCollab} variant="inline" />}
+            {collab && user && (
+              <span data-tour="collab">
+                <CollabButton mapId={map.id} myId={user.id} collab={collab} onChange={loadCollab} variant="inline" />
+              </span>
+            )}
           </div>
 
-          <PlaceSearchBox
-            onPick={(place) => draft.addPlace(place)}
-          />
+          <div data-tour="place-search">
+            <PlaceSearchBox onPick={(place) => draft.addPlace(place)} />
+          </div>
         </div>
 
         <div className="flex shrink-0 items-center justify-between border-t border-(--c-border) px-5 py-2.5 text-[13px]">
@@ -344,7 +362,7 @@ export function MapEditorPage() {
           {totalMin > 0 && <span className="text-(--c-muted)">이동 총 {totalMin >= 60 ? `${Math.floor(totalMin / 60)}시간 ${totalMin % 60}분` : `${totalMin}분`}</span>}
         </div>
 
-        <div className="tm-scroll min-h-0 flex-1 overflow-y-auto pb-[env(safe-area-inset-bottom)]">
+        <div className="tm-scroll min-h-0 flex-1 overflow-y-auto pb-[env(safe-area-inset-bottom)]" data-tour="pins">
           {pins.length === 0 ? (
             <div className="flex flex-col items-center px-8 py-12 text-center">
               <span className="grid size-14 place-items-center rounded-2xl bg-(--c-accent)/10 text-(--c-accent)">

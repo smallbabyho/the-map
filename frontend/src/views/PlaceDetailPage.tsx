@@ -8,6 +8,7 @@ import { AppRail, MobileTabBar } from '../components/AppRail'
 import { Avatar } from '../components/Avatar'
 import { MapThumb } from '../components/MapThumb'
 import { StarInput, Stars } from '../components/place/PlaceStats'
+import { ReportButton } from '../components/report/ReportDialog'
 import { deletePlaceReview, getPlaceDetail, savePlaceReview } from '../db/api'
 import type { PlaceDetail, PlaceReview } from '../types'
 
@@ -108,7 +109,14 @@ export function PlaceDetailPage() {
               ) : (
                 <ul className="mt-4 divide-y divide-(--c-border)">
                   {detail.reviews.map((r) => (
-                    <ReviewItem key={r.id} review={r} canDelete={!!me && (me.id === r.author.id || me.role === 'admin')} onDeleted={reload} onError={setError} />
+                    <ReviewItem
+                      key={r.id}
+                      review={r}
+                      canDelete={!!me && (me.id === r.author.id || me.role === 'admin')}
+                      canReport={!!me && me.id !== r.author.id}
+                      onDeleted={reload}
+                      onError={setError}
+                    />
                   ))}
                 </ul>
               )}
@@ -205,7 +213,7 @@ function ReviewForm({ placeId, mine, onSaved }: { placeId: string; mine: PlaceRe
   )
 }
 
-function ReviewItem({ review: r, canDelete, onDeleted, onError }: { review: PlaceReview; canDelete: boolean; onDeleted: () => void; onError: (msg: string) => void }) {
+function ReviewItem({ review: r, canDelete, canReport, onDeleted, onError }: { review: PlaceReview; canDelete: boolean; canReport: boolean; onDeleted: () => void; onError: (msg: string) => void }) {
   const remove = async () => {
     if (!window.confirm('이 리뷰를 지울까요?')) return
     try {
@@ -225,13 +233,21 @@ function ReviewItem({ review: r, canDelete, onDeleted, onError }: { review: Plac
           <Link href={`/u/${r.author.id}`} className="text-sm font-semibold hover:underline">{r.author.nickname}</Link>
           <Stars value={r.rating} size={13} />
           <span className="text-xs text-(--c-muted)">{dateLabel(r.updatedAt)}</span>
-          {canDelete && (
-            <button type="button" onClick={remove} className="ml-auto text-xs text-(--c-muted) hover:text-red-500">
-              지우기
-            </button>
-          )}
+          <span className="ml-auto flex items-center gap-3">
+            {canReport && (
+              <ReportButton
+                subject={{ target: 'review', targetId: r.id, targetLabel: `${'★'.repeat(r.rating)} ${r.body}`.trim().slice(0, 60), targetUserId: r.author.id }}
+              />
+            )}
+            {canDelete && (
+              <button type="button" onClick={remove} className="text-xs text-(--c-muted) hover:text-red-500">
+                지우기
+              </button>
+            )}
+          </span>
         </div>
         {r.body && <p className="mt-1 break-words text-[15px]">{r.body}</p>}
+        {r.hidden && <p className="mt-1.5 rounded-lg bg-amber-500/10 px-2.5 py-1.5 text-xs text-amber-700">신고가 여러 번 들어와서 다른 사람에게는 숨겨졌어요. 관리자가 확인한 뒤 다시 보일 수 있어요.</p>}
       </div>
     </li>
   )

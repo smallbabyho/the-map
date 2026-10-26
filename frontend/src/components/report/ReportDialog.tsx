@@ -27,6 +27,7 @@ const TITLE: Record<ReportTarget, string> = {
   meetup: '모임 신고',
   map: '지도 신고',
   comment: '댓글 신고',
+  review: '리뷰 신고',
   bug: '문제 제보 · 제안',
 }
 

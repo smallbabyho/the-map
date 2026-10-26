@@ -24,6 +24,7 @@ interface Props {
 const PAD = 8 // 짚은 요소 둘레 여백
 const GUTTER = 16 // 말풍선이 화면 가장자리에서 떨어지는 거리
 const BUBBLE_W = 300
+const BUBBLE_H = 170 // 말풍선 높이 어림값 (자리 고를 때만 씀)
 
 const seenKey = (id: string, userId: string) => `the-map:tour:${id}:${userId}`
 
@@ -122,15 +123,24 @@ export function Tour({ id, userId, steps }: Props) {
   const vh = window.innerHeight
   const width = Math.min(BUBBLE_W, vw - GUTTER * 2)
 
-  // 말풍선 자리: 짚은 요소 아래에 공간이 있으면 아래, 아니면 위. 없으면 화면 가운데
+  // 말풍선 자리: 짚은 요소 아래에 자리가 있으면 아래, 아니면 위.
+  // 짚은 요소가 커서 위아래 다 자리가 없으면 화면 아래에 붙인다 (말풍선이 화면 밖으로 나가 '다음'을 못 누르는 일이 없게)
   let bubble: React.CSSProperties = { left: (vw - width) / 2, top: vh / 2, transform: 'translateY(-50%)' }
   let arrowLeft: number | null = null
   let below = true
   if (rect) {
     const left = Math.min(Math.max(rect.left + rect.width / 2 - width / 2, GUTTER), vw - width - GUTTER)
-    below = rect.bottom + PAD + 180 < vh || rect.top < vh / 2
-    bubble = below ? { left, top: rect.bottom + PAD + 12 } : { left, top: rect.top - PAD - 12, transform: 'translateY(-100%)' }
-    arrowLeft = Math.min(Math.max(rect.left + rect.width / 2 - left, 20), width - 20)
+    const need = BUBBLE_H + PAD + 12
+    if (vh - rect.bottom >= need) {
+      bubble = { left, top: rect.bottom + PAD + 12 }
+      arrowLeft = Math.min(Math.max(rect.left + rect.width / 2 - left, 20), width - 20)
+    } else if (rect.top >= need) {
+      below = false
+      bubble = { left, bottom: vh - rect.top + PAD + 12 }
+      arrowLeft = Math.min(Math.max(rect.left + rect.width / 2 - left, 20), width - 20)
+    } else {
+      bubble = { left, bottom: GUTTER }
+    }
   }
 
   return createPortal(

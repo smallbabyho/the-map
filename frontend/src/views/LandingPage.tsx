@@ -155,9 +155,23 @@ export function LandingPage({ embedded = false }: { embedded?: boolean }) {
                 </li>
               ))}
             </ol>
-            {/* 진행 막대 */}
-            <div className="mt-8 h-1 w-full max-w-xs overflow-hidden rounded-full bg-(--c-border)">
-              <div className="h-full bg-(--c-accent) transition-[width] duration-150" style={{ width: `${progress * 100}%` }} />
+            {/* 단계 막대: 단계마다 한 칸. 지난 단계는 꽉 차고, 지금 단계 칸만 스크롤에 맞춰 차오른다 */}
+            <div className="mt-8 flex items-center gap-3">
+              <div className="flex gap-1.5">
+                {STEPS.map((s, i) => {
+                  const fill = i < step ? 1 : i > step ? 0 : Math.min(1, Math.max(0.15, progress * STEPS.length - i))
+                  return (
+                    <button key={s.no} type="button" onClick={() => goStep(i)} className="group py-2" aria-label={`${s.no}단계 ${s.title}`}>
+                      <span className="block h-1 w-10 overflow-hidden rounded-full bg-(--c-border) transition group-hover:bg-(--c-ink)/25">
+                        <span className="block h-full origin-left rounded-full bg-(--c-accent) transition-transform duration-300 ease-out" style={{ transform: `scaleX(${fill})` }} />
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
+              <span className="font-mono text-xs text-(--c-muted)">
+                {STEPS[step].no} / {String(STEPS.length).padStart(2, '0')}
+              </span>
             </div>
           </div>
           <div className="order-1 md:order-2">

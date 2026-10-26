@@ -2,21 +2,25 @@
 
 import Link from 'next/link'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
-import { useEffect, useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 import { useCurrentUser } from '../auth'
 import { AppRail } from '../components/AppRail'
 import { Avatar } from '../components/Avatar'
 import { CalendarIcon, ChevronLeftIcon, LinkIcon, PinIcon, UsersIcon } from '../components/icons'
 import { MapView } from '../components/map'
+import { useViewCourse, ViewModePicker, type ViewMode } from '../components/map/ViewModePicker'
+import { formatMinutes, legLabel } from '../components/legModes'
+import { TransitSteps } from '../components/TransitSteps'
 import { dday, formatMeetAt, meetupState, STATE_BADGE } from '../components/meetup/format'
-import { MeetupComments } from '../components/meetup/MeetupComments'
 import { ReportButton } from '../components/report/ReportDialog'
 import { KakaoDirectionsLink } from '../components/map/KakaoDirections'
 import { KakaoShareButton } from '../components/share/KakaoShareButton'
 import { getTheme, themeVars } from '../components/themes'
 import { getMeetup, joinMeetup, leaveMeetup, setMeetupStatus } from '../db/api'
 import { siteOrigin } from '../lib/site'
-import type { MapDetail, MeetupStatus, MeetupSummary } from '../types'
+import type { MapDetail, MeetupStatus, MeetupSummary, Pin } from '../types'
+
+const NO_PINS: Pin[] = []
 
 export function MeetupLoading() {
   return <div className="h-dvh animate-pulse bg-black/[0.03]" />
@@ -35,6 +39,9 @@ export function MeetupDetailPage() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [copied, setCopied] = useState(false)
+  // 이동수단을 바꿔서 코스 보기 (화면에서만, 지도는 그대로)
+  const [viewMode, setViewMode] = useState<ViewMode>('course')
+  const view = useViewCourse(mapDetail?.pins ?? NO_PINS, mapDetail?.legs ?? [], viewMode)
 
   useEffect(() => {
     let cancelled = false
@@ -71,8 +78,6 @@ export function MeetupDetailPage() {
   const joined = !!user && meetup.members.some((m) => m.userId === user.id)
   const left = meetup.capacity - meetup.members.length
   const canJoin = state === 'open' || state === 'almost'
-  const legs = mapDetail?.legs ?? []
-  const totalMin = legs.reduce((s, l) => s + (l.durationMin ?? 0), 0)
 
   const run = async (fn: () => Promise<MeetupSummary>) => {
     setBusy(true)
@@ -100,10 +105,18 @@ export function MeetupDetailPage() {
     }
   }
 
-  const primaryAction = isHost ? null : joined ? (
-    <button type="button" onClick={leave} disabled={busy} className="h-12 w-full rounded-xl border border-(--c-border) text-[15px] font-bold transition hover:bg-black/[0.03] disabled:opacity-60">
-      참여 취소
-    </button>
+  // 참여자(주최자 포함)는 순례방으로, 아니면 참여하기
+  const primaryAction = joined ? (
+    <div className="flex gap-2">
+      <Link href={`/meetups/${meetup.id}/room`} className="tm-btn flex h-12 flex-1 items-center justify-center rounded-xl bg-(--c-accent) text-[15px] font-bold text-(--c-accent-text)">
+        💬 순례방 들어가기
+      </Link>
+      {!isHost && (
+        <button type="button" onClick={leave} disabled={busy} className="h-12 shrink-0 rounded-xl border border-(--c-border) px-4 text-sm font-semibold transition hover:bg-black/[0.03] disabled:opacity-60">
+          참여 취소
+        </button>
+      )}
+    </div>
   ) : (
     <button
       type="button"
@@ -132,7 +145,7 @@ export function MeetupDetailPage() {
               {mapDetail ? (
                 <MapView
                   pins={mapDetail.pins}
-                  legs={legs}
+                  legs={view.legs}
                   theme={theme}
                   look={mapDetail.map}
                   selectedPinId={selectedPinId}
@@ -142,6 +155,8 @@ export function MeetupDetailPage() {
                 <div className="grid h-full place-items-center bg-black/[0.03] text-sm text-(--c-muted)">지도가 삭제됐어요</div>
               )}
             </div>
+
+            {mapDetail && mapDetail.pins.length > 1 && <ViewModePicker value={viewMode} onChange={setViewMode} className="mt-3" />}
 
             <div className="mt-5 flex flex-wrap items-center gap-2">
               <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${badge.className}`}>{badge.label}</span>
@@ -162,30 +177,60 @@ export function MeetupDetailPage() {
               <section className="mt-8">
                 <div className="flex items-baseline justify-between">
                   <h2 className="text-lg font-bold">순례 코스 · {mapDetail.map.title}</h2>
-                  {totalMin > 0 && <span className="text-sm text-(--c-muted)">이동 약 {totalMin}분</span>}
+                  {view.totalMin > 0 && (
+                    <span className="text-sm text-(--c-muted)">
+                      이동 {view.loading ? '계산 중…' : `약 ${formatMinutes(view.totalMin)}`}
+                    </span>
+                  )}
                 </div>
                 <ol className="mt-3 space-y-2">
-                  {mapDetail.pins.map((p, i) => (
-                    <li key={p.id} className={`flex items-center rounded-xl border pr-1 transition ${selectedPinId === p.id ? 'border-(--c-accent) bg-(--c-accent)/5' : 'border-(--c-border) bg-(--c-surface)'}`}>
-                      <button
-                        type="button"
-                        onClick={() => setSelectedPinId(p.id)}
-                        className="flex min-w-0 flex-1 items-center gap-3 rounded-xl px-3 py-2.5 text-left"
-                      >
-                        <span className="grid size-9 shrink-0 place-items-center rounded-full text-lg" style={{ background: p.color }}>{p.icon}</span>
-                        <span className="min-w-0 flex-1">
-                          <span className="block truncate text-[15px] font-semibold">{i + 1}. {p.place.name}</span>
-                          {p.memo && <span className="block truncate text-[13px] text-(--c-muted)">{p.memo}</span>}
-                        </span>
-                      </button>
-                      <KakaoDirectionsLink to={p.place} from={mapDetail.pins[i - 1]?.place} mode={i > 0 ? legs.find((l) => l.fromPinId === mapDetail.pins[i - 1].id && l.toPinId === p.id)?.mode : undefined} />
-                    </li>
-                  ))}
+                  {mapDetail.pins.map((p, i) => {
+                    const next = mapDetail.pins[i + 1]
+                    const legMode = next && view.modeOf(p.id, next.id)
+                    const transit = next && view.transitOf(p.id, next.id)
+                    return (
+                      <Fragment key={p.id}>
+                        <li className={`flex items-center rounded-xl border pr-1 transition ${selectedPinId === p.id ? 'border-(--c-accent) bg-(--c-accent)/5' : 'border-(--c-border) bg-(--c-surface)'}`}>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedPinId(p.id)}
+                            className="flex min-w-0 flex-1 items-center gap-3 rounded-xl px-3 py-2.5 text-left"
+                          >
+                            <span className="grid size-9 shrink-0 place-items-center rounded-full text-lg" style={{ background: p.color }}>{p.icon}</span>
+                            <span className="min-w-0 flex-1">
+                              <span className="block truncate text-[15px] font-semibold">{i + 1}. {p.place.name}</span>
+                              {p.memo && <span className="block truncate text-[13px] text-(--c-muted)">{p.memo}</span>}
+                            </span>
+                          </button>
+                          <KakaoDirectionsLink to={p.place} from={mapDetail.pins[i - 1]?.place} mode={i > 0 ? view.modeOf(mapDetail.pins[i - 1].id, p.id) : undefined} />
+                        </li>
+                        {legMode && (
+                          <li className="ml-[30px] border-l-2 border-dotted border-(--c-border) py-1 pl-5 text-xs text-(--c-muted)">
+                            {legLabel(legMode, view.durationOf(p.id, next.id))}
+                            {transit && <TransitSteps info={transit} className="mt-1.5 text-(--c-text)" />}
+                          </li>
+                        )}
+                      </Fragment>
+                    )
+                  })}
                 </ol>
               </section>
             )}
 
-            <MeetupComments meetup={meetup} me={user} joined={joined} />
+            {/* 순례방 안내 (채팅 · 도착 체크는 참여자 전용 방에서) */}
+            <section className="mt-8 rounded-2xl border border-(--c-border) bg-(--c-surface) p-5">
+              <h2 className="text-lg font-bold">💬 순례방</h2>
+              <p className="mt-1 text-sm leading-relaxed text-(--c-muted)">
+                참여자끼리만 쓰는 방이에요. 실시간으로 채팅하고, 코스를 돌며 장소마다 도착 체크를 하면 서로 어디쯤인지 보여요.
+              </p>
+              {joined ? (
+                <Link href={`/meetups/${meetup.id}/room`} className="mt-4 inline-flex h-10 items-center rounded-full bg-(--c-accent) px-5 text-sm font-bold text-(--c-accent-text)">
+                  순례방 들어가기 →
+                </Link>
+              ) : (
+                <p className="mt-3 text-sm font-semibold">모임에 참여하면 순례방이 열려요.</p>
+              )}
+            </section>
 
             {/* 참여자 */}
             <section className="mt-8">

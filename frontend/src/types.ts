@@ -208,6 +208,13 @@ export interface MeetupComment {
   createdAt: string
 }
 
+/** 순례방 도착 체크: 누가 코스의 어느 장소에 도착했는지 */
+export interface MeetupCheckin {
+  userId: string
+  pinId: string
+  createdAt: string
+}
+
 export interface MeetupCommentInput {
   kind: MeetupCommentKind
   body: string
@@ -239,7 +246,7 @@ export interface MapRankingEntry extends PublicMapSummary {
 // ---- 신고 · 차단 · 문제 제보 ----
 
 /** 무엇을 신고하나: 사람 · 모임 · 지도 · 댓글 · 서비스 문제(버그·제안) */
-export type ReportTarget = 'user' | 'meetup' | 'map' | 'comment' | 'bug'
+export type ReportTarget = 'user' | 'meetup' | 'map' | 'comment' | 'bug' | 'review'
 /** 사람·콘텐츠 신고 사유 */
 export type AbuseReason = 'spam' | 'abuse' | 'inappropriate' | 'scam' | 'privacy' | 'other'
 /** 서비스 문제 종류 */
@@ -365,6 +372,8 @@ export interface PlaceReview {
   author: User
   rating: number // 1~5
   body: string // 한 줄 후기 (100자까지, 비워도 됨)
+  /** 신고가 3명 이상 모여 숨겨짐 (쓴 사람 · 관리자에게만 보인다) */
+  hidden: boolean
   createdAt: string
   updatedAt: string
 }

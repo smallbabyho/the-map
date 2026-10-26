@@ -9,23 +9,26 @@ import { REASON_LABEL } from './ReportDialog'
 
 type Filter = 'open' | 'abuse' | 'bug' | 'all'
 
-const TARGET_LABEL: Record<ReportTarget, string> = { user: '사용자', meetup: '모임', map: '지도', comment: '댓글', bug: '문제 제보' }
+const TARGET_LABEL: Record<ReportTarget, string> = { user: '사용자', meetup: '모임', map: '지도', comment: '댓글', bug: '문제 제보', review: '리뷰' }
 const TARGET_TONE: Record<ReportTarget, string> = {
   user: 'bg-rose-500/10 text-rose-600',
   meetup: 'bg-amber-500/10 text-amber-700',
   map: 'bg-sky-500/10 text-sky-700',
   comment: 'bg-violet-500/10 text-violet-600',
   bug: 'bg-emerald-500/10 text-emerald-700',
+  review: 'bg-orange-500/10 text-orange-600',
 }
 const STATUS_LABEL: Record<ReportStatus, string> = { open: '처리 전', resolved: '처리 완료', dismissed: '문제없음' }
 /** 콘텐츠 내리기 버튼 이름 */
-const REMOVE_LABEL: Partial<Record<ReportTarget, string>> = { comment: '댓글 삭제', meetup: '모임 취소', map: '지도 비공개' }
+const REMOVE_LABEL: Partial<Record<ReportTarget, string>> = { comment: '댓글 삭제', meetup: '모임 취소', map: '지도 비공개', review: '리뷰 삭제' }
 
 function targetHref(r: Report) {
   if (!r.targetId) return null
   if (r.target === 'user') return `/u/${r.targetId}`
   if (r.target === 'meetup') return `/meetups/${r.targetId}`
   if (r.target === 'map') return `/maps/${r.targetId}`
+  // 리뷰는 신고한 장소 페이지로
+  if (r.target === 'review') return r.pageUrl || null
   return null
 }
 

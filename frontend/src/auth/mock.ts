@@ -102,6 +102,11 @@ export function mockCurrentUser(): User | null {
 }
 
 /** id → 닉네임 (모임 참여자 표시용) */
+/** 가입 시각 (리뷰 '가입 후 하루' 확인용). 모르는 사람이면 null */
+export function mockUserCreatedAt(id: string): string | null {
+  return load().users.find((x) => x.id === id)?.createdAt ?? null
+}
+
 export function mockUserById(id: string): User {
   const u = load().users.find((x) => x.id === id)
   return u ? toUser(u) : { id, nickname: '알 수 없음' }

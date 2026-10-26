@@ -3,6 +3,7 @@
 // 권한은 DB 의 RLS · 함수가 막는다 (backend/supabase/migrations). 여기서 하는 확인은 친절한 에러 메시지용.
 
 import { fetchMe, notifyProfileChanged } from '../auth/supabase'
+import { BANNED_WORD_MESSAGE, hasBannedWord } from '../lib/bannedWords'
 import { supabase } from '../lib/supabase'
 import type {
   AdminStats,
@@ -20,6 +21,7 @@ import type {
   MapInvitePreview,
   MapRankingEntry,
   Meetup,
+  MeetupCheckin,
   MeetupComment,
   MeetupCommentInput,
   MeetupFilter,
@@ -607,6 +609,41 @@ export async function deleteMeetupComment(commentId: string): Promise<void> {
 }
 
 // ===========================================================================
+// 순례방: 도착 체크 · 실시간
+// ===========================================================================
+
+export async function getMeetupCheckins(meetupId: string): Promise<MeetupCheckin[]> {
+  if (!(await myId())) return []
+  const { data, error } = await supabase.from('meetup_checkins').select('user_id, pin_id, created_at').eq('meetup_id', meetupId)
+  if (error) fail(error)
+  return (data as { user_id: string; pin_id: string; created_at: string }[]).map((r) => ({ userId: r.user_id, pinId: r.pin_id, createdAt: r.created_at }))
+}
+
+export async function setMeetupCheckin(meetupId: string, pinId: string, arrived: boolean): Promise<void> {
+  const me = await requireMe()
+  const { error } = arrived
+    ? await supabase.from('meetup_checkins').upsert({ meetup_id: meetupId, user_id: me, pin_id: pinId }, { onConflict: 'meetup_id,user_id,pin_id', ignoreDuplicates: true })
+    : await supabase.from('meetup_checkins').delete().eq('meetup_id', meetupId).eq('user_id', me).eq('pin_id', pinId)
+  if (error) {
+    if (/row-level security/i.test(error.message)) throw new Error('모임에 참여한 사람만 체크할 수 있어요.')
+    fail(error)
+  }
+}
+
+/** 순례방 채팅 · 도착 체크가 바뀌면 onChange (Supabase 실시간). 돌려준 함수로 그만 듣는다 */
+export function subscribeMeetupRoom(meetupId: string, onChange: () => void): () => void {
+  const filter = `meetup_id=eq.${meetupId}`
+  const channel = supabase
+    .channel(`meetup-room:${meetupId}`)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'meetup_comments', filter }, onChange)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'meetup_checkins', filter }, onChange)
+    .subscribe()
+  return () => {
+    supabase.removeChannel(channel)
+  }
+}
+
+// ===========================================================================
 // 신고 · 차단
 // ===========================================================================
 
@@ -865,13 +902,14 @@ const toPlaceStats = (r: PlaceStatsRow | undefined): PlaceStats => ({
   avgRating: r?.avg_rating == null ? null : Number(r.avg_rating),
 })
 
-const REVIEW_COLS = 'id, place_id, user_id, rating, body, created_at, updated_at'
+const REVIEW_COLS = 'id, place_id, user_id, rating, body, hidden, created_at, updated_at'
 interface PlaceReviewRow {
   id: string
   place_id: string
   user_id: string
   rating: number
   body: string
+  hidden: boolean
   created_at: string
   updated_at: string
 }
@@ -881,6 +919,7 @@ const toPlaceReview = (r: PlaceReviewRow, people: Map<string, User>): PlaceRevie
   author: people.get(r.user_id) ?? toUser(null, r.user_id),
   rating: r.rating,
   body: r.body,
+  hidden: r.hidden,
   createdAt: r.created_at,
   updatedAt: r.updated_at,
 })
@@ -933,6 +972,8 @@ export async function savePlaceReview(placeId: string, input: PlaceReviewInput):
   if (!(rating >= 1 && rating <= 5)) throw new Error('별점을 골라 주세요.')
   const body = input.body.trim()
   if (body.length > REVIEW_MAX) throw new Error(`후기는 ${REVIEW_MAX}자까지 쓸 수 있어요.`)
+  // 금지어 · 가입 하루 · 하루 10개는 DB 트리거가 막는다 (여기선 금지어만 먼저 알려준다)
+  if (hasBannedWord(body)) throw new Error(BANNED_WORD_MESSAGE)
   const { data, error } = await supabase
     .from('place_reviews')
     .upsert({ place_id: placeId, user_id: me, rating, body }, { onConflict: 'place_id,user_id' })

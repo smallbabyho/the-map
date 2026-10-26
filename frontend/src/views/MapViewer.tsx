@@ -7,8 +7,9 @@ import { useCurrentUser } from '../auth'
 import { HeaderActions } from '../components/AppRail'
 import { Avatar } from '../components/Avatar'
 import { ChevronLeftIcon, CopyIcon, UsersIcon } from '../components/icons'
-import { legLabel } from '../components/legModes'
-import { isCustomPlace, MapView, useRoutes, type MapInsets } from '../components/map'
+import { formatMinutes, legLabel } from '../components/legModes'
+import { isCustomPlace, MapView, type MapInsets } from '../components/map'
+import { useViewCourse, ViewModePicker, type ViewMode } from '../components/map/ViewModePicker'
 import { getTheme, themeVars } from '../components/themes'
 import { KakaoDirectionsLink } from '../components/map/KakaoDirections'
 import { placeHref } from '../components/place/PlaceStats'
@@ -17,12 +18,11 @@ import { StoryCardButton } from '../components/share/StoryCardButton'
 import { ReportButton } from '../components/report/ReportDialog'
 import { TransitSteps } from '../components/TransitSteps'
 import { copyMap, getUser } from '../db/api'
-import type { MapDetail, Pin, User } from '../types'
+import type { MapDetail, User } from '../types'
 
 /** 왼쪽 세로 메뉴를 없앴다 (오른쪽 위 HeaderActions 로) */
 const RAIL_W = 0
 const PANEL_W = 380
-const at = (p: Pin) => ({ lat: p.place.lat, lng: p.place.lng })
 
 /** 남의 공개 지도 (읽기 전용): 코스 보기 · 내 지도로 가져오기 · 성지순례 모집 */
 export function MapViewer({ detail }: { detail: MapDetail }) {
@@ -35,6 +35,9 @@ export function MapViewer({ detail }: { detail: MapDetail }) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [desktop, setDesktop] = useState(false)
+  // 이동수단을 바꿔서 코스 보기 (화면에서만, 지도는 그대로)
+  const [viewMode, setViewMode] = useState<ViewMode>('course')
+  const view = useViewCourse(pins, legs, viewMode)
 
   useEffect(() => {
     getUser(map.ownerId).then(setOwner)
@@ -60,18 +63,6 @@ export function MapViewer({ detail }: { detail: MapDetail }) {
     }
   }
   const meetupHref = me ? `/meetups/new?mapId=${map.id}` : `/login?next=${encodeURIComponent(`/meetups/new?mapId=${map.id}`)}`
-  const totalMin = legs.reduce((s, l) => s + (l.durationMin ?? 0), 0)
-  const legAfter = (pinId: string) => legs.find((l) => l.fromPinId === pinId)
-  // 대중교통 구간의 버스·지하철 정보 (지도와 같은 길찾기 결과를 공유)
-  const transitLegs = pins.slice(1).flatMap((to, i) => {
-    const leg = legAfter(pins[i].id)
-    return leg?.mode === 'transit' && leg.toPinId === to.id ? [{ pinId: pins[i].id, from: at(pins[i]), to: at(to) }] : []
-  })
-  const { routeOf } = useRoutes(transitLegs.map((t) => ({ ...t, mode: 'transit' as const })))
-  const transitAfter = (pinId: string) => {
-    const t = transitLegs.find((x) => x.pinId === pinId)
-    return t ? routeOf(t.from, t.to, 'transit')?.transit : undefined
-  }
   const insets: MapInsets = desktop ? { top: 0, right: 0, bottom: 0, left: RAIL_W + PANEL_W } : { top: 0, right: 0, bottom: 0, left: 0 }
 
   return (
@@ -82,7 +73,7 @@ export function MapViewer({ detail }: { detail: MapDetail }) {
 
       {/* 지도: 모바일은 위쪽, 데스크톱은 전체 */}
       <div className="relative h-[42dvh] shrink-0 md:absolute md:inset-0 md:h-auto">
-        <MapView pins={pins} legs={legs} theme={theme} look={map} selectedPinId={selectedId} onSelectPin={(id) => setSelectedId((c) => (c === id ? null : id))} insets={insets} />
+        <MapView pins={pins} legs={view.legs} theme={theme} look={map} selectedPinId={selectedId} onSelectPin={(id) => setSelectedId((c) => (c === id ? null : id))} insets={insets} />
         <button type="button" onClick={() => router.back()} className="tm-float absolute left-3 top-3 z-20 grid size-10 place-items-center rounded-full bg-(--c-surface) text-(--c-text) md:hidden" aria-label="뒤로">
           <ChevronLeftIcon size={20} />
         </button>
@@ -111,7 +102,7 @@ export function MapViewer({ detail }: { detail: MapDetail }) {
             </Link>
           )}
           <p className="mt-3 text-sm text-(--c-muted)">
-            장소 {pins.length}곳{totalMin > 0 && ` · 이동 약 ${totalMin}분`}
+            장소 {pins.length}곳{view.totalMin > 0 && ` · 이동 ${view.loading ? '계산 중…' : `약 ${formatMinutes(view.totalMin)}`}`}
           </p>
 
           <div className="mt-5 grid grid-cols-2 gap-2">
@@ -144,9 +135,13 @@ export function MapViewer({ detail }: { detail: MapDetail }) {
           )}
         </div>
 
-        <ol className="border-t border-(--c-border) px-3 py-3">
+        {/* 이동수단을 바꿔서 코스 보기 (화면에서만, 지도는 그대로) */}
+        {pins.length > 1 && <ViewModePicker value={viewMode} onChange={setViewMode} className="border-t border-(--c-border) px-5 pt-3" />}
+        <ol className={`${pins.length > 1 ? '' : 'border-t border-(--c-border) '}px-3 py-3`}>
           {pins.map((p, i) => {
-            const leg = legAfter(p.id)
+            const next = pins[i + 1]
+            const legMode = next && view.modeOf(p.id, next.id)
+            const transit = next && view.transitOf(p.id, next.id)
             return (
               <li key={p.id}>
                 <div className="flex items-center gap-1">
@@ -178,12 +173,12 @@ export function MapViewer({ detail }: { detail: MapDetail }) {
                       리뷰
                     </Link>
                   )}
-                  <KakaoDirectionsLink to={p.place} from={pins[i - 1]?.place} mode={i > 0 ? legAfter(pins[i - 1].id)?.mode : undefined} />
+                  <KakaoDirectionsLink to={p.place} from={pins[i - 1]?.place} mode={i > 0 ? view.modeOf(pins[i - 1].id, p.id) : undefined} />
                 </div>
-                {leg && i < pins.length - 1 && (
+                {legMode && (
                   <div className="ml-[27px] border-l-2 border-dotted border-(--c-border) py-1.5 pl-6 text-xs text-(--c-muted)">
-                    {legLabel(leg.mode, leg.durationMin)}
-                    {transitAfter(p.id) && <TransitSteps info={transitAfter(p.id)!} className="mt-1.5 text-(--c-text)" />}
+                    {legLabel(legMode, view.durationOf(p.id, next.id))}
+                    {transit && <TransitSteps info={transit} className="mt-1.5 text-(--c-text)" />}
                   </div>
                 )}
               </li>

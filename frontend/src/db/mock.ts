@@ -19,6 +19,7 @@ import type {
   MapInput,
   MapRankingEntry,
   Meetup,
+  MeetupCheckin,
   MeetupComment,
   MeetupCommentInput,
   MeetupFilter,
@@ -41,7 +42,8 @@ import type {
   PublicMapSummary,
   User,
 } from '../types'
-import { mockCurrentUser, mockDeleteUser, mockListUsers, mockUpdateMe, mockUpdateUser, mockUserById } from '../auth/mock'
+import { mockCurrentUser, mockDeleteUser, mockListUsers, mockUpdateMe, mockUpdateUser, mockUserById, mockUserCreatedAt } from '../auth/mock'
+import { BANNED_WORD_MESSAGE, hasBannedWord } from '../lib/bannedWords'
 
 const STORAGE_KEY = 'the-map:mock-db:v1'
 
@@ -78,6 +80,8 @@ interface Db {
   /** 함께 꾸미기: 공동 편집자 · 초대 코드 */
   mapMembers: { mapId: string; userId: string; joinedAt: string }[]
   mapInvites: { mapId: string; code: string }[]
+  /** 순례방 도착 체크 */
+  checkins: (MeetupCheckin & { meetupId: string })[]
   /** 장소 리뷰: 한 사람당 장소 하나에 1개 */
   placeReviews: PlaceReviewRow[]
   seeded?: boolean
@@ -100,7 +104,7 @@ function guessCategory(title: string): MapCategory {
 }
 
 function emptyDb(): Db {
-  return { maps: [], places: [], pins: [], legs: [], meetups: [], members: [], uses: [], decos: [], comments: [], reports: [], blocks: [], mapMembers: [], mapInvites: [], placeReviews: [] }
+  return { maps: [], places: [], pins: [], legs: [], meetups: [], members: [], uses: [], decos: [], comments: [], reports: [], blocks: [], mapMembers: [], mapInvites: [], checkins: [], placeReviews: [] }
 }
 
 function load(): Db {
@@ -796,8 +800,8 @@ export async function getUser(userId: string): Promise<User> {
 const COMMENT_MAX = 500
 
 /**
- * 모임 댓글 목록: 공지(최신 먼저)가 맨 위, 나머지는 오래된 순 (대화처럼 아래로 쌓인다).
- * 누구나 읽을 수 있다 (모임 화면을 볼 수 있으면).
+ * 순례방 메시지 목록: 공지(최신 먼저)가 맨 위, 나머지는 오래된 순 (대화처럼 아래로 쌓인다).
+ * 참여자(주최자 포함)만 읽을 수 있다. 아니면 빈 목록.
  *
  * @example
  * const comments = await getMeetupComments(meetupId)
@@ -805,9 +809,9 @@ const COMMENT_MAX = 500
 export async function getMeetupComments(meetupId: string): Promise<MeetupComment[]> {
   await tick()
   const db = load()
-  const meetup = db.meetups.find((m) => m.id === meetupId)
   const meId = mockCurrentUser()?.id
-  if (meetup?.visibility === 'private' && !db.members.some((r) => r.meetupId === meetupId && r.userId === meId)) return []
+  // 순례방 대화는 참여자(주최자 포함)만 읽는다
+  if (!db.members.some((r) => r.meetupId === meetupId && r.userId === meId)) return []
   // 내가 차단한 사람의 댓글은 안 보인다
   const blocked = blockedSet(db, meId)
   const rows = db.comments.filter((c) => c.meetupId === meetupId && !blocked.has(c.userId))
@@ -859,6 +863,58 @@ export async function deleteMeetupComment(commentId: string): Promise<void> {
 }
 
 // ===========================================================================
+// 순례방: 도착 체크 · 실시간
+// ===========================================================================
+
+const isMember = (db: Db, meetupId: string, userId: string | undefined) => !!userId && db.members.some((r) => r.meetupId === meetupId && r.userId === userId)
+
+/**
+ * 순례방 도착 체크 목록 (참여자만).
+ *
+ * @example
+ * const checks = await getMeetupCheckins(meetupId) // [{ userId, pinId, createdAt }, …]
+ */
+export async function getMeetupCheckins(meetupId: string): Promise<MeetupCheckin[]> {
+  await tick()
+  const db = load()
+  if (!isMember(db, meetupId, mockCurrentUser()?.id)) return []
+  return db.checkins.filter((c) => c.meetupId === meetupId).map(({ userId, pinId, createdAt }) => ({ userId, pinId, createdAt }))
+}
+
+/**
+ * 내 도착 체크 켜기 / 끄기 (참여자만).
+ *
+ * @example
+ * await setMeetupCheckin(meetupId, pin.id, true)
+ */
+export async function setMeetupCheckin(meetupId: string, pinId: string, arrived: boolean): Promise<void> {
+  await tick()
+  const me = requireUser()
+  const db = load()
+  if (!isMember(db, meetupId, me.id)) throw new Error('모임에 참여한 사람만 체크할 수 있어요.')
+  db.checkins = db.checkins.filter((c) => !(c.meetupId === meetupId && c.userId === me.id && c.pinId === pinId))
+  if (arrived) db.checkins.push({ meetupId, userId: me.id, pinId, createdAt: now() })
+  persist(db)
+}
+
+/**
+ * 순례방에 새 메시지 · 도착 체크가 생기면 onChange 를 부른다. 돌려준 함수로 그만 듣는다.
+ * (가짜 데이터는 브라우저 안에만 있어서, 다른 탭에서 바뀐 것을 storage 이벤트 + 4초마다 확인으로 받는다)
+ *
+ * @example
+ * useEffect(() => subscribeMeetupRoom(meetupId, reload), [meetupId])
+ */
+export function subscribeMeetupRoom(meetupId: string, onChange: () => void): () => void {
+  const onStorage = (e: StorageEvent) => e.key === STORAGE_KEY && onChange()
+  window.addEventListener('storage', onStorage)
+  const t = window.setInterval(onChange, 4000)
+  return () => {
+    window.removeEventListener('storage', onStorage)
+    window.clearInterval(t)
+  }
+}
+
+// ===========================================================================
 // 신고 · 차단 · 문제 제보
 // ===========================================================================
 
@@ -907,6 +963,12 @@ export async function submitReport(input: ReportInput): Promise<void> {
       createdAt: now(),
       resolvedAt: null,
     })
+  }
+  // 리뷰는 서로 다른 3명이 신고하면 자동으로 숨긴다 (DB 트리거와 같은 규칙)
+  if (input.target === 'review' && input.targetId) {
+    const reporters = new Set(db.reports.filter((r) => r.target === 'review' && r.targetId === input.targetId && r.status === 'open' && r.reporterId).map((r) => r.reporterId))
+    const review = db.placeReviews.find((r) => r.id === input.targetId)
+    if (review && reporters.size >= 3) review.hidden = true
   }
   persist(db)
 }
@@ -982,6 +1044,11 @@ export async function adminResolveReport(reportId: string, status: ReportStatus,
       const m = db.maps.find((x) => x.id === r.targetId)
       if (m) m.isPublic = false
     }
+    if (r.target === 'review') db.placeReviews = db.placeReviews.filter((x) => x.id !== r.targetId)
+  } else if (r.target === 'review' && status === 'dismissed' && r.targetId) {
+    // 문제없음으로 처리하면 숨겼던 리뷰를 다시 보이게
+    const review = db.placeReviews.find((x) => x.id === r.targetId)
+    if (review) review.hidden = false
   }
   r.status = status
   r.adminNote = note.trim().slice(0, 500)
@@ -1179,7 +1246,7 @@ const REVIEW_MAX = 100
 
 function placeStatsOf(db: Db, placeId: string): PlaceStats {
   const mapCount = new Set(db.pins.filter((p) => p.placeId === placeId).map((p) => p.mapId)).size
-  const reviews = db.placeReviews.filter((r) => r.placeId === placeId)
+  const reviews = db.placeReviews.filter((r) => r.placeId === placeId && !r.hidden)
   const avgRating = reviews.length ? Math.round((reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length) * 10) / 10 : null
   return { mapCount, reviewCount: reviews.length, avgRating }
 }
@@ -1194,7 +1261,10 @@ function hasPinnedPlace(db: Db, placeId: string, userId: string | undefined) {
   })
 }
 
-const toPlaceReview = ({ userId, ...rest }: PlaceReviewRow): PlaceReview => ({ ...rest, author: mockUserById(userId) })
+const toPlaceReview = ({ userId, ...rest }: PlaceReviewRow): PlaceReview => ({ ...rest, hidden: !!rest.hidden, author: mockUserById(userId) })
+
+const REVIEW_DAILY_MAX = 10
+const DAY_MS = 864e5
 
 /**
  * 장소별 통계 (검색 결과에 '지도 N개에 담김' 표시용). 비공개 지도도 센다. 아직 아무도 담지 않은 장소는 결과에 없다.
@@ -1229,7 +1299,7 @@ export async function getPlaceDetail(externalId: string): Promise<PlaceDetail | 
   const meId = mockCurrentUser()?.id
   const blocked = blockedSet(db, meId)
   const reviews = db.placeReviews
-    .filter((r) => r.placeId === place.id && !blocked.has(r.userId))
+    .filter((r) => r.placeId === place.id && !blocked.has(r.userId) && (!r.hidden || r.userId === meId || mockCurrentUser()?.role === 'admin'))
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
     .map(toPlaceReview)
   const mapIds = new Set(db.pins.filter((p) => p.placeId === place.id).map((p) => p.mapId))
@@ -1256,10 +1326,18 @@ export async function savePlaceReview(placeId: string, input: PlaceReviewInput):
   if (!(rating >= 1 && rating <= 5)) throw new Error('별점을 골라 주세요.')
   const body = input.body.trim()
   if (body.length > REVIEW_MAX) throw new Error(`후기는 ${REVIEW_MAX}자까지 쓸 수 있어요.`)
+  if (hasBannedWord(body)) throw new Error(BANNED_WORD_MESSAGE)
   let row = db.placeReviews.find((r) => r.placeId === placeId && r.userId === me.id)
   if (row) Object.assign(row, { rating, body, updatedAt: now() })
   else {
-    row = { id: newId(), placeId, userId: me.id, rating, body, createdAt: now(), updatedAt: now() }
+    // 새 리뷰: 가입 하루 뒤부터 · 하루 10개까지 (관리자는 예외). DB 트리거와 같은 규칙
+    if (me.role !== 'admin') {
+      const joined = mockUserCreatedAt(me.id)
+      if (joined && Date.now() - new Date(joined).getTime() < DAY_MS) throw new Error('가입하고 하루가 지나면 리뷰를 남길 수 있어요.')
+      const today = db.placeReviews.filter((r) => r.userId === me.id && Date.now() - new Date(r.createdAt).getTime() < DAY_MS).length
+      if (today >= REVIEW_DAILY_MAX) throw new Error(`리뷰는 하루에 ${REVIEW_DAILY_MAX}개까지 남길 수 있어요. 내일 다시 남겨 주세요.`)
+    }
+    row = { id: newId(), placeId, userId: me.id, rating, body, hidden: false, createdAt: now(), updatedAt: now() }
     db.placeReviews.push(row)
   }
   persist(db)
@@ -1291,7 +1369,7 @@ function seedReviews(db: Db) {
     const place = db.places.find((p) => p.externalId === externalId)
     if (!place || db.placeReviews.some((r) => r.placeId === place.id && r.userId === userId)) return
     const at = new Date(Date.now() - daysAgo * day).toISOString()
-    db.placeReviews.push({ id: newId(), placeId: place.id, userId, rating, body, createdAt: at, updatedAt: at })
+    db.placeReviews.push({ id: newId(), placeId: place.id, userId, rating, body, hidden: false, createdAt: at, updatedAt: at })
   }
   review('sample-16', 'u-bread', 5, '소금빵 나오는 11시에 맞춰 가세요. 줄 서도 아깝지 않아요', 6)
   review('sample-1', 'u-bread', 4, '골목마다 카페가 있어서 쉬어 가기 좋아요', 5)

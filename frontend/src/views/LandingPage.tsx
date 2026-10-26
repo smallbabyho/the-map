@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { useEffect, useState, type CSSProperties } from 'react'
+import { useCurrentUser } from '../auth'
 import { AppRail, MobileTabBar } from '../components/AppRail'
 import { MapThumb } from '../components/MapThumb'
 import { useReveal, useScrollProgress } from '../components/useReveal'
@@ -41,6 +42,9 @@ export function LandingPage({ embedded = false }: { embedded?: boolean }) {
     window.scrollTo({ top: el.offsetTop + (total * (i + 0.5)) / STEPS.length, behavior: 'smooth' })
   }
   const [top, setTop] = useState<MapRankingEntry[] | null>(null)
+  // 이미 로그인했으면 시작 버튼은 로그인 화면(계정 정보) 대신 내 지도로
+  const loggedIn = !!useCurrentUser()
+  const startHref = loggedIn ? '/' : '/login'
 
   useEffect(() => {
     let cancelled = false
@@ -74,8 +78,8 @@ export function LandingPage({ embedded = false }: { embedded?: boolean }) {
             빵지순례, 데이트 코스, 1박 2일 여행. 좋아하는 것들로 코스를 만들고, 다이어리처럼 꾸미고, 친구들과의 여정을 공유해요.
           </p>
           <div className="tm-intro mt-8 flex flex-wrap gap-3" style={{ '--delay': '0.24s' } as CSSProperties}>
-            <Link href="/login" className="tm-btn rounded-full bg-(--c-accent) px-6 py-3 text-[15px] font-bold text-(--c-accent-text)">
-              지금 지도 만들기 →
+            <Link href={startHref} className="tm-btn rounded-full bg-(--c-accent) px-6 py-3 text-[15px] font-bold text-(--c-accent-text)">
+              {loggedIn ? '내 지도로 가기 →' : '지금 지도 만들기 →'}
             </Link>
             <Link href="/explore" className="tm-btn rounded-full bg-(--c-surface) px-6 py-3 text-[15px] font-bold">
               지도 둘러보기
@@ -194,8 +198,8 @@ export function LandingPage({ embedded = false }: { embedded?: boolean }) {
           <br />
           지도에 남겨요
         </h2>
-        <Link href="/login" className="tm-btn tm-reveal mt-10 inline-block rounded-full bg-(--c-accent) px-8 py-4 text-base font-bold text-(--c-accent-text)">
-          무료로 시작하기 →
+        <Link href={startHref} className="tm-btn tm-reveal mt-10 inline-block rounded-full bg-(--c-accent) px-8 py-4 text-base font-bold text-(--c-accent-text)">
+          {loggedIn ? '내 지도로 가기 →' : '무료로 시작하기 →'}
         </Link>
         <p className="mt-16 font-mono text-[11px] uppercase tracking-wider text-(--c-muted)">© concept map · made for walkers</p>
       </section>

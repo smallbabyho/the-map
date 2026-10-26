@@ -26,11 +26,11 @@ export interface MapViewProps {
   selectedPinId: string | null
   onSelectPin: (pinId: string) => void
   insets?: MapInsets
-  /** 지도 우클릭(모바일은 길게 누르기) → 팝업의 [핀 추가]를 누르면 호출. 없으면 우클릭 기능 꺼짐. */
+  /** 지도를 누르면(우클릭 · 길게 누르기도) 뜨는 팝업에서 장소를 고르면 호출. 없으면 지도 찍기 기능 꺼짐. */
   onAddPlace?: (place: PlaceSearchResult) => void
 }
 
-/** 우클릭으로 고른 지점 */
+/** 지도에서 찍은 지점 */
 export interface PickedPoint {
   lat: number
   lng: number

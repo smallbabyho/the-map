@@ -183,14 +183,15 @@ export function KakaoMap({ pins, segments, theme, look = DEFAULT_LOOK, selectedP
     }
   }, [ready, me.pos])
 
-  // 7) 우클릭 → 그 지점에 팝업. 지도 빈 곳을 누르면 닫힘.
+  // 7) 클릭 · 우클릭 → 그 지점에 팝업 (근처 장소 고르기). 다른 곳을 누르면 그 자리로 옮겨 간다. 핀 클릭은 핀이 막는다.
   useEffect(() => {
     const map = mapRef.current
     if (!ready || !map || !canPick) return
     const ev = window.kakao!.maps.event
-    const onRight = (e: kakao.maps.event.MouseEvent) => setPicked({ lat: e.latLng.getLat(), lng: e.latLng.getLng() })
-    // 길게 누르기 직후 손을 떼면 click 이 같이 오므로, 방금 연 팝업은 닫지 않는다
-    const onClick = () => Date.now() - pickedAtRef.current > 700 && setPicked(null)
+    const pick = (e: kakao.maps.event.MouseEvent) => setPicked({ lat: e.latLng.getLat(), lng: e.latLng.getLng() })
+    const onRight = pick
+    // 길게 누르기 직후 손을 떼면 click 이 같이 오므로, 방금 연 팝업은 그대로 둔다
+    const onClick = (e: kakao.maps.event.MouseEvent) => Date.now() - pickedAtRef.current > 700 && pick(e)
     ev.addListener(map, 'rightclick', onRight)
     ev.addListener(map, 'click', onClick)
     return () => {

@@ -89,3 +89,55 @@ export async function describePoint(lat: number, lng: number): Promise<PlaceSear
     return base
   }
 }
+
+// 근처 장소를 찾을 카테고리: 음식점 · 카페 · 관광명소 · 문화시설 · 편의점 · 마트 · 숙박 · 지하철역
+const NEARBY_CATEGORIES = ['FD6', 'CE7', 'AT4', 'CT1', 'CS2', 'MT1', 'AD5', 'SW8']
+
+/**
+ * 찍은 지점 근처의 카카오 장소 (가까운 순, 최대 limit 개). building(그 자리 건물 이름)을 주면 그 이름으로도 찾아서 건물 자체가 장소면 같이 나온다.
+ * 키가 없으면 내장 샘플 장소 중 가까운 것.
+ *
+ * @example
+ * const places = await nearbyPlaces(37.5446, 127.0559, { building: '성수아이파크' }) // [{ name: '어니언 성수', distance: 12, … }, …]
+ */
+export async function nearbyPlaces(lat: number, lng: number, { radius = 80, limit = 8, building = '' } = {}): Promise<(PlaceSearchResult & { distance: number })[]> {
+  if (!hasKakaoKey) {
+    return SAMPLE_PLACES.map((p) => ({ ...p, distance: Math.round(distanceM(lat, lng, p.lat, p.lng)) }))
+      .filter((p) => p.distance <= radius * 3)
+      .sort((a, b) => a.distance - b.distance)
+      .slice(0, limit)
+  }
+  const k = await loadKakao()
+  const places = new k.maps.services.Places()
+  const location = new k.maps.LatLng(lat, lng)
+  const options = { location, radius, sort: 'distance' as const, size: 5 }
+  const collect = (run: (cb: (data: kakao.maps.services.PlaceResult[], status: kakao.maps.services.Status) => void) => void) =>
+    new Promise<kakao.maps.services.PlaceResult[]>((resolve) => run((data, status) => resolve(status === k.maps.services.Status.OK ? data : [])))
+
+  const found = await Promise.all([
+    ...NEARBY_CATEGORIES.map((code) => collect((cb) => places.categorySearch(code, cb, options))),
+    // 건물 이름이 있으면 그 이름으로도 (대형 건물 · 상가 자체가 장소인 경우)
+    building ? collect((cb) => places.keywordSearch(building, cb, options)) : Promise.resolve([]),
+  ])
+  const byId = new Map<string, PlaceSearchResult & { distance: number }>()
+  for (const d of found.flat()) {
+    if (byId.has(d.id)) continue
+    byId.set(d.id, {
+      externalId: d.id,
+      name: d.place_name,
+      lat: Number(d.y),
+      lng: Number(d.x),
+      address: d.road_address_name || d.address_name,
+      category: d.category_group_name,
+      distance: Number(d.distance ?? distanceM(lat, lng, Number(d.y), Number(d.x))),
+    })
+  }
+  return [...byId.values()].sort((a, b) => a.distance - b.distance).slice(0, limit)
+}
+
+/** 두 좌표 사이 거리(m), 가까운 거리용 근사 */
+function distanceM(lat1: number, lng1: number, lat2: number, lng2: number) {
+  const dy = (lat2 - lat1) * 111_320
+  const dx = (lng2 - lng1) * 111_320 * Math.cos((lat1 * Math.PI) / 180)
+  return Math.hypot(dx, dy)
+}

@@ -65,10 +65,14 @@ export function Tour({ id, userId, steps }: Props) {
   const [rect, setRect] = useState<DOMRect | null>(null)
   const nextRef = useRef<HTMLButtonElement>(null)
 
-  // 화면이 다 그려진 뒤에 띄운다 (짚을 버튼이 늦게 나타날 수 있어서)
+  // 화면이 다 그려진 뒤에 띄운다 (짚을 버튼이 늦게 나타날 수 있어서).
+  // 뜨는 순간 본 것으로 기억한다: 중간에 다른 화면으로 가거나 새로고침해도 다시 뜨지 않게
   useEffect(() => {
     if (!userId || wasSeen(id, userId)) return
-    const t = window.setTimeout(() => setIndex(0), 700)
+    const t = window.setTimeout(() => {
+      markSeen(id, userId)
+      setIndex(0)
+    }, 700)
     return () => window.clearTimeout(t)
   }, [id, userId])
 

@@ -64,6 +64,14 @@ declare namespace kakao.maps.services {
     address_name: string
     road_address_name: string
     category_group_name: string
+    /** location 을 주고 검색했을 때만: 그 지점에서 떨어진 거리(m) */
+    distance?: string
+  }
+  interface PlacesSearchOptions {
+    size?: number
+    location?: kakao.maps.LatLng
+    radius?: number
+    sort?: 'accuracy' | 'distance'
   }
   interface Coord2AddressResult {
     address: { address_name: string } | null
@@ -73,7 +81,8 @@ declare namespace kakao.maps.services {
     coord2Address(lng: number, lat: number, callback: (result: Coord2AddressResult[], status: Status) => void): void
   }
   class Places {
-    keywordSearch(keyword: string, callback: (data: PlaceResult[], status: Status) => void, options?: { size?: number }): void
+    keywordSearch(keyword: string, callback: (data: PlaceResult[], status: Status) => void, options?: PlacesSearchOptions): void
+    categorySearch(code: string, callback: (data: PlaceResult[], status: Status) => void, options?: PlacesSearchOptions): void
   }
 }
 

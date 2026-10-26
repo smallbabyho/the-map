@@ -15,7 +15,7 @@ import type { MapRankingEntry } from '../types'
 const THEMES = ['🥐 빵지순례', '🎬 드라마 촬영지', '☕ 성수 카페 투어', '📚 동네 책방', '🍜 노포 맛집', '🌸 벚꽃 산책', '🎵 앨범 커버 성지', '🏛️ 근대 건축', '🐾 고양이 골목']
 
 const STEPS = [
-  { no: '01', title: '핀을 꽂고', en: 'Pin', body: '가고 싶은 곳도, 이미 다녀온 곳도. 검색하거나 지도를 길게 눌러 핀을 꽂고, 이모지와 색으로 장소마다 표정을 줘요.' },
+  { no: '01', title: '핀을 꽂고', en: 'Pin', body: '가고 싶은 곳도, 이미 다녀온 곳도. 검색하거나 지도를 눌러 근처 장소를 골라 핀을 꽂고, 이모지와 색으로 장소마다 표정을 줘요.' },
   { no: '02', title: '길을 잇고', en: 'Route', body: '걷기 · 대중교통 · 자동차 · 자전거. 버스 번호, 환승, KTX역까지 가는 길도 알아서 이어져요.' },
   { no: '03', title: '내 맘대로 꾸미고', en: 'Decorate', body: '테마 색, 마커 모양, 선 스타일, 커버 사진. 다이어리 꾸미듯 나만의 지도를 만들어요.' },
   { no: '04', title: '같이 떠나요', en: 'Together', body: '초대 링크 하나면 친구들이 한 지도에 들어와 핀을 넣고 순서를 바꾸며 코스를 같이 짜요. 완성된 지도는 단톡방에 공유하고 함께 떠나요.' },
@@ -598,7 +598,7 @@ function StepMap({ step }: { step: number }) {
       <ShareChat show={step === 3} />
       {/* 3단계: 꾸미기 도구 */}
       <div
-        className={`absolute -bottom-6 left-1/2 flex items-center gap-2 rounded-full bg-(--c-surface) p-2 pl-3.5 shadow-lg ring-1 ring-(--c-border) transition-all duration-500 ${step === 2 ? '' : 'pointer-events-none'}`}
+        className={`absolute bottom-3 left-1/2 flex items-center gap-2 md:-bottom-6 rounded-full bg-(--c-surface) p-2 pl-3.5 shadow-lg ring-1 ring-(--c-border) transition-all duration-500 ${step === 2 ? '' : 'pointer-events-none'}`}
         style={{ opacity: step === 2 ? 1 : 0, transform: `translateX(-50%) translateY(${step === 2 ? 0 : 16}px)` }}
         role="radiogroup"
         aria-label="지도 색 골라 보기"

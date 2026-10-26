@@ -24,7 +24,7 @@ import { MapViewer } from './MapViewer'
 
 /** 지도 편집 화면을 처음 연 사람에게 한 번 보여주는 안내 */
 const EDITOR_TOUR: TourStep[] = [
-  { target: 'place-search', title: '장소 추가', body: '검색해서 핀을 꽂아요. 지도를 길게 누르면(컴퓨터는 우클릭) 아무 곳이나 찍을 수 있어요.' },
+  { target: 'place-search', title: '장소 추가', body: '검색해서 핀을 꽂아요. 지도를 누르면 그 근처 가게 · 건물을 골라 꽂을 수도 있어요.' },
   { target: 'pins', title: '핀 목록', body: '핀을 누르면 사진 · 다녀온 날짜 · 메모를 남겨요. 끌어서 순서를 바꾸면 길이 다시 이어져요.' },
   { target: 'map-look', title: '꾸미기', body: '테마 색, 마커 모양, 선 스타일로 지도에 표정을 줘요.' },
   { target: 'collab', title: '함께 꾸미기', body: '초대 링크를 보내면 친구와 한 지도를 같이 짜요.' },
@@ -370,7 +370,7 @@ export function MapEditorPage() {
               </span>
               <p className="mt-4 font-semibold">첫 장소를 추가해 보세요</p>
               <p className="mt-1 text-sm text-(--c-muted)">
-                위 검색창에서 장소를 찾거나, 지도에서 {vp.desktop ? '우클릭' : '길게 눌러'} 원하는 곳에 핀을 꽂아 보세요. 순서대로 선이 이어져요.
+                위 검색창에서 장소를 찾거나, 지도를 눌러 근처 장소를 골라 핀을 꽂아 보세요. 순서대로 선이 이어져요.
               </p>
             </div>
           ) : (

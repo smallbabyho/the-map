@@ -7,7 +7,8 @@ import { signOut, useCurrentUser } from '../auth'
 import type { User } from '../types'
 import { setAppearancePref, useAppearance, type AppearancePref } from './appearance'
 import { Avatar } from './Avatar'
-import { AutoModeIcon, MapIcon, MoonIcon, ShieldIcon, SunIcon, TrophyIcon, UserIcon, UsersIcon } from './icons'
+import { SiteColorPicker } from './SiteColorPicker'
+import { AutoModeIcon, MapIcon, MoonIcon, SearchIcon, ShieldIcon, SunIcon, TrophyIcon, UserIcon, UsersIcon } from './icons'
 import { BUG_SUBJECT, ReportDialog } from './report/ReportDialog'
 
 export type NavKey = 'maps' | 'meetups' | 'explore' | 'ranking' | 'admin' | 'login' | 'profile' | 'about'
@@ -52,7 +53,7 @@ export function Wordmark({ className = '' }: { className?: string }) {
  * 맨 위 가로 헤더 (모든 목록형 화면). 왼쪽 로고 · 메뉴, 오른쪽 내 프로필 + ☰ 메뉴(설정 · 문제 제보 · 로그아웃).
  * 현재 메뉴는 props 로 받는다 (usePathname 은 cacheComponents 에서 동적 라우트 빌드를 막을 수 있어서).
  */
-export function AppRail({ active }: { active: NavKey }) {
+export function AppRail({ active }: { active?: NavKey }) {
   const user = useCurrentUser()
   return (
     <header className="fixed inset-x-0 top-0 z-30 border-b border-(--c-border) bg-(--c-bg)/85 backdrop-blur-md" style={{ height: HEADER_H }}>
@@ -89,6 +90,9 @@ export function HeaderActions({ user: given, active, floating = false }: { user?
   const box = floating ? 'tm-float rounded-full bg-(--c-surface) p-1' : ''
   return (
     <div className={`flex items-center gap-1.5 ${box}`}>
+      <Link href="/explore" className="grid size-9 shrink-0 place-items-center rounded-full text-(--c-text) transition hover:bg-black/5" aria-label="검색" title="지도 · 사람 검색">
+        <SearchIcon size={19} />
+      </Link>
       {user === undefined ? (
         <span className="size-9" />
       ) : user ? (
@@ -215,6 +219,8 @@ function MainMenu({ user }: { user: User | null }) {
                 </button>
               ))}
             </div>
+            <p className="tm-label mb-1.5 mt-3">색 테마</p>
+            <SiteColorPicker />
           </div>
 
           <button type="button" onClick={() => (setBug(true), close())} className={item}>
@@ -254,7 +260,7 @@ function MainMenu({ user }: { user: User | null }) {
 }
 
 /** 모바일 하단 탭 (목록형 화면에서 사용). 마지막 칸은 로그인 / 내 프로필. */
-export function MobileTabBar({ active }: { active: NavKey }) {
+export function MobileTabBar({ active }: { active?: NavKey }) {
   const user = useCurrentUser()
   const last: NavItem = user
     ? { key: 'profile', href: `/u/${user.id}`, label: '프로필', icon: <Avatar id={user.id} nickname={user.nickname} src={user.avatarUrl} size={22} /> }

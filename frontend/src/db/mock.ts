@@ -41,8 +41,14 @@ import type {
   ProfilePage,
   PublicMapSummary,
   User,
+  MapSearchEntry,
+  MapSearchFilters,
+  NoshowStatus,
+  PersonSearchEntry,
 } from '../types'
-import { mockCurrentUser, mockDeleteUser, mockListUsers, mockUpdateMe, mockUpdateUser, mockUserById, mockUserCreatedAt } from '../auth/mock'
+import { regionById, regionOf } from '../components/regions'
+import { categoriesMatching } from '../components/mapCategories'
+import { mockCurrentUser, mockDeleteUser, mockListUsers, mockSearchUsers, mockUpdateMe, mockUpdateUser, mockUserById, mockUserCreatedAt } from '../auth/mock'
 import { BANNED_WORD_MESSAGE, hasBannedWord } from '../lib/bannedWords'
 
 const STORAGE_KEY = 'the-map:mock-db:v1'
@@ -84,6 +90,8 @@ interface Db {
   checkins: (MeetupCheckin & { meetupId: string })[]
   /** 장소 리뷰: 한 사람당 장소 하나에 1개 */
   placeReviews: PlaceReviewRow[]
+  /** 노쇼: 주최자가 끝난 모임에서 표시 */
+  noshows: { meetupId: string; userId: string; createdAt: string }[]
   seeded?: boolean
   reviewsSeeded?: boolean
 }
@@ -104,7 +112,7 @@ function guessCategory(title: string): MapCategory {
 }
 
 function emptyDb(): Db {
-  return { maps: [], places: [], pins: [], legs: [], meetups: [], members: [], uses: [], decos: [], comments: [], reports: [], blocks: [], mapMembers: [], mapInvites: [], checkins: [], placeReviews: [] }
+  return { maps: [], places: [], pins: [], legs: [], meetups: [], members: [], uses: [], decos: [], comments: [], reports: [], blocks: [], mapMembers: [], mapInvites: [], checkins: [], placeReviews: [], noshows: [] }
 }
 
 function load(): Db {
@@ -117,7 +125,7 @@ function load(): Db {
   }
   // 예전 '다크' 테마는 색만 남겨 네온으로 (배경 라이트/다크는 이제 보는 사람 설정)
   for (const m of db.maps) if ((m.theme as string) === 'dark') m.theme = 'neon'
-  db.maps = db.maps.map((m) => ({ ...DEFAULT_LOOK, ...m, category: m.category ?? guessCategory(m.title) }))
+  db.maps = db.maps.map((m) => ({ ...DEFAULT_LOOK, ...m, category: m.category ?? guessCategory(m.title), plannedDate: m.plannedDate ?? null, purpose: m.purpose ?? (m.isPublic ? 'record' : 'plan'), categoryLabel: m.categoryLabel ?? null }))
   db.meetups = db.meetups.map((m) => ({ ...m, visibility: m.visibility ?? 'public', inviteCode: m.inviteCode ?? null }))
   // 예전 이동수단(버스·지하철)은 대중교통으로
   for (const leg of db.legs) if ((leg.mode as string) === 'bus' || (leg.mode as string) === 'subway') leg.mode = 'transit'
@@ -262,6 +270,9 @@ export async function saveMap(mapData: MapInput): Promise<ConceptMap> {
       lineStyle: mapData.lineStyle ?? map.lineStyle,
       lineWidth: mapData.lineWidth ?? map.lineWidth,
       coverUrl: mapData.coverUrl !== undefined ? mapData.coverUrl : map.coverUrl,
+      plannedDate: mapData.plannedDate !== undefined ? mapData.plannedDate : (map.plannedDate ?? null),
+      purpose: mapData.purpose ?? map.purpose ?? (map.isPublic ? 'record' : 'plan'),
+      categoryLabel: mapData.categoryLabel !== undefined ? mapData.categoryLabel?.trim().slice(0, 20) || null : (map.categoryLabel ?? null),
       updatedAt: now(),
     })
     persist(db)
@@ -278,6 +289,9 @@ export async function saveMap(mapData: MapInput): Promise<ConceptMap> {
     lineStyle: mapData.lineStyle ?? DEFAULT_LOOK.lineStyle,
     lineWidth: mapData.lineWidth ?? DEFAULT_LOOK.lineWidth,
     coverUrl: mapData.coverUrl ?? null,
+    plannedDate: mapData.plannedDate ?? null,
+    purpose: mapData.purpose ?? 'plan',
+    categoryLabel: mapData.categoryLabel?.trim().slice(0, 20) || null,
     createdAt: now(),
     updatedAt: now(),
   }
@@ -732,6 +746,11 @@ export async function joinMeetup(meetupId: string, inviteCode?: string): Promise
   const members = db.members.filter((r) => r.meetupId === m.id)
   if (members.some((r) => r.userId === me.id)) throw new Error('이미 참여한 모임이에요.')
   if (members.length >= m.capacity) throw new Error('정원이 다 찼어요.')
+  const block = noshowStatusOf(db, me.id).blockedUntil
+  if (block && m.hostId !== me.id) {
+    const d = new Date(block)
+    throw new Error(`노쇼가 2번 쌓여서 ${d.getMonth() + 1}월 ${d.getDate()}일까지 새 모임에 참여할 수 없어요.`)
+  }
   db.members.push({ meetupId: m.id, userId: me.id, joinedAt: now() })
   recordUse(db, m.mapId, me.id, 'meetup')
   persist(db)
@@ -1160,6 +1179,9 @@ export async function copyMap(mapId: string): Promise<ConceptMap> {
     lineStyle: src.lineStyle,
     lineWidth: src.lineWidth,
     coverUrl: src.coverUrl,
+    plannedDate: null, // 남의 일정은 안 가져온다
+    purpose: 'plan', // 가져온 지도는 내 계획
+    categoryLabel: src.categoryLabel ?? null,
     createdAt: now(),
     updatedAt: now(),
   }
@@ -1168,7 +1190,7 @@ export async function copyMap(mapId: string): Promise<ConceptMap> {
   for (const p of db.pins.filter((x) => x.mapId === src.id)) {
     const id = newId()
     idMap.set(p.id, id)
-    db.pins.push({ ...p, id, mapId: copy.id })
+    db.pins.push({ ...p, id, mapId: copy.id, visitedAt: null }) // 남이 다녀온 날은 안 가져온다
   }
   for (const l of db.legs.filter((x) => x.mapId === src.id)) {
     const from = idMap.get(l.fromPinId)
@@ -1408,7 +1430,7 @@ function seed(db: Db) {
     stops: { place: Place; icon: string; color: string; memo?: string }[],
     modes: Leg['mode'][],
   ) => {
-    const map: ConceptMap = { id: newId(), ownerId, title, theme, isPublic: true, category: guessCategory(title), ...DEFAULT_LOOK, createdAt: at(-30), updatedAt: at(-2) }
+    const map: ConceptMap = { id: newId(), ownerId, title, theme, isPublic: true, category: guessCategory(title), ...DEFAULT_LOOK, plannedDate: null, purpose: 'record', categoryLabel: null, createdAt: at(-30), updatedAt: at(-2) }
     db.maps.push(map)
     const ids = stops.map((s, i) => {
       const id = newId()
@@ -1564,5 +1586,95 @@ export async function adminDeleteUser(userId: string): Promise<void> {
   db.blocks = db.blocks.filter((b) => b.userId !== userId && b.blockedId !== userId)
   db.mapMembers = db.mapMembers.filter((m) => m.userId !== userId && !mapIds.has(m.mapId))
   db.mapInvites = db.mapInvites.filter((m) => !mapIds.has(m.mapId))
+  persist(db)
+}
+
+// 대중교통 길찾기 공용 저장소: 가짜 데이터 모드에서는 각 브라우저의 저장(routing.ts)만 쓴다
+export async function getTransitCache(key: string): Promise<unknown | null> {
+  void key
+  return null
+}
+export async function putTransitCache(key: string, result: unknown): Promise<void> {
+  void key
+  void result
+}
+
+// ===========================================================================
+// 검색 (공개 지도 · 사람)
+// ===========================================================================
+
+export async function searchMaps(f: MapSearchFilters): Promise<MapSearchEntry[]> {
+  await tick()
+  const db = load()
+  const blocked = blockedSet(db, mockCurrentUser()?.id)
+  const ym = new Date().toISOString().slice(0, 7)
+  const q = f.q?.trim().toLowerCase() ?? ''
+  const region = regionById(f.region)?.id
+  const qCats = q ? categoriesMatching(q) : []
+  const placesOf = (mapId: string) => db.pins.filter((p) => p.mapId === mapId).map((p) => db.places.find((pl) => pl.id === p.placeId)).filter((pl): pl is Place => !!pl)
+  const usersOf = (mapId: string, ownerId: string) => new Set(db.uses.filter((u) => u.mapId === mapId && u.userId !== ownerId && sameMonth(u.usedAt, ym)).map((u) => u.userId)).size
+  const openOf = (mapId: string) => db.meetups.filter((m) => m.mapId === mapId && m.status === 'open' && m.visibility === 'public' && Date.parse(m.meetAt) > Date.now()).length
+  const list = db.maps
+    .filter((m) => m.isPublic && !blocked.has(m.ownerId))
+    .filter((m) => !f.purpose || m.purpose === f.purpose)
+    .filter((m) => !f.category || m.category === f.category)
+    .filter((m) => !q || m.title.toLowerCase().includes(q) || (m.categoryLabel ?? '').toLowerCase().includes(q) || qCats.includes(m.category) || placesOf(m.id).some((pl) => pl.name.toLowerCase().includes(q)))
+    .filter((m) => !region || placesOf(m.id).some((pl) => regionOf(pl.lat, pl.lng) === region))
+    .map((m) => ({ ...toPublicSummary(db, m), users: usersOf(m.id, m.ownerId), openMeetups: openOf(m.id) }))
+    .filter((e) => e.pinCount >= (f.minPins ?? 0) && (!f.hasMeetup || e.openMeetups > 0))
+  // 관련도: 제목 4 · 카테고리 3 · 안의 장소 이름 1 (supabase search_maps 와 같게)
+  const score = (e: MapSearchEntry) =>
+    !q ? 0 : (e.map.title.toLowerCase().includes(q) ? 4 : 0) + ((e.map.categoryLabel ?? '').toLowerCase().includes(q) || qCats.includes(e.map.category) ? 3 : 0) + (placesOf(e.map.id).some((pl) => pl.name.toLowerCase().includes(q)) ? 1 : 0)
+  const key = (e: MapSearchEntry) => (f.sort === 'recent' ? 0 : f.sort === 'pins' ? e.pinCount : e.users)
+  return list.sort((a, b) => (f.sort === 'relevance' ? score(b) - score(a) : 0) || key(b) - key(a) || b.map.updatedAt.localeCompare(a.map.updatedAt))
+}
+
+export async function searchPeople(q: string, opts: { hasMaps?: boolean } = {}): Promise<PersonSearchEntry[]> {
+  await tick()
+  const db = load()
+  const blocked = blockedSet(db, mockCurrentUser()?.id)
+  return mockSearchUsers(q)
+    .filter((u) => !blocked.has(u.id))
+    .map((user) => ({ user, publicMaps: db.maps.filter((m) => m.ownerId === user.id && m.isPublic).length }))
+    .filter((e) => !opts.hasMaps || e.publicMaps > 0)
+    .sort((a, b) => b.publicMaps - a.publicMaps || a.user.nickname.localeCompare(b.user.nickname))
+}
+
+// ===========================================================================
+// 노쇼 방지: 30일 안(모임 날짜 기준) 노쇼 2번이면 마지막 표시부터 14일 동안 새 모임 참여 막힘
+// ===========================================================================
+
+function noshowStatusOf(db: Db, userId: string): NoshowStatus {
+  const since = Date.now() - 30 * 864e5
+  const recent = db.noshows.filter((n) => n.userId === userId && Date.parse(db.meetups.find((m) => m.id === n.meetupId)?.meetAt ?? '') > since)
+  const last = Math.max(0, ...recent.map((n) => Date.parse(n.createdAt)))
+  const until = last + 14 * 864e5
+  return { recentCount: recent.length, blockedUntil: recent.length >= 2 && until > Date.now() ? new Date(until).toISOString() : null }
+}
+
+export async function getMyNoshowStatus(): Promise<NoshowStatus> {
+  await tick()
+  const me = mockCurrentUser()
+  return me ? noshowStatusOf(load(), me.id) : { recentCount: 0, blockedUntil: null }
+}
+
+export async function getMeetupNoshows(meetupId: string): Promise<string[]> {
+  await tick()
+  const db = load()
+  const me = mockCurrentUser()
+  const meetup = db.meetups.find((m) => m.id === meetupId)
+  return db.noshows.filter((n) => n.meetupId === meetupId && (meetup?.hostId === me?.id || n.userId === me?.id)).map((n) => n.userId)
+}
+
+export async function setMeetupNoshow(meetupId: string, userId: string, noshow: boolean): Promise<void> {
+  await tick()
+  const db = load()
+  const me = requireUser()
+  const meetup = db.meetups.find((m) => m.id === meetupId)
+  if (!meetup || meetup.hostId !== me.id || Date.parse(meetup.meetAt) > Date.now() || userId === me.id || !db.members.some((m) => m.meetupId === meetupId && m.userId === userId)) {
+    throw new Error('끝난 내 모임의 참여자만 노쇼로 표시할 수 있어요.')
+  }
+  db.noshows = db.noshows.filter((n) => !(n.meetupId === meetupId && n.userId === userId))
+  if (noshow) db.noshows.push({ meetupId, userId, createdAt: now() })
   persist(db)
 }

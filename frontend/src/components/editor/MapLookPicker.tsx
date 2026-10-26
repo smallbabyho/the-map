@@ -2,13 +2,19 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { uploadPinPhoto } from '../../db/api'
-import type { LineStyle, LineWidth, MapLook, MarkerShape } from '../../types'
+import type { LineStyle, LineWidth, MapCategory, MapLook, MarkerShape, ThemeId } from '../../types'
+import { MAP_CATEGORIES } from '../mapCategories'
+import { ThemePicker } from './ThemePicker'
 import { CloseIcon, ImageIcon } from '../icons'
 
 interface Props {
   look: MapLook
   coverUrl: string | null
-  onChange: (patch: Partial<MapLook & { coverUrl: string | null }>) => void
+  onChange: (patch: Partial<MapLook & { coverUrl: string | null; category: MapCategory; categoryLabel: string | null }>) => void
+  theme: ThemeId
+  onTheme: (id: ThemeId) => void
+  category: MapCategory
+  categoryLabel: string | null
   /** 지도 위 알약(데스크톱) / 패널 안 줄(모바일) */
   variant?: 'float' | 'inline'
 }
@@ -31,8 +37,8 @@ const WIDTHS: { id: LineWidth; name: string; px: number }[] = [
   { id: 'bold', name: '굵게', px: 6 },
 ]
 
-/** 지도 꾸미기: 마커 모양 · 코스 선 모양/굵기 · 커버 이미지 */
-export function MapLookPicker({ look, coverUrl, onChange, variant = 'float' }: Props) {
+/** 🎨 꾸미기 하나에 다: 색 테마 · 마커 모양 · 코스 선 모양/굵기 · 커버 이미지 · 카테고리 */
+export function MapLookPicker({ look, coverUrl, onChange, theme, onTheme, category, categoryLabel, variant = 'float' }: Props) {
   const [open, setOpen] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState('')
@@ -79,10 +85,15 @@ export function MapLookPicker({ look, coverUrl, onChange, variant = 'float' }: P
 
       {open && (
         <div
-          className={`tm-float absolute z-40 mt-2 w-[300px] space-y-4 rounded-2xl border border-(--c-border) bg-(--c-surface) p-4 ${variant === 'float' ? 'right-0' : 'left-0'}`}
+          className={`tm-float tm-scroll absolute z-40 mt-2 max-h-[min(70dvh,640px)] w-[340px] max-w-[calc(100vw-32px)] space-y-4 overflow-y-auto rounded-2xl border border-(--c-border) bg-(--c-surface) p-4 ${variant === 'float' ? 'right-0' : 'left-0'}`}
           role="dialog"
           aria-label="지도 꾸미기"
         >
+          <div>
+            <p className="mb-2 text-xs font-semibold text-(--c-muted)">대표색 (좋아하는 색 하나를 고르면 핀 색도 맞춰져요)</p>
+            <ThemePicker value={theme} onChange={onTheme} />
+          </div>
+
           <div>
             <p className="mb-2 text-xs font-semibold text-(--c-muted)">마커 모양</p>
             <div className="grid grid-cols-4 gap-1.5">
@@ -150,6 +161,34 @@ export function MapLookPicker({ look, coverUrl, onChange, variant = 'float' }: P
             )}
             <input ref={file} type="file" accept="image/*" className="hidden" onChange={(e) => onCover(e.target.files?.[0])} />
             {error && <p className="mt-1.5 text-xs text-red-500">{error}</p>}
+          </div>
+
+          <div>
+            <p className="mb-2 text-xs font-semibold text-(--c-muted)">카테고리 (둘러보기에서 이 칸으로 보여요)</p>
+            <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label="지도 카테고리">
+              {MAP_CATEGORIES.map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  role="radio"
+                  aria-checked={category === c.id}
+                  onClick={() => onChange({ category: c.id })}
+                  className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition ${category === c.id ? 'border-(--c-ink) bg-(--c-ink) text-(--c-bg)' : 'border-(--c-border) text-(--c-muted) hover:text-(--c-text)'}`}
+                >
+                  {c.id === 'etc' ? '✏️ 직접 적기' : `${c.emoji} ${c.label}`}
+                </button>
+              ))}
+            </div>
+            {category === 'etc' && (
+              <input
+                value={categoryLabel ?? ''}
+                onChange={(e) => onChange({ categoryLabel: e.target.value || null })}
+                placeholder="카테고리 이름 (예: 야경 맛집, 비 오는 날)"
+                maxLength={20}
+                className="mt-2 h-10 w-full rounded-xl border border-(--c-border) bg-(--c-surface) px-3 text-sm outline-none focus:border-(--c-accent)"
+                aria-label="카테고리 직접 적기"
+              />
+            )}
           </div>
         </div>
       )}

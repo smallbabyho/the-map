@@ -1,13 +1,13 @@
 'use client'
 
+import Link from 'next/link'
 import { Fragment, useState } from 'react'
 import type { MapDetail, MeetupCheckin, MeetupMember, User } from '../../types'
 import { Avatar } from '../Avatar'
 import { CheckIcon } from '../icons'
-import { legLabel } from '../legModes'
 import { MapView } from '../map'
 import { KakaoDirectionsLink } from '../map/KakaoDirections'
-import { useViewCourse, ViewModePicker, type ViewMode } from '../map/ViewModePicker'
+import { LegModeSwitch, useViewCourse, ViewModePicker, type ViewMode } from '../map/ViewModePicker'
 import { getTheme } from '../themes'
 import { TransitSteps } from '../TransitSteps'
 
@@ -101,7 +101,7 @@ export function RoomCourse({ mapDetail, me, members, checkins, onToggle, busyPin
               </li>
               {legMode && (
                 <li className="ml-[26px] border-l-2 border-dotted border-(--c-border) py-1.5 pl-5 text-xs text-(--c-muted)">
-                  {legLabel(legMode, view.durationOf(p.id, next.id))}
+                  <LegModeSwitch mode={legMode} durationMin={view.durationOf(p.id, next.id)} note={view.noteOf(p.id, next.id)} onChange={(m) => view.setLegMode(p.id, next.id, m)} />
                   {transit && <TransitSteps info={transit} className="mt-1.5 text-(--c-text)" />}
                 </li>
               )}
@@ -122,10 +122,14 @@ export function RoomMembers({ members, hostId, pinCount, checkins, meId }: { mem
         const done = doneOf(m.userId)
         return (
           <li key={m.userId} className="flex items-center gap-3 rounded-xl border border-(--c-border) bg-(--c-surface) px-3 py-2.5">
-            <Avatar id={m.userId} nickname={m.nickname} src={m.avatarUrl} size={34} />
+            <Link href={`/u/${m.userId}`} className="shrink-0" aria-label={`${m.nickname} 프로필`}>
+              <Avatar id={m.userId} nickname={m.nickname} src={m.avatarUrl} size={34} />
+            </Link>
             <div className="min-w-0 flex-1">
               <p className="flex items-center gap-1.5 truncate text-sm font-semibold">
-                {m.nickname}
+                <Link href={`/u/${m.userId}`} className="truncate hover:underline">
+                  {m.nickname}
+                </Link>
                 {m.userId === meId && <span className="text-xs font-medium text-(--c-muted)">(나)</span>}
                 {m.userId === hostId && <span className="rounded bg-black/5 px-1 text-[10px] font-bold text-(--c-muted)">주최자</span>}
               </p>

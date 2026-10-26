@@ -1,3 +1,4 @@
+import { getTransitCache, putTransitCache } from '../../db/api'
 import type { LatLngLike } from './routing'
 
 // ODsay 대중교통 길찾기 (https://lab.odsay.com). 키는 frontend/.env.local 의 NEXT_PUBLIC_ODSAY_KEY.
@@ -216,14 +217,42 @@ export function parseOdsay(data: OdsayResponse, from: LatLngLike, to: LatLngLike
  */
 export async function searchTransit(from: LatLngLike, to: LatLngLike): Promise<TransitResult | null> {
   if (!hasTransitKey) return null
+  // 누가 한 번 찾은 구간이면 ODsay 를 다시 부르지 않는다 (공용 저장소, 2주)
+  const key = `${from.lat.toFixed(5)},${from.lng.toFixed(5)}>${to.lat.toFixed(5)},${to.lng.toFixed(5)}`
+  const shared = await getTransitCache(key).catch(() => null)
+  if (isTransitResult(shared)) return shared
+
   const q = new URLSearchParams({ SX: String(from.lng), SY: String(from.lat), EX: String(to.lng), EY: String(to.lat), apiKey: KEY })
   const res = await fetch(`https://api.odsay.com/v1/api/searchPubTransPathT?${q}`)
   if (!res.ok) throw new Error(`대중교통 길찾기 실패 (${res.status})`)
   const data = (await res.json()) as OdsayResponse
-  if (data.error) return null
+  if (data.error) {
+    if (odsayErrorCodes(data.error).includes('429')) throw new TransitQuotaError()
+    return null // 너무 가까움(700m 이내) · 경로 없음 등
+  }
   const mapObj = data.result?.path?.[0]?.info.mapObj
   const lanes = mapObj ? await loadLanes(mapObj).catch(() => null) : null
-  return parseOdsay(data, from, to, lanes)
+  const result = parseOdsay(data, from, to, lanes)
+  if (result) putTransitCache(key, result).catch(() => {})
+  return result
+}
+
+/** ODsay 하루 호출 수를 다 썼을 때 (응답 error.code '429'). 자정(한국 시간)에 다시 채워진다 */
+export class TransitQuotaError extends Error {
+  constructor() {
+    super('오늘 대중교통 길찾기 사용량을 다 썼어요')
+  }
+}
+
+/** ODsay error 는 [{ code, message }] 또는 { code, msg } 로 온다 */
+function odsayErrorCodes(error: unknown): string[] {
+  const list = Array.isArray(error) ? error : [error]
+  return list.map((e) => String((e as { code?: unknown } | null)?.code ?? ''))
+}
+
+function isTransitResult(v: unknown): v is TransitResult {
+  const r = v as TransitResult | null
+  return !!r && Array.isArray(r.path) && Array.isArray(r.info?.steps) && typeof r.durationMin === 'number'
 }
 
 /** 노선 실제 모양 (실패하면 null → 정류장을 이은 선으로 대신) */

@@ -37,6 +37,60 @@
   color-scheme: dark;
 }
 
+/* 화면 색 테마 (components/siteColor.ts). 강조색은 라이트 · 다크 공통, 배경 틴트는 라이트에서만 */
+:root[data-color="cherry"] { --c-accent: #e11d48; --c-accent-text: #ffffff; }
+:root[data-color="berry"] { --c-accent: #db2777; --c-accent-text: #ffffff; --c-lime: #ffd1e8; }
+:root[data-color="violet"] { --c-accent: #7c3aed; --c-accent-text: #ffffff; --c-lime: #d9c8ff; }
+:root[data-color="ocean"] { --c-accent: #2563eb; --c-accent-text: #ffffff; --c-lime: #9fe3ff; }
+:root[data-color="mint"] { --c-accent: #0d9488; --c-accent-text: #ffffff; --c-lime: #a7f3d0; }
+:root[data-color="forest"] { --c-accent: #16a34a; --c-accent-text: #ffffff; --c-lime: #d9f99d; }
+:root[data-color="sunny"] { --c-accent: #f59e0b; --c-accent-text: #1c1917; --c-lime: #fde68a; }
+:root[data-mode="light"][data-color="cherry"] { --c-base-bg: #f6ece9; --c-base-map-bg: #efe2de; }
+:root[data-mode="light"][data-color="berry"] { --c-base-bg: #f6ecf0; --c-base-map-bg: #eee0e6; }
+:root[data-mode="light"][data-color="violet"] { --c-base-bg: #f0edf6; --c-base-map-bg: #e5e0ef; }
+:root[data-mode="light"][data-color="ocean"] { --c-base-bg: #ebeff5; --c-base-map-bg: #dfe5ee; }
+:root[data-mode="light"][data-color="mint"] { --c-base-bg: #e9f2ef; --c-base-map-bg: #dce9e4; }
+:root[data-mode="light"][data-color="forest"] { --c-base-bg: #edf2e8; --c-base-map-bg: #e1e9da; }
+:root[data-mode="light"][data-color="sunny"] { --c-base-bg: #f6f0e0; --c-base-map-bg: #efe6cf; }
+
+/* 소개 페이지 그림 지도(MapPaper) 색: 라이트는 크림색 종이, 다크는 밤 지도 */
+:root {
+  --paper-bg: #f6f1e6;
+  --paper-block-1: #ebe2cf;
+  --paper-block-2: #e6ddca;
+  --paper-block-3: #efe7d6;
+  --paper-block-line: #d9cfba;
+  --paper-park: #cfe6b0;
+  --paper-pond: #9ed2e6;
+  --paper-park-label: #5f7f3c;
+  --paper-river: #a9daf0;
+  --paper-river-label: #4a86a3;
+  --paper-wave: #ffffff;
+  --paper-road: #fffdf8;
+  --paper-road-edge: #d6ccb6;
+  --paper-road-label: #8a8170;
+  --paper-photo: #ffffff;
+  --paper-photo-text: #1f2937;
+}
+:root[data-mode="dark"] {
+  --paper-bg: #1b1d22;
+  --paper-block-1: #262a31;
+  --paper-block-2: #23272d;
+  --paper-block-3: #2a2e35;
+  --paper-block-line: #33373f;
+  --paper-park: #24382a;
+  --paper-pond: #1f4152;
+  --paper-park-label: #8fb27a;
+  --paper-river: #173447;
+  --paper-river-label: #7fb4d1;
+  --paper-wave: #8fc3de;
+  --paper-road: #3a3f48;
+  --paper-road-edge: #2b2f36;
+  --paper-road-label: #8b8f99;
+  --paper-photo: #2a2927;
+  --paper-photo-text: #ece6da;
+}
+
 @theme inline {
   --font-sans: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, system-ui, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
   /* 영문 포인트 제목 (기울인 세리프) · 라벨 · 숫자 */

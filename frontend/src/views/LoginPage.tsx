@@ -5,10 +5,12 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { useState, useSyncExternalStore, type FormEvent } from 'react'
 import { CaptchaWidget, DEMO_ACCOUNT, signIn, signOut, signUp, useCurrentUser } from '../auth'
 import { AppearanceOptions } from '../components/AppearanceButton'
+import { SiteColorPicker } from '../components/SiteColorPicker'
 import { AppRail, MobileTabBar } from '../components/AppRail'
 import { Avatar } from '../components/Avatar'
 import { ChevronLeftIcon } from '../components/icons'
 import { SafetySection } from '../components/report/BlockedList'
+import { markJustLoggedIn } from '../components/messenger/Messenger'
 
 type Mode = 'signin' | 'signup'
 
@@ -64,6 +66,7 @@ export function LoginPage() {
       if (mode === 'signin') await signIn(email, password, captcha)
       else await signUp(email, password, nickname, captcha)
       writeRemembered(remember ? email.trim() : null)
+      markJustLoggedIn()
       router.push(next)
     } catch (err) {
       setError(err instanceof Error ? err.message : '잠시 후 다시 시도해 주세요.')
@@ -116,6 +119,8 @@ export function LoginPage() {
                 <section className="mt-4 rounded-2xl border border-(--c-border) bg-(--c-surface) p-1.5">
                   <p className="px-3 pb-1 pt-2 text-xs font-semibold text-(--c-muted)">화면</p>
                   <AppearanceOptions />
+                  <p className="px-3 pb-1 pt-3 text-xs font-semibold text-(--c-muted)">색 테마</p>
+                  <SiteColorPicker className="px-3 pb-2" />
                 </section>
                 <SafetySection />
                 <div className="mt-4 grid gap-2">

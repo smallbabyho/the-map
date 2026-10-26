@@ -115,7 +115,7 @@ export function useMapDraft(mapId: string) {
     setSaveError('')
   }
 
-  const updateMap = (patch: Partial<Pick<ConceptMap, 'title' | 'isPublic' | 'category' | 'markerShape' | 'lineStyle' | 'lineWidth' | 'coverUrl'>>) => {
+  const updateMap = (patch: Partial<Pick<ConceptMap, 'title' | 'isPublic' | 'category' | 'markerShape' | 'lineStyle' | 'lineWidth' | 'coverUrl' | 'plannedDate' | 'purpose' | 'categoryLabel'>>) => {
     setMap((m) => (m ? { ...m, ...patch } : m))
     touch()
   }
@@ -233,6 +233,9 @@ export function useMapDraft(mapId: string) {
         lineStyle: map.lineStyle,
         lineWidth: map.lineWidth,
         coverUrl: map.coverUrl,
+        plannedDate: map.plannedDate ?? null,
+        purpose: map.purpose,
+        categoryLabel: map.category === 'etc' ? (map.categoryLabel ?? null) : null,
       })
 
       for (const id of removedPinIds) await deletePin(id)

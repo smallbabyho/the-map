@@ -107,6 +107,13 @@ export function mockUserCreatedAt(id: string): string | null {
   return load().users.find((x) => x.id === id)?.createdAt ?? null
 }
 
+/** 닉네임으로 찾기 (검색용, 정지된 사람 제외) */
+export function mockSearchUsers(q: string): User[] {
+  const k = q.trim().toLowerCase()
+  if (!k) return []
+  return load().users.filter((u) => !u.suspended && u.nickname.toLowerCase().includes(k)).map(toUser)
+}
+
 export function mockUserById(id: string): User {
   const u = load().users.find((x) => x.id === id)
   return u ? toUser(u) : { id, nickname: '알 수 없음' }

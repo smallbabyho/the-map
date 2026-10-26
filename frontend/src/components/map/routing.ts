@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import type { TravelMode } from '../../types'
-import { searchTransit, type TransitInfo, type TransitStep } from './transit'
+import { searchTransit, TransitQuotaError, type TransitInfo, type TransitStep } from './transit'
 
 // 핀과 핀 사이의 실제 길(경로선 · 거리 · 시간)을 구한다.
 //
@@ -26,6 +26,8 @@ export interface Route {
   durationMin: number
   /** true 면 실제 길이 아니라 직선거리로 예상한 값 */
   estimated: boolean
+  /** 예상치가 된 이유 (사람에게 보여 줄 한 줄). 예: 대중교통 하루 사용량을 다 씀 */
+  note?: string
   /** 대중교통 상세 (버스·지하철 단계, 요금, 환승). 대중교통 + ODsay 키가 있을 때만 */
   transit?: TransitInfo
 }
@@ -122,7 +124,13 @@ function toRoute(from: LatLngLike, to: LatLngLike, r: OsrmRoute, seconds: number
 }
 
 async function fetchTransit(from: LatLngLike, to: LatLngLike): Promise<Route> {
-  const r = await searchTransit(from, to)
+  let r
+  try {
+    r = await searchTransit(from, to)
+  } catch (e) {
+    if (e instanceof TransitQuotaError) return { ...estimate(from, to, 'transit'), note: '오늘 대중교통 길찾기 사용량을 다 써서 예상 시간이에요 (자정에 다시 채워져요)' }
+    throw e
+  }
   if (!r) return estimate(from, to, 'transit')
   let base = r.info.steps
   let info = r.info

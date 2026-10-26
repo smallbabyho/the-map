@@ -8,17 +8,17 @@ import { AppRail } from '../components/AppRail'
 import { Avatar } from '../components/Avatar'
 import { CalendarIcon, ChevronLeftIcon, LinkIcon, PinIcon, UsersIcon } from '../components/icons'
 import { MapView } from '../components/map'
-import { useViewCourse, ViewModePicker, type ViewMode } from '../components/map/ViewModePicker'
-import { formatMinutes, legLabel } from '../components/legModes'
+import { LegModeSwitch, useViewCourse, ViewModePicker, type ViewMode } from '../components/map/ViewModePicker'
+import { formatMinutes } from '../components/legModes'
 import { TransitSteps } from '../components/TransitSteps'
 import { dday, formatMeetAt, meetupState, STATE_BADGE } from '../components/meetup/format'
 import { ReportButton } from '../components/report/ReportDialog'
 import { KakaoDirectionsLink } from '../components/map/KakaoDirections'
 import { KakaoShareButton } from '../components/share/KakaoShareButton'
 import { getTheme, themeVars } from '../components/themes'
-import { getMeetup, joinMeetup, leaveMeetup, setMeetupStatus } from '../db/api'
+import { getMeetup, getMeetupNoshows, getMyNoshowStatus, joinMeetup, leaveMeetup, setMeetupNoshow, setMeetupStatus } from '../db/api'
 import { siteOrigin } from '../lib/site'
-import type { MapDetail, MeetupStatus, MeetupSummary, Pin } from '../types'
+import type { MapDetail, MeetupStatus, MeetupSummary, NoshowStatus, Pin } from '../types'
 
 const NO_PINS: Pin[] = []
 
@@ -39,6 +39,9 @@ export function MeetupDetailPage() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [copied, setCopied] = useState(false)
+  // 노쇼 방지: 내 상태(참여 제한 기한) · 이 모임에서 노쇼로 표시된 사람(주최자에게만)
+  const [myNoshow, setMyNoshow] = useState<NoshowStatus | null>(null)
+  const [noshows, setNoshows] = useState<string[]>([])
   // 이동수단을 바꿔서 코스 보기 (화면에서만, 지도는 그대로)
   const [viewMode, setViewMode] = useState<ViewMode>('course')
   const view = useViewCourse(mapDetail?.pins ?? NO_PINS, mapDetail?.legs ?? [], viewMode)
@@ -56,6 +59,26 @@ export function MeetupDetailPage() {
       cancelled = true
     }
   }, [meetupId, invite])
+
+  const userId = user?.id
+  useEffect(() => {
+    if (!userId) return
+    let cancelled = false
+    getMyNoshowStatus().then((s) => !cancelled && setMyNoshow(s)).catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [userId])
+  // 주최자에게만: 이 모임에서 노쇼로 표시한 사람 (끝나기 전엔 비어 있다)
+  const iHost = !!meetup && meetup.hostId === userId
+  useEffect(() => {
+    if (!iHost) return
+    let cancelled = false
+    getMeetupNoshows(meetupId).then((ids) => !cancelled && setNoshows(ids))
+    return () => {
+      cancelled = true
+    }
+  }, [iHost, meetupId])
 
   if (meetup === undefined) return <MeetupLoading />
   if (meetup === null) {
@@ -77,7 +100,9 @@ export function MeetupDetailPage() {
   const isHost = user?.id === meetup.hostId
   const joined = !!user && meetup.members.some((m) => m.userId === user.id)
   const left = meetup.capacity - meetup.members.length
-  const canJoin = state === 'open' || state === 'almost'
+  const hostOfEnded = isHost && state === 'past'
+  const blockedUntil = !isHost ? (myNoshow?.blockedUntil ?? null) : null
+  const canJoin = (state === 'open' || state === 'almost') && !blockedUntil
 
   const run = async (fn: () => Promise<MeetupSummary>) => {
     setBusy(true)
@@ -124,9 +149,20 @@ export function MeetupDetailPage() {
       disabled={busy || !canJoin}
       className="tm-btn h-12 w-full rounded-xl bg-(--c-accent) text-[15px] font-bold text-(--c-accent-text) disabled:border-(--c-border) disabled:bg-(--c-border) disabled:text-(--c-muted) disabled:shadow-none"
     >
-      {canJoin ? (user ? `참여하기 · ${left}자리 남음` : '로그인하고 참여하기') : badge.label}
+      {canJoin ? (user ? `참여하기 · ${left}자리 남음` : '로그인하고 참여하기') : blockedUntil ? `노쇼 2번 · ${formatDay(blockedUntil)}까지 참여 제한` : badge.label}
     </button>
   )
+  const toggleNoshow = async (memberId: string) => {
+    const on = !noshows.includes(memberId)
+    if (on && !window.confirm('이 참여자를 노쇼로 표시할까요? 30일 안에 2번이면 2주 동안 새 모임에 참여할 수 없어요.')) return
+    setError('')
+    try {
+      await setMeetupNoshow(meetup.id, memberId, on)
+      setNoshows((cur) => (on ? [...cur, memberId] : cur.filter((id) => id !== memberId)))
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '표시하지 못했어요.')
+    }
+  }
 
   return (
     <div className="relative min-h-dvh pb-28 md:pb-0 pt-14" style={themeVars(theme)}>
@@ -164,12 +200,12 @@ export function MeetupDetailPage() {
               {meetup.visibility === 'private' && <span className="rounded-full bg-(--c-ink) px-2.5 py-1 text-xs font-bold text-(--c-bg)">🔒 친구끼리</span>}
             </div>
             <h1 className="tm-headline mt-3 text-4xl md:text-5xl">{meetup.title}</h1>
-            <div className="mt-3 flex items-center gap-2 text-sm text-(--c-muted)">
+            <Link href={`/u/${meetup.host.id}`} className="mt-3 flex w-fit items-center gap-2 text-sm text-(--c-muted) hover:underline">
               <Avatar id={meetup.host.id} nickname={meetup.host.nickname} src={meetup.host.avatarUrl} size={24} />
               <span>
                 <b className="font-semibold text-(--c-text)">{meetup.host.nickname}</b> 님이 열었어요
               </span>
-            </div>
+            </Link>
             {meetup.description && <p className="mt-5 whitespace-pre-wrap text-[15px] leading-relaxed">{meetup.description}</p>}
 
             {/* 코스 */}
@@ -206,7 +242,7 @@ export function MeetupDetailPage() {
                         </li>
                         {legMode && (
                           <li className="ml-[30px] border-l-2 border-dotted border-(--c-border) py-1 pl-5 text-xs text-(--c-muted)">
-                            {legLabel(legMode, view.durationOf(p.id, next.id))}
+                            <LegModeSwitch mode={legMode} durationMin={view.durationOf(p.id, next.id)} note={view.noteOf(p.id, next.id)} onChange={(m) => view.setLegMode(p.id, next.id, m)} />
                             {transit && <TransitSteps info={transit} className="mt-1.5 text-(--c-text)" />}
                           </li>
                         )}
@@ -241,11 +277,24 @@ export function MeetupDetailPage() {
               <ul className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
                 {meetup.members.map((m) => (
                   <li key={m.userId} className="flex items-center gap-2.5 rounded-xl border border-(--c-border) bg-(--c-surface) px-3 py-2.5">
+                    <Link href={`/u/${m.userId}`} className="flex min-w-0 items-center gap-2.5 hover:underline" title={`${m.nickname} 프로필`}>
                     <Avatar id={m.userId} nickname={m.nickname} src={m.avatarUrl} size={32} />
                     <span className="min-w-0">
                       <span className="block truncate text-sm font-semibold">{m.nickname}{m.userId === user?.id && ' (나)'}</span>
-                      <span className="text-xs text-(--c-muted)">{m.userId === meetup.hostId ? '주최자' : '참여자'}</span>
+                      <span className="text-xs text-(--c-muted)">{m.userId === meetup.hostId ? '주최자' : noshows.includes(m.userId) ? '노쇼' : '참여자'}</span>
                     </span>
+                    </Link>
+                    {hostOfEnded && m.userId !== meetup.hostId && (
+                      <button
+                        type="button"
+                        onClick={() => toggleNoshow(m.userId)}
+                        aria-pressed={noshows.includes(m.userId)}
+                        className={`ml-auto shrink-0 rounded-full px-2 py-1 text-[11px] font-bold transition ${noshows.includes(m.userId) ? 'bg-red-500 text-white' : 'border border-(--c-border) text-(--c-muted) hover:text-red-500'}`}
+                        title="안 온 사람을 노쇼로 표시해요 (다시 누르면 취소)"
+                      >
+                        {noshows.includes(m.userId) ? '노쇼 ✕' : '노쇼'}
+                      </button>
+                    )}
                   </li>
                 ))}
                 {Array.from({ length: Math.max(0, left) }).slice(0, 6).map((_, i) => (
@@ -272,6 +321,10 @@ export function MeetupDetailPage() {
               {error && <p role="alert" className="mt-4 rounded-xl bg-red-500/10 px-3 py-2.5 text-sm text-red-600">{error}</p>}
 
               <div className="mt-5 hidden space-y-2 md:block">{primaryAction}</div>
+              <p className="mt-3 text-xs leading-relaxed text-(--c-muted)">
+                🙅 노쇼 방지: 모임이 끝나면 주최자가 안 온 사람을 노쇼로 표시해요. 30일 안에 2번이면 2주 동안 새 모임에 참여할 수 없어요.
+                {myNoshow && myNoshow.recentCount > 0 && !blockedUntil && <b className="text-amber-600"> 최근 30일 내 노쇼 {myNoshow.recentCount}번</b>}
+              </p>
 
               {isHost && (
                 <div className="mt-5 space-y-2">
@@ -336,4 +389,10 @@ function Info({ icon, label, children }: { icon: React.ReactNode; label: string;
       </div>
     </div>
   )
+}
+
+/** '11월 9일' */
+function formatDay(iso: string) {
+  const d = new Date(iso)
+  return `${d.getMonth() + 1}월 ${d.getDate()}일`
 }

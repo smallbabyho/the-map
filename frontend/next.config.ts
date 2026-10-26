@@ -13,6 +13,9 @@ const nextConfig: NextConfig = {
     return [
       // 관리자 화면은 /customers 로 옮겼다. 예전 주소로 들어와도 넘겨준다.
       { source: "/admin", destination: "/customers", permanent: true },
+      // 검색 · 이달의 순위는 둘러보기 한 화면으로 합쳤다 (?q= 는 그대로 넘어간다)
+      { source: "/search", destination: "/explore", permanent: false },
+      { source: "/ranking", destination: "/explore", permanent: false },
       // 대표 주소는 myconceptmap.vercel.app 하나. Vercel 이 붙여주는 다른 고정 주소로 들어오면 넘겨준다.
       {
         source: "/:path*",

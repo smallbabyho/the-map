@@ -97,14 +97,16 @@ export function LandingPage({ embedded = false }: { embedded?: boolean }) {
         </>
       )}
 
-      {/* ---- 1. 첫 화면 ---- */}
-      <section className="mx-auto grid max-w-6xl items-center gap-10 px-4 pb-10 pt-10 md:grid-cols-[1.1fr_0.9fr] md:px-10 md:pt-20">
+      {/* ---- 1. 첫 화면: 화면 높이에서 흐르는 띠 높이(46px)를 뺀 만큼 채워서, 띠가 첫 화면 맨 아래에 붙어 보이게 (모바일은 아래 탭 높이도 뺀다) ---- */}
+      <section className="mx-auto grid min-h-[calc(100dvh-56px-64px-46px)] max-w-6xl items-center gap-10 px-4 pb-16 pt-10 md:min-h-[calc(100dvh-56px-46px)] md:grid-cols-[1.1fr_0.9fr] md:px-10 md:pb-12 md:pt-12">
         <div>
           <p className="tm-label dot tm-intro">my concept map — vol.01</p>
           <h1 className="tm-headline tm-intro mt-5 text-[13vw] md:text-[88px]" style={{ '--delay': '0.08s' } as CSSProperties}>
-            나만의 테마로
+            <em>지도</em> 위에
             <br />
-            <em>지도</em>를 <span className="tm-mark">꾸미다</span>
+            펼쳐지는
+            <br />
+            나만의 <span className="tm-mark">세상</span>
           </h1>
           <p className="tm-intro mt-6 max-w-md text-[17px] leading-relaxed text-(--c-muted)" style={{ '--delay': '0.16s' } as CSSProperties}>
             가고 싶은 곳은 친구들과 함께 코스로 짜고, 사랑했던 곳은 사진과 메모로 남겨요. 계획도 추억도, 다이어리처럼 꾸민 나만의 지도 한 장에.
@@ -123,8 +125,8 @@ export function LandingPage({ embedded = false }: { embedded?: boolean }) {
         </div>
       </section>
 
-      {/* ---- 흐르는 띠 ---- */}
-      <div className="border-y border-(--c-ink) bg-(--c-ink) py-3 text-(--c-bg)" aria-hidden>
+      {/* ---- 흐르는 띠: 첫 화면을 보는 동안 창 맨 아래(모바일은 아래 탭 위)에 붙어 있다가, 지나가면 제자리에 ---- */}
+      <div className="sticky bottom-16 z-20 border-y border-(--c-ink) bg-(--c-ink) py-3 text-(--c-bg) md:bottom-0" aria-hidden>
         <div className="tm-marquee gap-10 whitespace-nowrap font-mono text-sm font-medium uppercase tracking-wider">
           {[...THEMES, ...THEMES].map((t, i) => (
             <span key={i} className="flex items-center gap-10">
@@ -312,30 +314,30 @@ function MapPaper({ children, tint = '#ff5a2b' }: { children?: React.ReactNode; 
           <path d="M22 0H0V22" fill="none" stroke="currentColor" strokeOpacity="0.05" />
         </pattern>
         <pattern id="tm-wave" width="26" height="10" patternUnits="userSpaceOnUse">
-          <path d="M0 6 Q 6.5 1, 13 6 T 26 6" fill="none" stroke="#fff" strokeOpacity="0.7" strokeWidth="1.4" />
+          <path d="M0 6 Q 6.5 1, 13 6 T 26 6" fill="none" stroke="var(--paper-wave)" strokeOpacity="0.7" strokeWidth="1.4" />
         </pattern>
       </defs>
-      <rect width="400" height="440" fill="#f6f1e6" />
+      <rect width="400" height="440" fill="var(--paper-bg)" />
       <rect width="400" height="440" fill={tint} fillOpacity="0.05" style={{ transition: 'fill 0.6s' }} />
       <rect width="400" height="440" fill="url(#tm-grid)" />
 
       {/* 건물 */}
       {blocks.map(([x, y, w, h], i) => (
-        <rect key={i} x={x} y={y} width={w} height={h} rx="5" fill={i % 3 === 0 ? '#ebe2cf' : i % 3 === 1 ? '#e6ddca' : '#efe7d6'} stroke="#d9cfba" strokeWidth="1" />
+        <rect key={i} x={x} y={y} width={w} height={h} rx="5" fill={`var(--paper-block-${(i % 3) + 1})`} stroke="var(--paper-block-line)" strokeWidth="1" />
       ))}
 
       {/* 서울숲 */}
-      <path d="M-10 196 C 30 186, 70 196, 96 214 C 110 250, 96 282, 60 292 C 26 300, -4 290, -10 280 Z" fill="#cfe6b0" />
-      <path d="M8 222 C 26 214, 48 220, 58 236 C 62 252, 44 262, 26 258 C 10 254, 2 240, 8 222 Z" fill="#9ed2e6" fillOpacity="0.8" />
+      <path d="M-10 196 C 30 186, 70 196, 96 214 C 110 250, 96 282, 60 292 C 26 300, -4 290, -10 280 Z" fill="var(--paper-park)" />
+      <path d="M8 222 C 26 214, 48 220, 58 236 C 62 252, 44 262, 26 258 C 10 254, 2 240, 8 222 Z" fill="var(--paper-pond)" fillOpacity="0.8" />
       <text x="20" y="282" fontSize="13">🌳</text>
       <text x="64" y="272" fontSize="15">🌳</text>
       <text x="74" y="230" fontSize="11">🌲</text>
-      <text x="40" y="210" fontFamily="var(--font-mono)" fontSize="7.5" fill="#5f7f3c" letterSpacing="0.06em">SEOUL FOREST</text>
+      <text x="40" y="210" fontFamily="var(--font-mono)" fontSize="7.5" fill="var(--paper-park-label)" letterSpacing="0.06em">SEOUL FOREST</text>
 
       {/* 한강 */}
-      <path d="M-10 384 C 70 350, 150 404, 240 372 S 370 330, 410 344 L410 450 L-10 450Z" fill="#a9daf0" />
+      <path d="M-10 384 C 70 350, 150 404, 240 372 S 370 330, 410 344 L410 450 L-10 450Z" fill="var(--paper-river)" />
       <path d="M-10 384 C 70 350, 150 404, 240 372 S 370 330, 410 344 L410 450 L-10 450Z" fill="url(#tm-wave)" />
-      <text x="300" y="408" fontFamily="var(--font-mono)" fontSize="8" fill="#4a86a3" letterSpacing="0.2em">HAN RIVER</text>
+      <text x="300" y="408" fontFamily="var(--font-mono)" fontSize="8" fill="var(--paper-river-label)" letterSpacing="0.2em">HAN RIVER</text>
 
       {/* 도로: 흰 길 + 옅은 테두리 */}
       <g fill="none" strokeLinecap="round">
@@ -347,12 +349,12 @@ function MapPaper({ children, tint = '#ff5a2b' }: { children?: React.ReactNode; 
           ['M-10 64 L410 82', 8],
         ].map(([d, w]) => (
           <g key={d as string}>
-            <path d={d as string} stroke="#d6ccb6" strokeWidth={(w as number) + 2} />
-            <path d={d as string} stroke="#fffdf8" strokeWidth={w as number} />
+            <path d={d as string} stroke="var(--paper-road-edge)" strokeWidth={(w as number) + 2} />
+            <path d={d as string} stroke="var(--paper-road)" strokeWidth={w as number} />
           </g>
         ))}
       </g>
-      <g fontFamily="var(--font-mono)" fontSize="7" fill="#8a8170" letterSpacing="0.08em">
+      <g fontFamily="var(--font-mono)" fontSize="7" fill="var(--paper-road-label)" letterSpacing="0.08em">
         <text x="250" y="122" transform="rotate(-3.5 250 122)">TTUKSEOM-RO</text>
         <text x="150" y="40" transform="rotate(77 150 40)">SEONGSU-IRO</text>
         <text x="330" y="252" transform="rotate(-9 330 252)">YEONMUJANG-GIL</text>
@@ -385,7 +387,7 @@ function HeroMap() {
     <div className="relative mx-auto max-w-md">
       <div className="relative rotate-[1.5deg] overflow-hidden rounded-3xl border-[1.5px] border-(--c-ink) bg-(--c-surface) shadow-[8px_8px_0_var(--c-ink)]">
         <MapPaper>
-          <path id="tm-hero-route" d={ROUTE} fill="none" stroke="#fff" strokeWidth="13" strokeLinecap="round" />
+          <path id="tm-hero-route" d={ROUTE} fill="none" stroke="var(--paper-road)" strokeWidth="13" strokeLinecap="round" />
           <path d={ROUTE} fill="none" stroke="#ff5a2b" strokeWidth="6" strokeLinecap="round" strokeDasharray="600" strokeDashoffset="600" className="animate-[tm-draw_2.4s_0.4s_cubic-bezier(.6,0,.2,1)_forwards]" />
           {/* 코스를 따라 걷는 사람 */}
           <g className="opacity-0 animate-[tm-fade-in_0.4s_2.8s_forwards]">
@@ -428,17 +430,17 @@ function HeroMap() {
       </div>
 
       {/* 폴라로이드 사진 (장소 추억) */}
-      <div className="absolute -bottom-10 -left-14 w-32 -rotate-[9deg] bg-white p-2 pb-6 shadow-[0_14px_30px_-10px_rgb(0_0_0/0.45)] animate-[tm-float_6s_ease-in-out_infinite] max-md:-left-3 max-md:w-24">
+      <div className="absolute -bottom-10 -left-14 w-32 -rotate-[9deg] bg-(--paper-photo) p-2 pb-6 shadow-[0_14px_30px_-10px_rgb(0_0_0/0.45)] animate-[tm-float_6s_ease-in-out_infinite] max-md:-left-3 max-md:w-24">
         <div className="relative grid aspect-square place-items-center overflow-hidden bg-gradient-to-br from-[#ffd9a8] via-[#ffb98a] to-[#f08a6a] text-5xl max-md:text-4xl">
           🥐
           <span className="absolute bottom-1 right-1.5 font-mono text-[8px] font-bold text-white/90">10.30</span>
         </div>
-        <p className="mt-1.5 text-center text-[11px] font-bold text-gray-800" style={{ fontFamily: '"Gaegu", var(--font-sans)' }}>
+        <p className="mt-1.5 text-center text-[11px] font-bold text-(--paper-photo-text)" style={{ fontFamily: '"Gaegu", var(--font-sans)' }}>
           소금빵 성공 ✌️
         </p>
         <span className="absolute -top-2.5 left-1/2 h-4 w-12 -translate-x-1/2 rotate-3 bg-(--c-lime)/80" aria-hidden />
       </div>
-      <div className="absolute -right-12 top-[46%] w-28 rotate-[7deg] bg-white p-2 pb-5 shadow-[0_14px_30px_-10px_rgb(0_0_0/0.45)] animate-[tm-float_7s_1s_ease-in-out_infinite] max-md:-right-3 max-md:w-20">
+      <div className="absolute -right-12 top-[46%] w-28 rotate-[7deg] bg-(--paper-photo) p-2 pb-5 shadow-[0_14px_30px_-10px_rgb(0_0_0/0.45)] animate-[tm-float_7s_1s_ease-in-out_infinite] max-md:-right-3 max-md:w-20">
         <div className="grid aspect-square place-items-center bg-gradient-to-br from-[#c9ecff] via-[#a7d8f5] to-[#7ab8e8] text-4xl max-md:text-3xl">☕</div>
         <span className="absolute -top-2 right-3 h-4 w-10 -rotate-6 bg-(--c-pink)/80" aria-hidden />
       </div>

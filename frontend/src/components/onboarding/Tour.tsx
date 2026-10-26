@@ -148,7 +148,7 @@ export function Tour({ id, userId, steps }: Props) {
   }
 
   return createPortal(
-    <div className="fixed inset-0 z-[100]" role="dialog" aria-modal="true" aria-label={`기능 안내 ${index + 1}/${steps.length}`}>
+    <div className="fixed inset-0 z-[1100]" role="dialog" aria-modal="true" aria-label={`기능 안내 ${index + 1}/${steps.length}`}>
       {/* 어둡게 + 짚은 곳만 밝게 (뒤 화면은 안내 중 누를 수 없다) */}
       {rect ? (
         <div

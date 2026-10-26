@@ -9,6 +9,7 @@ import { ChevronLeftIcon } from '../components/icons'
 import { MapThumb } from '../components/MapThumb'
 import { toLocalInput } from '../components/meetup/format'
 import { getMap, getMyMaps, saveMeetup } from '../db/api'
+import { mapPurpose, purposeMeta } from '../components/mapPurpose'
 import type { ConceptMap, MapDetail, MeetupVisibility } from '../types'
 
 /** 성지순례 모임 만들기. ?mapId= 로 지도를 미리 고를 수 있다 (내 지도 또는 남의 공개 지도). */
@@ -155,11 +156,12 @@ export function MeetupNewPage() {
               <div className="rounded-xl border border-dashed border-(--c-border) p-5 text-center text-sm text-(--c-muted)">
                 아직 내 지도가 없어요.{' '}
                 <Link href="/" className="font-semibold text-(--c-accent)">지도 만들기</Link> 또는{' '}
-                <Link href="/ranking" className="font-semibold text-(--c-accent)">인기 지도</Link>에서 골라 보세요.
+                <Link href="/explore" className="font-semibold text-(--c-accent)">둘러보기</Link>에서 골라 보세요.
               </div>
             ) : (
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                {myMaps.map((m) => (
+                {/* 기록(다녀온 곳)을 먼저: 성지순례는 기록을 가져와 미래의 모임으로 여는 것 */}
+                {[...myMaps].sort((a, b) => Number(mapPurpose(a) === 'plan') - Number(mapPurpose(b) === 'plan')).map((m) => (
                   <button
                     key={m.id}
                     type="button"
@@ -172,7 +174,9 @@ export function MeetupNewPage() {
                     aria-pressed={mapId === m.id}
                   >
                     <MapThumb id={m.id} theme={m.theme} cover={m.coverUrl} className="h-16" />
-                    <span className="block truncate px-2.5 py-2 text-sm font-semibold">{m.title || '제목 없는 지도'}</span>
+                    <span className="block truncate px-2.5 py-2 text-sm font-semibold">
+                      {purposeMeta(mapPurpose(m)).emoji} {m.title || '제목 없는 지도'}
+                    </span>
                   </button>
                 ))}
               </div>

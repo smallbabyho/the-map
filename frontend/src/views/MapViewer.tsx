@@ -7,9 +7,10 @@ import { useCurrentUser } from '../auth'
 import { HeaderActions } from '../components/AppRail'
 import { Avatar } from '../components/Avatar'
 import { ChevronLeftIcon, CopyIcon, UsersIcon } from '../components/icons'
-import { formatMinutes, legLabel } from '../components/legModes'
+import { formatMinutes } from '../components/legModes'
+import { mapPurpose } from '../components/mapPurpose'
 import { isCustomPlace, MapView, type MapInsets } from '../components/map'
-import { useViewCourse, ViewModePicker, type ViewMode } from '../components/map/ViewModePicker'
+import { LegModeSwitch, useViewCourse, ViewModePicker, type ViewMode } from '../components/map/ViewModePicker'
 import { getTheme, themeVars } from '../components/themes'
 import { KakaoDirectionsLink } from '../components/map/KakaoDirections'
 import { placeHref } from '../components/place/PlaceStats'
@@ -97,7 +98,9 @@ export function MapViewer({ detail }: { detail: MapDetail }) {
             <ChevronLeftIcon size={16} />
             뒤로
           </button>
-          <p className="tm-label dot mt-3">{theme.name} theme · public map</p>
+          <p className="tm-label dot mt-3">
+            {mapPurpose(map) === 'record' ? '📖 다녀온 기록' : '🗓️ 계획 중인 코스'} · {theme.name} theme
+          </p>
           <h1 className="tm-headline mt-2 text-4xl">{map.title || '제목 없는 지도'}</h1>
           {owner && (
             <Link href={`/u/${owner.id}`} className="mt-2 flex w-fit items-center gap-2 text-sm text-(--c-muted) hover:underline">
@@ -181,7 +184,7 @@ export function MapViewer({ detail }: { detail: MapDetail }) {
                 </div>
                 {legMode && (
                   <div className="ml-[27px] border-l-2 border-dotted border-(--c-border) py-1.5 pl-6 text-xs text-(--c-muted)">
-                    {legLabel(legMode, view.durationOf(p.id, next.id))}
+                    <LegModeSwitch mode={legMode} durationMin={view.durationOf(p.id, next.id)} note={view.noteOf(p.id, next.id)} onChange={(m) => view.setLegMode(p.id, next.id, m)} />
                     {transit && <TransitSteps info={transit} className="mt-1.5 text-(--c-text)" />}
                   </div>
                 )}

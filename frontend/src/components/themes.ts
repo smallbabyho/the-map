@@ -67,9 +67,15 @@ function textOn(hex: string) {
 /** 직접 고른 색 하나로 테마 만들기: 핀 색 후보는 색상환에서 고르게 퍼뜨린다 */
 function customTheme(hex: `#${string}`): Theme {
   const [h, s, l] = hexToHsl(hex)
-  const sat = Math.max(s, 45)
-  const light = Math.min(Math.max(l, 40), 60)
-  const palette = [hex, ...[40, 150, 200, 290].map((d) => hslToHex((h + d) % 360, sat, light)), '#0f172a']
+  // 핀 색 후보: 고른 색과 비슷한 계열 (색상 ±18°, 밝기만 다르게). 채도는 고른 색 그대로라 차분한 색이면 차분하게
+  const clampL = (v: number) => Math.min(Math.max(v, 22), 82)
+  const near: [number, number][] = [
+    [-18, 8],
+    [18, -8],
+    [0, 18],
+    [0, -16],
+  ]
+  const palette = [hex, ...near.map(([dh, dl]) => hslToHex((h + dh + 360) % 360, s, clampL(l + dl))), '#0f172a']
   return { id: hex, name: '직접', palette, route: hex, accent: hex, accentText: textOn(hex) }
 }
 

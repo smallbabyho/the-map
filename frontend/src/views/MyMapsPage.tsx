@@ -9,12 +9,13 @@ import { Tour, type TourStep } from '../components/onboarding/Tour'
 import { useCurrentUser } from '../auth'
 import { deleteMap, getMyMaps, removeMapEditor, saveMap } from '../db/api'
 import { LandingPage } from './LandingPage'
-import type { ConceptMap } from '../types'
+import type { ConceptMap, MapPurpose } from '../types'
+import { MAP_PURPOSES, mapPurpose } from '../components/mapPurpose'
 
 /** 처음 로그인한 사람에게 한 번 보여주는 안내 */
 const HOME_TOUR: TourStep[] = [
   { title: 'My Concept Map에 오신 걸 환영해요 👋', body: '가고 싶은 곳은 계획하고, 사랑했던 곳은 기록하는 나만의 지도예요. 주요 기능을 짧게 알려드릴게요.' },
-  { target: 'new-map', title: '새 지도 만들기', body: '빵지순례, 데이트 코스, 지난 여행 기록까지. 테마 하나로 지도를 시작해요.' },
+  { target: 'new-map', title: '기록 · 계획', body: '다녀온 곳은 기록으로 남겨 공유하고, 갈 곳은 계획으로 짜요. 남의 기록을 가져오면 내 계획이 돼요.' },
   { target: 'nav-meetups', title: '성지순례', body: '지도 하나로 모임을 열고 함께 떠날 사람을 모아요.' },
   { target: 'nav-explore', title: '둘러보기', body: '다른 사람의 지도를 구경하고, 마음에 들면 내 지도로 가져와요.' },
   { target: 'nav-profile', title: '내 프로필', body: '다이어리처럼 꾸미고, 공개한 지도를 모아 보여줘요.' },
@@ -25,9 +26,10 @@ export function MyMapsPage() {
   const user = useCurrentUser()
   const [maps, setMaps] = useState<ConceptMap[] | null>(null)
   const [error, setError] = useState('')
-  const [creating, setCreating] = useState(false)
+  const [creating, setCreating] = useState<MapPurpose | null>(null)
+  const [filter, setFilter] = useState<MapPurpose | 'all'>('all')
   // 성공하면 다음 화면으로 넘어가며 creating 를 안 푼다. 뒤로 오면 Next 가 이 화면을 상태째 다시 보여 주므로, 떠날 때 푼다
-  useLayoutEffect(() => () => setCreating(false), [])
+  useLayoutEffect(() => () => setCreating(null), [])
 
   // 로그인한 사람이 바뀌면 다시 불러온다
   const userId = user?.id
@@ -43,15 +45,16 @@ export function MyMapsPage() {
     }
   }, [userId])
 
-  const createMap = async () => {
+  /** 새 지도: 기록이든 계획이든 처음엔 비공개 (빈 지도가 둘러보기에 뜨지 않게). 기록은 편집 화면에서 공개를 권한다 */
+  const createMap = async (purpose: MapPurpose) => {
     if (creating) return
-    setCreating(true)
+    setCreating(purpose)
     try {
-      const map = await saveMap({ title: '', theme: 'default', isPublic: false })
+      const map = await saveMap({ title: '', theme: 'default', isPublic: false, purpose })
       router.push(`/maps/${map.id}`)
     } catch (e) {
       setError(e instanceof Error ? e.message : '지도를 만들지 못했어요.')
-      setCreating(false)
+      setCreating(null)
     }
   }
 
@@ -85,16 +88,21 @@ export function MyMapsPage() {
               내 <em>지도</em>
             </h1>
           </div>
-          <button
-            type="button"
-            onClick={createMap}
-            disabled={creating}
-            data-tour="new-map"
-            className="tm-btn inline-flex items-center gap-1.5 rounded-full bg-(--c-accent) px-5 py-3 text-sm font-bold text-(--c-accent-text) disabled:opacity-60"
-          >
-            <PlusIcon size={18} />
-            {creating ? '만드는 중…' : '새 지도 만들기'}
-          </button>
+          <div className="flex flex-wrap gap-2" data-tour="new-map">
+            {MAP_PURPOSES.map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => createMap(p.id)}
+                disabled={!!creating}
+                title={p.hint}
+                className={`tm-btn inline-flex items-center gap-1.5 rounded-full px-5 py-3 text-sm font-bold disabled:opacity-60 ${p.id === 'record' ? 'bg-(--c-accent) text-(--c-accent-text)' : 'bg-(--c-surface)'}`}
+              >
+                <PlusIcon size={18} />
+                {creating === p.id ? '만드는 중…' : p.id === 'record' ? `${p.emoji} 기록 남기기` : `${p.emoji} 계획 짜기`}
+              </button>
+            ))}
+          </div>
         </div>
 
         {error && (
@@ -119,20 +127,47 @@ export function MyMapsPage() {
                 첫 <em>지도</em>를 그려 볼까요?
               </h2>
               <p className="mt-3 max-w-sm text-[15px] text-(--c-muted)">카페 투어, 빵지순례, 드라마 촬영지… 나만의 테마로 첫 지도를 꾸며 보세요.</p>
-              <button
-                type="button"
-                onClick={createMap}
-                disabled={creating}
-                className="tm-btn mt-8 inline-flex items-center gap-1.5 rounded-full bg-(--c-accent) px-6 py-3 text-sm font-bold text-(--c-accent-text) disabled:opacity-60"
-              >
-                <PlusIcon size={18} />첫 지도 만들기
-              </button>
+              <div className="mt-8 grid w-full max-w-md gap-3 sm:grid-cols-2">
+                {MAP_PURPOSES.map((p) => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => createMap(p.id)}
+                    disabled={!!creating}
+                    className="tm-card rounded-2xl p-4 text-left transition hover:-translate-y-0.5 disabled:opacity-60"
+                  >
+                    <span className="text-2xl" aria-hidden>{p.emoji}</span>
+                    <span className="mt-2 block font-bold">{creating === p.id ? '만드는 중…' : p.id === 'record' ? '다녀온 곳 기록하기' : '갈 곳 계획하기'}</span>
+                    <span className="mt-1 block text-xs leading-relaxed text-(--c-muted)">{p.hint}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {maps && maps.length > 0 && (
+            <div className="mb-6 flex gap-1.5" role="tablist" aria-label="지도 용도">
+              {([{ id: 'all', label: '전체', emoji: '' }, ...MAP_PURPOSES] as const).map((t) => {
+                const n = t.id === 'all' ? maps.length : maps.filter((m) => mapPurpose(m) === t.id).length
+                return (
+                  <button
+                    key={t.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={filter === t.id}
+                    onClick={() => setFilter(t.id)}
+                    className={`rounded-full px-4 py-2 text-sm font-semibold transition ${filter === t.id ? 'bg-(--c-ink) text-(--c-bg)' : 'text-(--c-muted) hover:text-(--c-text)'}`}
+                  >
+                    {t.emoji} {t.label} <span className="opacity-60">{n}</span>
+                  </button>
+                )
+              })}
             </div>
           )}
 
           {maps && maps.length > 0 && (
             <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-              {maps.map((m, i) => (
+              {maps.filter((m) => filter === 'all' || mapPurpose(m) === filter).map((m, i) => (
                 <MapCard key={m.id} map={m} index={i} shared={!!user && m.ownerId !== user.id} onDelete={removeMap} />
               ))}
             </div>

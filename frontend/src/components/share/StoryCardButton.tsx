@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { CloseIcon } from '../icons'
 import { drawStoryCard, STORY_H, STORY_W, type StoryCardData } from './storyCard'
 
@@ -72,8 +73,9 @@ function StoryCardDialog({ data, onClose }: { data: StoryCardData; onClose: () =
     }
   }
 
-  return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4 backdrop-blur-sm" onClick={onClose} role="dialog" aria-modal aria-label="이미지 카드">
+  // 팝업은 항상 맨 위: 페이지 안 다른 요소(지도 등)의 겹침 순서에 갇히지 않게 body 에 바로 그린다
+  return createPortal(
+    <div className="fixed inset-0 z-[1000] grid place-items-center bg-black/60 p-4 backdrop-blur-sm" onClick={onClose} role="dialog" aria-modal aria-label="이미지 카드">
       <div className="flex max-h-full w-full max-w-sm flex-col items-center gap-3" onClick={(e) => e.stopPropagation()}>
         <div className="flex w-full items-center justify-between text-white">
           <p className="text-sm font-semibold">스토리 이미지 카드 · {STORY_W}×{STORY_H}</p>
@@ -102,6 +104,7 @@ function StoryCardDialog({ data, onClose }: { data: StoryCardData; onClose: () =
         </div>
         <p className="text-center text-xs text-white/70">길찾기를 받아 둔 구간은 실제 길 모양으로 그려져요.</p>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }

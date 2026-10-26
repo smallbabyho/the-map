@@ -52,9 +52,12 @@ export function LegEditor({ leg, from, to, onChange }: Props) {
             <b className="font-bold">{leg.durationMin != null ? formatMinutes(leg.durationMin) : '–'}</b>
             <span className="text-(--c-muted)">· {formatDistance(route.distanceM)}</span>
             {route.estimated && (
-              <span className="rounded bg-black/[0.05] px-1 py-px text-[10px] text-(--c-muted)" title={leg.mode === 'transit' ? '직선거리로 예상한 시간이에요' : '길찾기에 실패해 직선거리로 예상했어요'}>
+              <span className="rounded bg-black/[0.05] px-1 py-px text-[10px] text-(--c-muted)" title={route.note ?? (leg.mode === 'transit' ? '직선거리로 예상한 시간이에요' : '길찾기에 실패해 직선거리로 예상했어요')}>
                 예상
               </span>
+            )}
+            {route.note && (
+              <span className="truncate text-[11px] text-amber-600">⚠️ {route.note}</span>
             )}
           </>
         ) : (

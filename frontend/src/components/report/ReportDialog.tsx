@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { submitReport } from '../../db/api'
 import type { AbuseReason, BugReason, ReportInput, ReportReason, ReportTarget } from '../../types'
 import { CloseIcon } from '../icons'
@@ -62,8 +63,9 @@ export function ReportDialog({ subject, onClose }: { subject: ReportSubject; onC
     }
   }
 
-  return (
-    <div className="fixed inset-0 z-50 grid place-items-end bg-black/50 backdrop-blur-sm sm:place-items-center sm:p-4" onClick={onClose} role="dialog" aria-modal aria-label={TITLE[subject.target]}>
+  // 팝업은 항상 맨 위: 페이지 안 다른 요소(지도 등)의 겹침 순서에 갇히지 않게 body 에 바로 그린다
+  return createPortal(
+    <div className="fixed inset-0 z-[1000] grid place-items-end bg-black/50 backdrop-blur-sm sm:place-items-center sm:p-4" onClick={onClose} role="dialog" aria-modal aria-label={TITLE[subject.target]}>
       <div className="w-full max-w-md rounded-t-3xl bg-(--c-surface) p-5 pb-[calc(20px+env(safe-area-inset-bottom))] text-(--c-text) sm:rounded-3xl" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
@@ -116,7 +118,8 @@ export function ReportDialog({ subject, onClose }: { subject: ReportSubject; onC
           </>
         )}
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }
 

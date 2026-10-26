@@ -43,7 +43,13 @@ import type {
   ReportStatus,
   User,
   UserRole,
+  MapSearchEntry,
+  MapSearchFilters,
+  NoshowStatus,
+  PersonSearchEntry,
 } from '../types'
+import { regionById } from '../components/regions'
+import { categoriesMatching } from '../components/mapCategories'
 
 // ===========================================================================
 // 공용: 에러 · 행 변환
@@ -80,7 +86,28 @@ interface ProfileRow {
 }
 const toUser = (p: ProfileRow | null | undefined, id = ''): User => (p ? { id: p.id, nickname: p.nickname, role: p.role, avatarUrl: p.avatar_url } : { id, nickname: '알 수 없음' })
 
-const MAP_COLS = 'id, owner_id, title, theme, is_public, category, marker_shape, line_style, line_width, cover_url, created_at, updated_at'
+const MAP_COLS_BASE = 'id, owner_id, title, theme, is_public, category, marker_shape, line_style, line_width, cover_url, created_at, updated_at'
+// 나중에 생긴 칸: planned_date(가는 날, 20261026001400) · purpose(기록/계획, 20261026001500) · category_label(직접 적은 카테고리, 20261026001800).
+// 마이그레이션 적용 전인 DB 에서도 지도가 열리게, 처음 한 번 칸이 있는지 보고 없으면 빼고 읽는다 (그동안 그 값만 저장 안 됨).
+const LATER_MAP_COLS = ['planned_date', 'purpose', 'category_label'] as const
+type LaterMapCol = (typeof LATER_MAP_COLS)[number]
+let laterCols: Promise<Set<LaterMapCol>> | null = null
+function presentLaterCols(): Promise<Set<LaterMapCol>> {
+  laterCols ??= Promise.all(
+    LATER_MAP_COLS.map(async (col) => {
+      const { error } = await supabase.from('maps').select(col).limit(1)
+      if (error && error.code !== '42703') laterCols = null // 다른 오류(네트워크 등)면 다음에 다시 확인
+      return error?.code === '42703' ? null : col // 42703 = 그런 칸 없음
+    }),
+  ).then((cols) => new Set(cols.filter((c): c is LaterMapCol => c !== null)))
+  return laterCols
+}
+const hasMapColumn = async (col: LaterMapCol) => (await presentLaterCols()).has(col)
+// 타입은 기본 칸 목록으로 둔다 (supabase 가 칸 이름을 읽어 행 타입을 만드는데, 바뀌는 문자열은 못 읽어서). 나중 칸은 MapRow 에 선택 칸으로 있다
+const mapCols = async () => {
+  const have = await presentLaterCols()
+  return [MAP_COLS_BASE, ...LATER_MAP_COLS.filter((c) => have.has(c))].join(', ') as typeof MAP_COLS_BASE
+}
 interface MapRow {
   id: string
   owner_id: string
@@ -92,6 +119,9 @@ interface MapRow {
   line_style: ConceptMap['lineStyle']
   line_width: ConceptMap['lineWidth']
   cover_url: string | null
+  planned_date?: string | null
+  purpose?: ConceptMap['purpose']
+  category_label?: string | null
   created_at: string
   updated_at: string
 }
@@ -106,6 +136,10 @@ const toMap = (r: MapRow): ConceptMap => ({
   lineStyle: r.line_style,
   lineWidth: r.line_width,
   coverUrl: r.cover_url,
+  plannedDate: r.planned_date ?? null,
+  // 칸이 아직 없으면: 공개 = 기록, 비공개 = 계획 (마이그레이션이 나누는 규칙과 같게)
+  purpose: r.purpose ?? (r.is_public ? 'record' : 'plan'),
+  categoryLabel: r.category_label ?? null,
   createdAt: r.created_at,
   updatedAt: r.updated_at,
 })
@@ -189,13 +223,13 @@ export async function getMyMaps(): Promise<ConceptMap[]> {
   const { data: shared } = await supabase.from('map_members').select('map_id').eq('user_id', me)
   const ids = (shared ?? []).map((r: { map_id: string }) => r.map_id)
   const filter = ids.length ? `owner_id.eq.${me},id.in.(${ids.join(',')})` : `owner_id.eq.${me}`
-  const { data, error } = await supabase.from('maps').select(MAP_COLS).or(filter).order('updated_at', { ascending: false })
+  const { data, error } = await supabase.from('maps').select(await mapCols()).or(filter).order('updated_at', { ascending: false })
   if (error) fail(error)
   return (data as MapRow[]).map(toMap)
 }
 
 export async function getMap(mapId: string): Promise<MapDetail | null> {
-  const { data: m, error } = await supabase.from('maps').select(MAP_COLS).eq('id', mapId).maybeSingle<MapRow>()
+  const { data: m, error } = await supabase.from('maps').select(await mapCols()).eq('id', mapId).maybeSingle<MapRow>()
   if (error) fail(error)
   if (!m) return null
   const [pins, legs] = await Promise.all([
@@ -215,20 +249,23 @@ export async function saveMap(mapData: MapInput): Promise<ConceptMap> {
     ...(mapData.lineStyle && { line_style: mapData.lineStyle }),
     ...(mapData.lineWidth && { line_width: mapData.lineWidth }),
     ...(mapData.coverUrl !== undefined && { cover_url: mapData.coverUrl }),
+    ...(mapData.plannedDate !== undefined && (await hasMapColumn('planned_date')) && { planned_date: mapData.plannedDate }),
+    ...(mapData.purpose && (await hasMapColumn('purpose')) && { purpose: mapData.purpose }),
+    ...(mapData.categoryLabel !== undefined && (await hasMapColumn('category_label')) && { category_label: mapData.categoryLabel?.trim() || null }),
   }
   if (mapData.id) {
     // 공개 여부는 주인만 바꾼다 (편집자가 보내면 DB 트리거가 막으므로 아예 안 보냄)
     const { data: cur } = await supabase.from('maps').select('owner_id').eq('id', mapData.id).maybeSingle<{ owner_id: string }>()
     if (!cur) throw new Error('지도를 찾을 수 없어요.')
     const patch = { title: mapData.title, theme: mapData.theme, ...look, ...(cur.owner_id === me && { is_public: mapData.isPublic }) }
-    const { data, error } = await supabase.from('maps').update(patch).eq('id', mapData.id).select(MAP_COLS).single<MapRow>()
+    const { data, error } = await supabase.from('maps').update(patch).eq('id', mapData.id).select(await mapCols()).single<MapRow>()
     if (error) fail(error)
     return toMap(data)
   }
   const { data, error } = await supabase
     .from('maps')
     .insert({ title: mapData.title, theme: mapData.theme, is_public: mapData.isPublic, ...look })
-    .select(MAP_COLS)
+    .select(await mapCols())
     .single<MapRow>()
   if (error) fail(error)
   return toMap(data)
@@ -798,10 +835,11 @@ async function toPublicSummaries(rows: MapRow[]): Promise<PublicMapSummary[]> {
 }
 
 export async function getProfile(userId: string): Promise<ProfilePage> {
+  const cols = await mapCols()
   const [user, { data: deco }, { data: maps }] = await Promise.all([
     getUser(userId),
     supabase.from('profile_decos').select('*').eq('user_id', userId).maybeSingle<DecoRow>(),
-    supabase.from('maps').select(MAP_COLS).eq('owner_id', userId).eq('is_public', true).order('updated_at', { ascending: false }),
+    supabase.from('maps').select(cols).eq('owner_id', userId).eq('is_public', true).order('updated_at', { ascending: false }),
   ])
   const d = deco ? toDeco(deco) : defaultDeco(userId)
   const publicMaps = (maps ?? []) as MapRow[]
@@ -853,7 +891,7 @@ export async function copyMap(mapId: string): Promise<ConceptMap> {
 /** id 목록 순서대로 지도 행 가져오기 (함수가 준 순서 유지) */
 async function mapsInOrder(ids: string[]): Promise<MapRow[]> {
   if (!ids.length) return []
-  const { data, error } = await supabase.from('maps').select(MAP_COLS).in('id', ids)
+  const { data, error } = await supabase.from('maps').select(await mapCols()).in('id', ids)
   if (error) fail(error)
   const byId = new Map((data as MapRow[]).map((m) => [m.id, m]))
   return ids.map((id) => byId.get(id)).filter((m): m is MapRow => !!m)
@@ -1056,4 +1094,103 @@ export async function adminUpdateUser(userId: string, patch: Partial<Pick<AdminU
 export async function adminDeleteUser(userId: string): Promise<void> {
   const { error } = await supabase.rpc('admin_delete_user', { p_user_id: userId })
   if (error) fail(error)
+}
+
+// ===========================================================================
+// 대중교통 길찾기 공용 저장소 (ODsay 하루 호출 수 아끼기). 표가 아직 없거나 실패하면 조용히 넘어간다.
+// ===========================================================================
+
+export async function getTransitCache(key: string): Promise<unknown | null> {
+  const { data, error } = await supabase.from('transit_cache').select('result').eq('key', key).maybeSingle<{ result: unknown }>()
+  return error ? null : (data?.result ?? null)
+}
+
+export async function putTransitCache(key: string, result: unknown): Promise<void> {
+  if (!(await myId())) return // 쓰기는 로그인한 사람만
+  await supabase.from('transit_cache').upsert({ key, result, created_at: new Date().toISOString() })
+}
+
+// ===========================================================================
+// 검색 (공개 지도 · 사람)
+// ===========================================================================
+
+// PGRST202 = DB 에 함수가 없음 (마이그레이션 20261026001800_search.sql 적용 전)
+const SEARCH_NOT_READY = '검색 기능을 쓰려면 DB 업데이트(20261026001800_search.sql)가 필요해요.'
+
+export async function searchMaps(f: MapSearchFilters): Promise<MapSearchEntry[]> {
+  const { data, error } = await supabase.rpc('search_maps', {
+    p_q: f.q?.trim() || null,
+    p_purpose: f.purpose ?? null,
+    p_category: f.category ?? null,
+    p_region: regionById(f.region)?.id ?? null,
+    p_min_pins: f.minPins ?? 0,
+    p_has_meetup: f.hasMeetup ?? false,
+    p_sort: f.sort ?? 'popular',
+    p_q_categories: f.q ? categoriesMatching(f.q) : null,
+  })
+  if (error?.code === 'PGRST202') return searchMapsFallback(f)
+  if (error) fail(error)
+  const rows = data as { map_id: string; users: number; pin_count: number; open_meetups: number }[]
+  const [maps, blocked] = await Promise.all([mapsInOrder(rows.map((r) => r.map_id)), blockedIds()])
+  const visible = maps.filter((m) => !blocked.has(m.owner_id))
+  const people = await usersById(visible.map((m) => m.owner_id))
+  return visible.map((m) => {
+    const r = rows.find((x) => x.map_id === m.id)!
+    return { map: toMap(m), owner: people.get(m.owner_id) ?? toUser(null, m.owner_id), pinCount: Number(r.pin_count), users: Number(r.users), openMeetups: Number(r.open_meetups) }
+  })
+}
+
+/**
+ * 검색 함수(search_maps)가 아직 없는 DB: 둘러보기 목록(explore_maps)을 받아 화면에서 거른다.
+ * 제목 · 직접 적은 카테고리 · 기본 카테고리 · 용도 · 카테고리 · 장소 수 · 정렬까지만 (지역 · 모집 중 · 장소 이름은 못 거른다).
+ */
+async function searchMapsFallback(f: MapSearchFilters): Promise<MapSearchEntry[]> {
+  const q = f.q?.trim().toLowerCase() ?? ''
+  const qCats = q ? categoriesMatching(q) : []
+  const list = await getPublicMaps({ category: f.category, sort: f.sort === 'recent' ? 'recent' : 'popular' })
+  const score = (e: ExploreMapEntry) => (e.map.title.toLowerCase().includes(q) ? 4 : 0) + ((e.map.categoryLabel ?? '').toLowerCase().includes(q) || qCats.includes(e.map.category) ? 3 : 0)
+  return list
+    .filter((e) => !q || score(e) > 0)
+    .filter((e) => !f.purpose || e.map.purpose === f.purpose)
+    .filter((e) => e.pinCount >= (f.minPins ?? 0))
+    .sort((a, b) => (f.sort === 'relevance' ? score(b) - score(a) : 0) || (f.sort === 'pins' ? b.pinCount - a.pinCount : 0))
+    .map((e) => ({ ...e, openMeetups: 0 }))
+}
+
+export async function searchPeople(q: string, opts: { hasMaps?: boolean } = {}): Promise<PersonSearchEntry[]> {
+  if (!q.trim()) return []
+  const { data, error } = await supabase.rpc('search_people', { p_q: q.trim(), p_has_maps: opts.hasMaps ?? false })
+  if (error?.code === 'PGRST202') throw new Error(SEARCH_NOT_READY)
+  if (error) fail(error)
+  const rows = data as { user_id: string; public_maps: number }[]
+  const [people, blocked] = await Promise.all([usersById(rows.map((r) => r.user_id)), blockedIds()])
+  return rows.filter((r) => !blocked.has(r.user_id)).map((r) => ({ user: people.get(r.user_id) ?? toUser(null, r.user_id), publicMaps: Number(r.public_maps) }))
+}
+
+// ===========================================================================
+// 노쇼 방지
+// ===========================================================================
+
+export async function getMyNoshowStatus(): Promise<NoshowStatus> {
+  if (!(await myId())) return { recentCount: 0, blockedUntil: null }
+  const { data, error } = await supabase.rpc('my_noshow_status')
+  if (error) return { recentCount: 0, blockedUntil: null } // 기능 적용 전 DB 면 막힌 것 없음
+  const row = ((data ?? []) as { recent_count: number; blocked_until: string | null }[])[0]
+  return { recentCount: Number(row?.recent_count ?? 0), blockedUntil: row?.blocked_until ?? null }
+}
+
+/** 이 모임에서 노쇼로 표시된 사람 id (주최자 · 본인에게만 보임) */
+export async function getMeetupNoshows(meetupId: string): Promise<string[]> {
+  const { data, error } = await supabase.from('meetup_noshows').select('user_id').eq('meetup_id', meetupId)
+  if (error) return []
+  return (data as { user_id: string }[]).map((r) => r.user_id)
+}
+
+/** 주최자: 끝난 모임의 참여자를 노쇼로 표시 / 취소 */
+export async function setMeetupNoshow(meetupId: string, userId: string, noshow: boolean): Promise<void> {
+  await requireMe()
+  const { error } = noshow
+    ? await supabase.from('meetup_noshows').insert({ meetup_id: meetupId, user_id: userId })
+    : await supabase.from('meetup_noshows').delete().eq('meetup_id', meetupId).eq('user_id', userId)
+  if (error && error.code !== '23505') fail(error) // 23505: 이미 표시됨
 }

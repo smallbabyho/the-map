@@ -12,22 +12,22 @@ import { PlaceSearchBox } from '../components/editor/PlaceSearchBox'
 import { CollabButton } from '../components/editor/CollabButton'
 import { MapLookPicker } from '../components/editor/MapLookPicker'
 import { StoryCardButton } from '../components/share/StoryCardButton'
-import { MAP_CATEGORIES } from '../components/mapCategories'
-import { ThemePicker } from '../components/editor/ThemePicker'
 import { useMapDraft } from '../components/editor/useMapDraft'
-import { CheckIcon, ChevronLeftIcon, ChevronRightIcon, GlobeIcon, LockIcon, PinIcon } from '../components/icons'
+import { CheckIcon, ChevronLeftIcon, GlobeIcon, LockIcon, PinIcon } from '../components/icons'
 import { MapView, type MapInsets } from '../components/map'
 import { getTheme, themeVars } from '../components/themes'
 import { getMapCollab } from '../db/api'
 import type { MapCollab } from '../types'
 import { Tour, type TourStep } from '../components/onboarding/Tour'
 import { MapViewer } from './MapViewer'
+import { daysUntil, planDday } from '../lib/planDate'
+import { MAP_PURPOSES, mapPurpose } from '../components/mapPurpose'
 
 /** 지도 편집 화면을 처음 연 사람에게 한 번 보여주는 안내 */
 const EDITOR_TOUR: TourStep[] = [
   { target: 'place-search', title: '장소 추가', body: '검색해서 핀을 꽂아요. 지도를 누르면 그 근처 가게 · 건물을 골라 꽂을 수도 있어요.' },
   { target: 'pins', title: '핀 목록', body: '핀을 누르면 사진 · 다녀온 날짜 · 메모를 남겨요. 끌어서 순서를 바꾸면 길이 다시 이어져요.' },
-  { target: 'map-look', title: '꾸미기', body: '테마 색, 마커 모양, 선 스타일로 지도에 표정을 줘요.' },
+  { target: 'map-look', title: '🎨 꾸미기', body: '색 테마, 마커 모양, 코스 선, 커버 사진, 카테고리를 여기 하나에서 다 골라요.' },
   { target: 'collab', title: '함께 꾸미기', body: '초대 링크를 보내면 친구와 한 지도를 같이 짜요.' },
   { target: 'map-public', title: '공개 설정', body: '공개하면 둘러보기에 올라가요. 비공개면 나와 함께 꾸미는 사람만 봐요.' },
   { target: 'save', title: '저장', body: '고친 내용은 저장을 눌러야 남아요.' },
@@ -107,6 +107,14 @@ export function MapEditorPage() {
   const { map, pins, legs } = draft
   const user = useCurrentUser()
   const isOwner = !!user && !!map && map.ownerId === user.id
+  const purpose = map ? mapPurpose(map) : 'plan'
+  /** 다녀왔어요: 계획 → 기록. 다녀온 날이 비어 있는 핀은 가는 날(없으면 오늘)로 채운다 */
+  const markVisited = () => {
+    if (!map || !window.confirm('이 계획을 다녀온 기록으로 바꿀까요? 장소마다 사진과 메모를 남겨 보세요.')) return
+    const day = map.plannedDate && daysUntil(map.plannedDate) <= 0 ? map.plannedDate : new Date().toLocaleDateString('sv-SE')
+    for (const p of pins) if (!p.visitedAt) draft.updatePin(p.id, { visitedAt: day })
+    draft.updateMap({ purpose: 'record' })
+  }
   // 함께 꾸미기: 주인이 아니어도 공동 편집자면 편집 화면
   const [collab, setCollab] = useState<MapCollab | null>(null)
   const loadCollab = useCallback(() => {
@@ -240,10 +248,7 @@ export function MapEditorPage() {
         </button>
         <div className="pointer-events-auto flex items-center gap-2">
           <div className="hidden md:block" data-tour="map-look">
-            <ThemePicker value={map.theme} onChange={draft.setTheme} />
-          </div>
-          <div className="hidden md:block">
-            <MapLookPicker look={map} coverUrl={map.coverUrl} onChange={draft.updateMap} />
+            <MapLookPicker look={map} coverUrl={map.coverUrl} onChange={draft.updateMap} theme={map.theme} onTheme={draft.setTheme} category={map.category} categoryLabel={map.categoryLabel ?? null} />
           </div>
           {collab && user && (
             <div className="hidden md:block" data-tour="collab">
@@ -307,48 +312,84 @@ export function MapEditorPage() {
             </button>
           </div>
 
-          {/* 카테고리 (둘러보기에서 이 칸으로 보여요) */}
-          <div className="tm-scroll -mx-4 flex gap-1.5 overflow-x-auto px-4 md:-mx-5 md:px-5" role="radiogroup" aria-label="지도 카테고리">
-            {MAP_CATEGORIES.map((c) => (
-              <button
-                key={c.id}
-                type="button"
-                role="radio"
-                aria-checked={map.category === c.id}
-                onClick={() => draft.updateMap({ category: c.id })}
-                className={`shrink-0 rounded-full border px-3 py-1.5 text-xs font-semibold transition ${map.category === c.id ? 'border-(--c-ink) bg-(--c-ink) text-(--c-bg)' : 'border-(--c-border) text-(--c-muted) hover:text-(--c-text)'}`}
-              >
-                {c.emoji} {c.label}
-              </button>
-            ))}
-          </div>
-
-          <Link
-            href={`/meetups/new?mapId=${map.id}`}
-            onClick={(e) => {
-              if (draft.dirty && !window.confirm('저장하지 않은 변경이 있어요. 저장하지 않고 모임 만들기로 갈까요?')) e.preventDefault()
-            }}
-            className="flex items-center gap-2 rounded-xl bg-(--c-accent)/10 px-3 py-2 text-[13px] font-semibold text-(--c-accent) transition hover:bg-(--c-accent)/15"
-          >
-            <span aria-hidden>🚶</span>
-            이 지도로 성지순례 모집하기
-            <ChevronRightIcon size={14} className="ml-auto" />
-          </Link>
-          <StoryCardButton className="h-9 text-[13px]" data={{ map, pins, legs, theme, ownerName: user?.nickname }} />
-
-          {/* 모바일에서는 테마 · 꾸미기를 패널 안에 */}
-          <div className="tm-scroll -mx-4 overflow-x-auto px-4 md:hidden" data-tour="map-look">
-            <div className="w-max">
-              <ThemePicker value={map.theme} onChange={draft.setTheme} />
+          {/* 용도: 기록(다녀온 곳) / 계획(갈 곳) */}
+          <div className="flex items-center gap-2">
+            <div className="inline-flex rounded-full bg-black/[0.05] p-0.5" role="radiogroup" aria-label="지도 용도">
+              {MAP_PURPOSES.map((p) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  role="radio"
+                  aria-checked={purpose === p.id}
+                  title={p.hint}
+                  onClick={() => draft.updateMap({ purpose: p.id })}
+                  className={`rounded-full px-3 py-1 text-xs font-semibold transition ${purpose === p.id ? 'bg-(--c-surface) shadow-sm' : 'text-(--c-muted)'}`}
+                >
+                  {p.emoji} {p.label}
+                </button>
+              ))}
             </div>
           </div>
-          <div className="flex flex-wrap gap-2 md:hidden">
-            <MapLookPicker look={map} coverUrl={map.coverUrl} onChange={draft.updateMap} variant="inline" />
+
+          {purpose === 'plan' ? (
+            // 가는 날 (나와 같이 꾸미는 사람에게만 보여요) + 다녀왔으면 기록으로
+            <div className="flex flex-wrap items-center gap-2 text-sm">
+              <label className="flex items-center gap-2">
+                <span className="shrink-0 font-semibold">📅 가는 날</span>
+                <input
+                  type="date"
+                  value={map.plannedDate ?? ''}
+                  onChange={(e) => draft.updateMap({ plannedDate: e.target.value || null })}
+                  className="h-8 min-w-0 rounded-lg border border-(--c-border) bg-(--c-surface) px-2 text-sm outline-none focus:border-(--c-accent)"
+                  aria-label="가는 날"
+                />
+              </label>
+              {map.plannedDate && <span className="text-xs font-semibold text-(--c-accent)">{planDday(map.plannedDate)}</span>}
+              {pins.length > 0 && (
+                <button
+                  type="button"
+                  onClick={markVisited}
+                  className={`ml-auto shrink-0 rounded-full px-3 py-1 text-xs font-bold transition ${map.plannedDate && daysUntil(map.plannedDate) <= 0 ? 'bg-(--c-accent) text-(--c-accent-text)' : 'border border-(--c-border) text-(--c-muted) hover:text-(--c-text)'}`}
+                  title="이 계획을 다녀온 기록으로 바꿔요"
+                >
+                  ✅ 다녀왔어요
+                </button>
+              )}
+            </div>
+          ) : (
+            !map.isPublic &&
+            isOwner &&
+            pins.length > 0 && (
+              <p className="flex items-center gap-2 rounded-xl bg-(--c-accent)/10 px-3 py-2 text-xs">
+                <span className="min-w-0 flex-1">공개하면 이 기록이 다른 사람의 계획이 될 수 있어요.</span>
+                <button type="button" onClick={() => draft.updateMap({ isPublic: true })} className="shrink-0 font-bold text-(--c-accent)">
+                  공개하기
+                </button>
+              </p>
+            )
+          )}
+
+          {/* 할 일 버튼은 한 줄로: (모바일) 꾸미기 · 같이 꾸미기 + 모임 열기 · 이미지 카드 */}
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="md:hidden" data-tour="map-look">
+              <MapLookPicker look={map} coverUrl={map.coverUrl} onChange={draft.updateMap} theme={map.theme} onTheme={draft.setTheme} category={map.category} categoryLabel={map.categoryLabel ?? null} variant="inline" />
+            </span>
             {collab && user && (
-              <span data-tour="collab">
+              <span className="md:hidden" data-tour="collab">
                 <CollabButton mapId={map.id} myId={user.id} collab={collab} onChange={loadCollab} variant="inline" />
               </span>
             )}
+            <Link
+              href={`/meetups/new?mapId=${map.id}`}
+              onClick={(e) => {
+                if (draft.dirty && !window.confirm('저장하지 않은 변경이 있어요. 저장하지 않고 모임 만들기로 갈까요?')) e.preventDefault()
+              }}
+              className="flex h-9 items-center gap-1.5 rounded-full border border-(--c-border) px-3 text-[13px] font-semibold transition hover:bg-black/[0.03]"
+              title="이 지도로 성지순례 모집하기"
+            >
+              <span aria-hidden>🚩</span> 모임 열기
+            </Link>
+            <StoryCardButton className="h-9! w-auto! rounded-full! px-3 text-[13px]! font-semibold!" data={{ map, pins, legs, theme, ownerName: user?.nickname }} />
           </div>
 
           <div data-tour="place-search">

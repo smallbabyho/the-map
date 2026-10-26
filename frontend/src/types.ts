@@ -35,6 +35,9 @@ export interface User {
 }
 
 // 전역 Map(자바스크립트 Map)과 이름이 겹치지 않도록 코드에서는 ConceptMap 을 쓴다.
+/** 지도 용도: 기록(다녀온 곳, 공유돼서 남의 계획이 된다) / 계획(갈 곳) */
+export type MapPurpose = 'record' | 'plan'
+
 export interface ConceptMap {
   id: string
   ownerId: string
@@ -47,6 +50,11 @@ export interface ConceptMap {
   lineWidth: LineWidth
   /** 커버 이미지 (카드 · 공개 지도 상단). 없으면 테마 색 썸네일 */
   coverUrl: string | null
+  /** 이 코스를 갈 날 (YYYY-MM-DD). 주인 · 같이 꾸미는 사람 화면에만 보여 준다 */
+  plannedDate: string | null
+  purpose: MapPurpose
+  /** 직접 적은 카테고리 이름 (category 가 'etc' 일 때 '기타' 대신) */
+  categoryLabel: string | null
   createdAt: string
   updatedAt: string
 }
@@ -121,6 +129,9 @@ export interface MapInput {
   lineStyle?: LineStyle
   lineWidth?: LineWidth
   coverUrl?: string | null
+  plannedDate?: string | null
+  purpose?: MapPurpose
+  categoryLabel?: string | null
 }
 
 /** 핀 저장 시 place 는 externalId 로 찾고, 없으면 새로 만든다. */
@@ -236,6 +247,33 @@ export interface ExploreMapEntry extends PublicMapSummary {
 }
 
 export type ExploreSort = 'popular' | 'recent'
+
+/** 검색: 지도 필터. region 은 components/regions.ts 의 id */
+export interface MapSearchFilters {
+  q?: string
+  purpose?: MapPurpose
+  category?: MapCategory
+  region?: string
+  /** 장소 몇 곳 이상 */
+  minPins?: number
+  /** 지금 모집 중인 성지순례가 있는 지도만 */
+  hasMeetup?: boolean
+  /** relevance: 검색어 관련도순 (검색어가 있을 때 기본) */
+  sort?: 'relevance' | 'popular' | 'recent' | 'pins'
+}
+export interface MapSearchEntry extends ExploreMapEntry {
+  /** 지금 모집 중인 공개 성지순례 수 */
+  openMeetups: number
+}
+export interface PersonSearchEntry {
+  user: User
+  publicMaps: number
+}
+/** 노쇼 방지: 30일 안 노쇼 수 · 참여가 막힌 기한(ISO, 안 막혔으면 null) */
+export interface NoshowStatus {
+  recentCount: number
+  blockedUntil: string | null
+}
 
 export interface MapRankingEntry extends PublicMapSummary {
   rank: number

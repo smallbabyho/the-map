@@ -263,7 +263,7 @@ export function KakaoMap({ pins, segments, theme, look = DEFAULT_LOOK, selectedP
     <>
       {/* 다크 모드 필터(.tm-map-tiles, globals.css)는 바깥 div 에 건다. 카카오가 지도 컨테이너의 class 를 건드릴 수 있어서. */}
       <div
-        className="tm-map-tiles absolute inset-0"
+        className="tm-map-tiles absolute inset-0 isolate"
         ref={pressRef}
         onContextMenu={(e) => canPick && e.preventDefault()}
       >

@@ -1,12 +1,14 @@
 import type { Metadata, Viewport } from "next";
+import { Suspense } from "react";
 import "./globals.css";
 import { EARLY_APPEARANCE_SCRIPT } from "@/src/components/appearanceScript";
 import { AppearanceSync } from "@/src/components/AppearanceSync";
+import { Messenger } from "@/src/components/messenger/Messenger";
 
 export const metadata: Metadata = {
   // 각 페이지는 '성지순례' 처럼 앞부분만 정하면 뒤에 사이트 이름이 붙는다
   title: { default: "My Concept Map", template: "%s · My Concept Map" },
-  description: "나만의 테마로 지도를 꾸미고 공유하는 My Concept Map",
+  description: "지도 위에 펼쳐지는 나만의 세상, My Concept Map",
 };
 
 export const viewport: Viewport = {
@@ -36,6 +38,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <body className="min-h-full">
         {children}
         <AppearanceSync />
+        {/* 💬 떠 있는 버튼: 주소(usePathname)를 읽어서 Suspense 안에 둔다 (Cache Components 에서 페이지를 막지 않게) */}
+        <Suspense fallback={null}>
+          <Messenger />
+        </Suspense>
       </body>
     </html>
   );

@@ -96,8 +96,10 @@ npx supabase db push                             # 아직 적용 안 된 마이�
 ### 5. `.env.local` 항목 (`frontend/` 폴더)
 
 `frontend/.env.example`을 복사해서 `frontend/.env.local`을 만들고 값을 채웁니다. `.env.local`은 커밋되지 않습니다.
+값을 바꾼 뒤에는 `npm run dev`를 껐다 켜야 반영됩니다.
 
 ```bash
+# frontend/.env.local
 NEXT_PUBLIC_SUPABASE_URL=https://xxxxxxxx.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOi...        # anon public 키 (service_role 아님!)
 NEXT_PUBLIC_TURNSTILE_SITE_KEY=0x4AAAAAAA...       # Turnstile Site Key (Secret Key 아님!)

@@ -12,7 +12,7 @@ backend/
 ```
 
 프론트에서 쓰는 Supabase 클라이언트, 인증 함수, 데이터 함수(`src/lib/supabase.ts`, `src/auth/`, `src/db/index.ts`)는
-프론트 Vite 프로젝트 안에 들어갑니다.
+`frontend/` (Next.js) 안에 들어 있습니다.
 
 ---
 
@@ -23,8 +23,8 @@ backend/
 1. <https://supabase.com/dashboard>에서 **New project**를 누릅니다. 리전은 `Northeast Asia (Seoul)`을 권장합니다.
 2. DB 비밀번호는 팀 비밀번호 관리 도구에 저장합니다. 채팅이나 깃에는 올리지 마세요.
 3. **Project Settings → API**에서 아래 두 값을 복사합니다.
-   - `Project URL` → `VITE_SUPABASE_URL`
-   - `anon` `public` 키 → `VITE_SUPABASE_ANON_KEY`
+   - `Project URL` → `NEXT_PUBLIC_SUPABASE_URL`
+   - `anon` `public` 키 → `NEXT_PUBLIC_SUPABASE_ANON_KEY`
    - ⚠️ `service_role` 키는 RLS를 무시하는 관리자 키입니다. **프론트 코드나 .env, 깃 어디에도 넣지 마세요.**
 
 > 팀원끼리 같은 Supabase 프로젝트를 쓰면 1번은 한 사람만 하면 됩니다. 나머지 사람은 URL과 anon 키만 받아서 3번(.env)으로 넘어가세요.
@@ -58,16 +58,16 @@ npx supabase db push                             # 아직 적용 안 된 마이�
 > SQL이 여러 번 실행해도 안전하게 짜여 있어서 그대로 `db push` 해도 됩니다.
 
 **로컬 Supabase (선택, Docker 필요)**: `cd backend && npx supabase start`를 실행하면 마이그레이션이 자동 적용된 로컬 DB가 뜹니다.
-출력되는 `API URL`과 `anon key`를 `.env`에 넣으면 됩니다. 로컬에서는 캡차가 꺼져 있습니다.
+출력되는 `API URL`과 `anon key`를 `frontend/.env.local`에 넣으면 됩니다. 로컬에서는 캡차가 꺼져 있습니다.
 
 ### 3. 캡차 설정 (Cloudflare Turnstile)
 
 캡차 검증은 Supabase Auth 서버가 직접 하므로 **비밀 키는 Supabase 대시보드에만** 넣습니다.
 
 1. **Turnstile 위젯 만들기**: <https://dash.cloudflare.com> → **Turnstile** → **Add widget**
-   - Hostname: 배포 도메인 + `localhost`
+   - Hostname: `the-map-bice.vercel.app` + `localhost`
    - Widget mode: `Managed`
-   - 발급된 **Site Key**(공개용) → `VITE_TURNSTILE_SITE_KEY`
+   - 발급된 **Site Key**(공개용) → `NEXT_PUBLIC_TURNSTILE_SITE_KEY`
    - 발급된 **Secret Key**(비밀) → 다음 단계에서 Supabase에 넣습니다. **깃이나 .env에 넣지 마세요.**
 2. **Supabase에 연결**: 대시보드 → **Authentication → Attack Protection** → **Enable Captcha protection** 켜기
    - Provider: `Turnstile by Cloudflare`
@@ -79,7 +79,7 @@ npx supabase db push                             # 아직 적용 안 된 마이�
 
 | | 값 |
 |---|---|
-| Site Key (`VITE_TURNSTILE_SITE_KEY`) | `1x00000000000000000000AA` |
+| Site Key (`NEXT_PUBLIC_TURNSTILE_SITE_KEY`) | `1x00000000000000000000AA` |
 | Secret Key (Supabase 대시보드) | `1x0000000000000000000000000000000AA` |
 
 > 두 키는 반드시 짝이 맞아야 합니다. 실제 Site Key에 테스트 Secret을 쓰거나 그 반대로 쓰면 로그인할 때마다 "캡차 실패"가 납니다.
@@ -87,23 +87,23 @@ npx supabase db push                             # 아직 적용 안 된 마이�
 ### 4. 이메일 인증 / 리다이렉트 URL
 
 - 대시보드 → **Authentication → URL Configuration**
-  - Site URL: 배포 주소 (개발 중에는 `http://localhost:5173`)
-  - Redirect URLs: `http://localhost:5173/**`, 배포 주소 `/**`
+  - Site URL: `https://the-map-bice.vercel.app`
+  - Redirect URLs: `https://the-map-bice.vercel.app/**`, `http://localhost:3000/**`
 - **Authentication → Sign In / Providers → Email**의 `Confirm email`이 켜져 있으면 가입 후 메일 인증을 해야 로그인됩니다.
   개발 중에 번거로우면 개발용 프로젝트에서만 끄세요.
 - Supabase 기본 메일 발송은 시간당 몇 통으로 제한됩니다. 테스트 가입이 막히면 잠시 기다리거나 위 설정을 끄세요.
 
-### 5. `.env` 항목 (프론트 Vite 프로젝트 루트)
+### 5. `.env.local` 항목 (`frontend/` 폴더)
 
-`.env.example`을 복사해서 `.env`를 만들고 값을 채웁니다. `.env`는 `.gitignore`에 들어 있어서 커밋되지 않습니다.
+`frontend/.env.example`을 복사해서 `frontend/.env.local`을 만들고 값을 채웁니다. `.env.local`은 커밋되지 않습니다.
 
 ```bash
-VITE_SUPABASE_URL=https://xxxxxxxx.supabase.co
-VITE_SUPABASE_ANON_KEY=eyJhbGciOi...        # anon public 키 (service_role 아님!)
-VITE_TURNSTILE_SITE_KEY=0x4AAAAAAA...       # Turnstile Site Key (Secret Key 아님!)
+NEXT_PUBLIC_SUPABASE_URL=https://xxxxxxxx.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOi...        # anon public 키 (service_role 아님!)
+NEXT_PUBLIC_TURNSTILE_SITE_KEY=0x4AAAAAAA...       # Turnstile Site Key (Secret Key 아님!)
 ```
 
-`VITE_`로 시작하는 값은 빌드 결과물에 그대로 들어가서 **누구나 볼 수 있습니다.**
+`NEXT_PUBLIC_`로 시작하는 값은 빌드 결과물에 그대로 들어가서 **누구나 볼 수 있습니다.**
 그래서 공개해도 되는 값(anon 키, Site Key)만 넣고, 비밀 키는 절대 넣지 않습니다.
 데이터 보호는 RLS가 담당합니다.
 

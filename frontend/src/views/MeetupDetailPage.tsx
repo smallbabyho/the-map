@@ -15,6 +15,7 @@ import { KakaoDirectionsLink } from '../components/map/KakaoDirections'
 import { KakaoShareButton } from '../components/share/KakaoShareButton'
 import { getTheme, themeVars } from '../components/themes'
 import { getMeetup, joinMeetup, leaveMeetup, setMeetupStatus } from '../db/api'
+import { siteOrigin } from '../lib/site'
 import type { MapDetail, MeetupStatus, MeetupSummary } from '../types'
 
 export function MeetupLoading() {
@@ -91,7 +92,7 @@ export function MeetupDetailPage() {
   const sharePath = `/meetups/${meetup.id}${meetup.visibility === 'private' && meetup.inviteCode ? `?invite=${meetup.inviteCode}` : ''}`
   const copyLink = async () => {
     try {
-      await navigator.clipboard.writeText(`${window.location.origin}${sharePath}`)
+      await navigator.clipboard.writeText(`${siteOrigin()}${sharePath}`)
       setCopied(true)
       setTimeout(() => setCopied(false), 1800)
     } catch {

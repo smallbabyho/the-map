@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
 import { createMapInvite, removeMapEditor } from '../../db/api'
+import { siteOrigin } from '../../lib/site'
 import type { MapCollab } from '../../types'
 import { Avatar } from '../Avatar'
 
@@ -36,7 +37,7 @@ export function CollabButton({ mapId, myId, collab, onChange, variant = 'float' 
     try {
       const code = isOwner ? await createMapInvite(mapId, reset) : collab.inviteCode
       if (!code) return flash('지도 주인에게 초대 링크를 부탁해 주세요.')
-      await navigator.clipboard.writeText(`${window.location.origin}/maps/${mapId}/join?code=${code}`)
+      await navigator.clipboard.writeText(`${siteOrigin()}/maps/${mapId}/join?code=${code}`)
       flash(reset ? '새 링크를 복사했어요. 예전 링크는 이제 안 돼요.' : '초대 링크를 복사했어요. 친구에게 보내 주세요!')
       onChange()
     } catch (e) {

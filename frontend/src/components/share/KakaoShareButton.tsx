@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import type { ThemeId } from '../../types'
 import { encodeCourse, type LatLng } from './course'
+import { siteOrigin } from '../../lib/site'
 import { hasKakaoShare, shareToKakao } from './kakaoShare'
 
 interface Props {
@@ -32,10 +33,10 @@ export function KakaoShareButton({ title, description, path, theme, course, butt
   const [note, setNote] = useState('')
 
   const share = async () => {
-    const url = `${window.location.origin}${path}`
+    const url = `${siteOrigin()}${path}`
     try {
       if (!hasKakaoShare) throw new Error('no key')
-      await shareToKakao({ title, description, url, buttonTitle, imageUrl: shareImageUrl(window.location.origin, title, description, theme, course) })
+      await shareToKakao({ title, description, url, buttonTitle, imageUrl: shareImageUrl(siteOrigin(), title, description, theme, course) })
     } catch {
       try {
         if (navigator.share) return await navigator.share({ title, text: description, url })

@@ -4,6 +4,7 @@
 // 캡차: Supabase 대시보드 → Authentication → Attack Protection → Captcha(Turnstile) 를 켜면
 // signUp · signIn 에 넘긴 captchaToken 을 Supabase 가 Cloudflare 에 확인한다. 꺼져 있으면 토큰은 무시된다.
 
+import { siteOrigin } from '../lib/site'
 import { supabase } from '../lib/supabase'
 import type { User, UserRole } from '../types'
 
@@ -69,7 +70,7 @@ export async function signUp(email: string, password: string, nickname: string, 
   const { data, error } = await supabase.auth.signUp({
     email: email.trim(),
     password,
-    options: { data: { nickname: nick.slice(0, 30) }, captchaToken: captchaToken || undefined, emailRedirectTo: `${window.location.origin}/` },
+    options: { data: { nickname: nick.slice(0, 30) }, captchaToken: captchaToken || undefined, emailRedirectTo: `${siteOrigin()}/` },
   })
   if (error) throw authError(error.message)
   // 이미 가입된 이메일이면 Supabase 는 에러 없이 identities 가 빈 사용자를 준다

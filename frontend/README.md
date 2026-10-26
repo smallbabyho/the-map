@@ -30,8 +30,22 @@ npm run dev                 # 3. 개발 서버 실행 → http://localhost:3000
 
 1. <https://developers.kakao.com> → 내 애플리케이션 → 애플리케이션 추가
 2. **앱 키 → JavaScript 키** 를 `NEXT_PUBLIC_KAKAO_MAP_KEY` 에 넣기
-3. **플랫폼 → Web → 사이트 도메인** 에 `http://localhost:3000` (와 배포 주소) 등록
+3. **JavaScript SDK 도메인**(예전 화면: 플랫폼 → Web → 사이트 도메인)에 `http://localhost:3000` 과 `https://the-map-bice.vercel.app` 등록
 4. 지도가 안 뜨면 **카카오맵 사용 설정**이 켜져 있는지 확인 (새 앱은 따로 켜야 함)
+
+### 사이트 주소 (도메인)
+
+대표 주소는 **`https://the-map-bice.vercel.app`** 하나입니다. 외부 서비스에는 이 주소와 `localhost:3000` 만 등록합니다.
+배포할 때마다 바뀌는 `the-xxxx-smallbabyho.vercel.app` 주소는 등록할 수 없어서, 거기서는 지도 · 공유 · 캡차가 안 될 수 있어요. 확인은 대표 주소에서 하세요.
+(`the-map-smallbabyho.vercel.app` 로 들어오면 대표 주소로 자동 이동합니다 → `next.config.ts`)
+
+| 어디 | 무엇 | 넣을 주소 |
+|---|---|---|
+| 카카오 개발자 콘솔 | JavaScript SDK 도메인 (지도 · 카카오톡 공유) | `https://the-map-bice.vercel.app`, `http://localhost:3000` |
+| Cloudflare Turnstile | 위젯 Hostname (캡차) | `the-map-bice.vercel.app`, `localhost` |
+| Supabase | Authentication → URL Configuration | Site URL `https://the-map-bice.vercel.app` · Redirect URLs `https://the-map-bice.vercel.app/**`, `http://localhost:3000/**` |
+| ODsay | Web 플랫폼 URL (대중교통) | `https://the-map-bice.vercel.app`, `http://localhost:3000` |
+| Vercel (Production) | 환경변수 `NEXT_PUBLIC_SITE_URL` | `https://the-map-bice.vercel.app` (공유 · 초대 링크, 인증 메일이 이 주소로 만들어짐) |
 
 ### 자주 막히는 것
 

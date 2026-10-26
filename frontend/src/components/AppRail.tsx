@@ -35,12 +35,12 @@ export const HEADER_H = 56
 /** 로고: 핀 + My Concept Map® */
 export function Wordmark({ className = '' }: { className?: string }) {
   return (
-    <Link href="/about" className={`flex items-center gap-2 ${className}`} aria-label="My Concept Map 소개">
+    <Link href="/about" className={`flex min-w-0 items-center gap-1.5 min-[360px]:gap-2 ${className}`} aria-label="My Concept Map 소개">
       <span className="grid size-8 place-items-center rounded-full bg-(--c-ink) text-[15px] text-(--c-bg)" aria-hidden>
         📍
       </span>
       {/* 고전 세리프 (Playfair Display 900): 오래된 지도책 표지 느낌 */}
-      <span className="whitespace-nowrap text-[20px] italic sm:text-[24px] leading-none tracking-[-0.01em]" style={{ fontFamily: '"Playfair Display", "Noto Serif KR", serif', fontWeight: 900 }}>
+      <span className="whitespace-nowrap text-[15px] italic min-[360px]:text-[17px] min-[380px]:text-[20px] sm:text-[24px] leading-none tracking-[-0.01em]" style={{ fontFamily: '"Playfair Display", "Noto Serif KR", serif', fontWeight: 900 }}>
         My <span className="text-(--c-accent)">Concept</span> Map
         <sup className="ml-0.5 align-super font-mono text-[10px] font-bold">®</sup>
       </span>
@@ -56,7 +56,7 @@ export function AppRail({ active }: { active: NavKey }) {
   const user = useCurrentUser()
   return (
     <header className="fixed inset-x-0 top-0 z-30 border-b border-(--c-border) bg-(--c-bg)/85 backdrop-blur-md" style={{ height: HEADER_H }}>
-      <div className="mx-auto flex h-full max-w-6xl items-center gap-6 px-4 md:px-10">
+      <div className="mx-auto flex h-full max-w-6xl items-center gap-3 px-4 md:gap-6 md:px-10">
         <Wordmark />
         <nav className="hidden items-center gap-1 md:flex" aria-label="메뉴">
           {navItems(user?.role === 'admin').map((it) => (
@@ -102,7 +102,7 @@ export function HeaderActions({ user: given, active, floating = false }: { user?
           <span className="hidden max-w-[120px] truncate text-sm font-semibold sm:block">{user.nickname}</span>
         </Link>
       ) : (
-        <Link href="/login" className="tm-btn shrink-0 whitespace-nowrap rounded-full bg-(--c-surface) px-4 py-1.5 text-sm font-bold">
+        <Link href="/login" className="tm-btn shrink-0 whitespace-nowrap rounded-full bg-(--c-surface) px-3 py-1.5 text-[13px] font-bold min-[360px]:px-4 min-[360px]:text-sm">
           로그인
         </Link>
       )}

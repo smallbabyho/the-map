@@ -1,0 +1,6 @@
+# Vercel 업로드 제외 (키 · 빌드 결과 · 의존성)
+.env*
+!.env.example
+node_modules
+.next
+.vercel

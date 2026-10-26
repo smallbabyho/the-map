@@ -47,6 +47,7 @@ import type {
   MapSearchFilters,
   NoshowStatus,
   PersonSearchEntry,
+  Sticker,
 } from '../types'
 import { regionById } from '../components/regions'
 import { categoriesMatching } from '../components/mapCategories'
@@ -849,6 +850,23 @@ export async function getProfile(userId: string): Promise<ProfilePage> {
   return { user, deco: { ...d, pinnedMapIds: pinned.map((m) => m.id) }, maps: await toPublicSummaries([...pinned, ...rest]) }
 }
 
+/** 다이어리 판에 붙인 것 정리 (저장 전): 위치 · 크기 범위, 사진 주소 · 글 · 색 형식 */
+function cleanSticker(s: Sticker): Sticker {
+  const kind = s.kind && ['emoji', 'photo', 'note', 'tape'].includes(s.kind) ? s.kind : 'emoji'
+  return {
+    id: String(s.id).slice(0, 64),
+    emoji: String(s.emoji ?? '').slice(0, 16),
+    x: Math.min(100, Math.max(0, s.x)),
+    y: Math.min(100, Math.max(0, s.y)),
+    size: Math.min(160, Math.max(20, Math.round(s.size))),
+    rotate: Math.round(s.rotate) % 360,
+    kind,
+    ...(kind === 'photo' && typeof s.url === 'string' && /^(https?:|data:image\/)/.test(s.url) && s.url.length < 2_000_000 && { url: s.url }),
+    ...((kind === 'photo' || kind === 'note') && s.text && { text: String(s.text).trim().slice(0, 60) }),
+    ...((kind === 'note' || kind === 'tape') && /^#[0-9a-fA-F]{6}$/.test(s.color ?? '') && { color: s.color }),
+  }
+}
+
 export async function saveProfileDeco(input: ProfileDecoInput): Promise<ProfileDeco> {
   const me = await requireMe()
   const row = {
@@ -858,13 +876,7 @@ export async function saveProfileDeco(input: ProfileDecoInput): Promise<ProfileD
     font: input.font,
     bio: input.bio.trim().slice(0, 150),
     mood: input.mood.trim().slice(0, 40),
-    stickers: input.stickers.slice(0, 30).map((s) => ({
-      ...s,
-      x: Math.min(100, Math.max(0, s.x)),
-      y: Math.min(100, Math.max(0, s.y)),
-      size: Math.min(160, Math.max(20, Math.round(s.size))),
-      rotate: Math.round(s.rotate) % 360,
-    })),
+    stickers: input.stickers.slice(0, 30).map(cleanSticker),
     pinned_map_ids: input.pinnedMapIds.slice(0, 6),
     map_style: input.mapStyle,
     sections: input.sections,
@@ -1127,6 +1139,7 @@ export async function searchMaps(f: MapSearchFilters): Promise<MapSearchEntry[]>
     p_has_meetup: f.hasMeetup ?? false,
     p_sort: f.sort ?? 'popular',
     p_q_categories: f.q ? categoriesMatching(f.q) : null,
+    p_limit: 200, // 화면이 20개씩 쪽을 나눈다
   })
   if (error?.code === 'PGRST202') return searchMapsFallback(f)
   if (error) fail(error)

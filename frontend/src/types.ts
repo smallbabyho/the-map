@@ -353,6 +353,8 @@ export type ProfileFont = 'basic' | 'hand' | 'round' | 'serif' | 'pen'
 export type MapCardStyle = 'polaroid' | 'tape'
 
 /** 프로필에 붙인 스티커 1개. x · y 는 꾸미기 판 안에서의 위치(%), size 는 px, rotate 는 도 */
+/** 다이어리 판에 붙이는 것. kind 가 없으면 이모지 스티커 (예전 데이터) */
+export type StickerKind = 'emoji' | 'photo' | 'note' | 'tape'
 export interface Sticker {
   id: string
   emoji: string
@@ -360,6 +362,13 @@ export interface Sticker {
   y: number
   size: number
   rotate: number
+  kind?: StickerKind
+  /** photo: 사진 주소 */
+  url?: string
+  /** photo: 한 줄 설명 / note: 메모 (60자까지) */
+  text?: string
+  /** note · tape: 색 '#rrggbb' */
+  color?: string
 }
 
 /** 꾸미기 요소별로 보일지 말지 (원하는 것만 골라 쓰기) */
@@ -367,6 +376,8 @@ export interface ProfileSections {
   intro: boolean // 소개글 · 오늘의 한마디
   stickers: boolean
   maps: boolean // 대표 지도
+  /** 여행 기록장 (공개 지도로 자동 계산). 없으면 보임 (예전 데이터) */
+  stats?: boolean
 }
 
 export interface ProfileDeco {

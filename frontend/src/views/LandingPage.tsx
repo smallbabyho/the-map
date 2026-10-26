@@ -126,7 +126,7 @@ export function LandingPage({ embedded = false }: { embedded?: boolean }) {
       </section>
 
       {/* ---- 흐르는 띠: 첫 화면을 보는 동안 창 맨 아래(모바일은 아래 탭 위)에 붙어 있다가, 지나가면 제자리에 ---- */}
-      <div className="sticky bottom-16 z-20 border-y border-(--c-ink) bg-(--c-ink) py-3 text-(--c-bg) md:bottom-0" aria-hidden>
+      <div className="sticky bottom-16 z-20 border-y border-(--c-border) bg-(--c-strip) py-3 text-(--c-strip-text) md:bottom-0" aria-hidden>
         <div className="tm-marquee gap-10 whitespace-nowrap font-mono text-sm font-medium uppercase tracking-wider">
           {[...THEMES, ...THEMES].map((t, i) => (
             <span key={i} className="flex items-center gap-10">
@@ -248,12 +248,12 @@ export function LandingPage({ embedded = false }: { embedded?: boolean }) {
                       <Link
                         href={`/maps/${e.map.id}`}
                         tabIndex={copy ? -1 : undefined}
-                        className="tm-reveal block w-60 bg-white p-2.5 pb-4 text-gray-900 shadow-[0_12px_30px_-10px_rgb(0_0_0/0.35)] transition hover:-translate-y-1 hover:rotate-0"
+                        className="tm-reveal block w-60 bg-(--paper-photo) p-2.5 pb-4 text-(--paper-photo-text) shadow-[0_12px_30px_-10px_rgb(0_0_0/0.35)] transition hover:-translate-y-1 hover:rotate-0"
                         style={{ transform: `rotate(${[-2, 1.5, -1, 2][i % 4]}deg)`, '--delay': `${0.1 + (i % n) * 0.08}s` } as CSSProperties}
                       >
                         <MapThumb id={e.map.id} theme={e.map.theme} cover={e.map.coverUrl} dots={e.pinCount} className="h-48" />
                         <p className="mt-3 truncate font-bold">{e.map.title}</p>
-                        <p className="mt-0.5 font-mono text-[11px] uppercase text-gray-500">
+                        <p className="mt-0.5 font-mono text-[11px] uppercase opacity-60">
                           #{e.rank} · {e.owner.nickname} · {e.users} explored
                         </p>
                       </Link>
@@ -446,7 +446,7 @@ function HeroMap() {
       </div>
 
       {/* 티켓 메모 */}
-      <div className="absolute -bottom-6 right-6 flex rotate-[-3deg] overflow-hidden rounded-lg bg-(--c-ink) text-(--c-bg) shadow-lg animate-[tm-float_5s_0.5s_ease-in-out_infinite]">
+      <div className="absolute -bottom-6 right-6 flex rotate-[-3deg] overflow-hidden rounded-lg bg-(--c-strip) text-(--c-strip-text) shadow-lg animate-[tm-float_5s_0.5s_ease-in-out_infinite]">
         <div className="px-3 py-2">
           <p className="font-mono text-[8px] uppercase tracking-[0.2em] opacity-60">course · seongsu</p>
           <p className="font-mono text-[12px] font-bold">4 PLACES · 1H 20M</p>
@@ -480,10 +480,10 @@ const chatAppear = (show: boolean, i: number): CSSProperties => {
 function FriendBubble({ style, face, name, text }: { style: CSSProperties; face: string; name: string; text: string }) {
   return (
     <div className="flex items-end gap-1.5" style={style}>
-      <span className="grid size-7 shrink-0 place-items-center rounded-full bg-white text-sm">{face}</span>
+      <span className="grid size-7 shrink-0 place-items-center rounded-full bg-(--chat-bubble) text-sm">{face}</span>
       <div>
-        <p className="mb-0.5 text-[10px] text-gray-600">{name}</p>
-        <p className="rounded-xl rounded-tl-sm bg-white px-2.5 py-1.5 text-[12px] leading-snug text-gray-900">{text}</p>
+        <p className="mb-0.5 text-[10px] text-(--chat-sub)">{name}</p>
+        <p className="rounded-xl rounded-tl-sm bg-(--chat-bubble) px-2.5 py-1.5 text-[12px] leading-snug text-(--chat-text)">{text}</p>
       </div>
     </div>
   )
@@ -494,15 +494,15 @@ function ShareChat({ show }: { show: boolean }) {
   const appear = (i: number) => chatAppear(show, i)
   return (
     <div
-      className="pointer-events-none absolute inset-0 flex flex-col overflow-hidden rounded-3xl border-[1.5px] border-(--c-ink) bg-[#b8cadb] shadow-[8px_8px_0_var(--c-ink)] transition-all duration-700"
+      className="pointer-events-none absolute inset-0 flex flex-col overflow-hidden rounded-3xl border-[1.5px] border-(--c-ink) bg-(--chat-bg) shadow-[8px_8px_0_var(--c-ink)] transition-all duration-700"
       style={{ opacity: show ? 1 : 0, transform: show ? 'none' : 'scale(0.96)' }}
       aria-hidden
     >
       {/* 방 제목 */}
-      <div className="flex items-center gap-2 bg-[#a9bdd0] px-4 py-2.5 text-gray-900">
+      <div className="flex items-center gap-2 bg-(--chat-head) px-4 py-2.5 text-(--chat-text)">
         <span className="text-sm">‹</span>
         <span className="text-[13px] font-bold">주말 빵지순례 🥐</span>
-        <span className="text-[12px] text-gray-600">4</span>
+        <span className="text-[12px] text-(--chat-sub)">4</span>
       </div>
 
       <div className="flex flex-1 flex-col justify-end gap-2 px-3 pb-2">
@@ -510,9 +510,9 @@ function ShareChat({ show }: { show: boolean }) {
 
         {/* 내가 보낸 지도 카드 */}
         <div className="flex justify-end" style={appear(1)}>
-          <div className="w-44 overflow-hidden rounded-xl bg-white text-gray-900 shadow-sm">
+          <div className="w-44 overflow-hidden rounded-xl bg-(--chat-bubble) text-(--chat-text) shadow-sm">
             <svg viewBox="0 0 400 440" className="block h-24 w-full" preserveAspectRatio="xMidYMid slice">
-              <rect width="400" height="440" fill="#fff4ec" />
+              <rect width="400" height="440" fill="var(--chat-card-map)" />
               <path d={ROUTE} fill="none" stroke="#ff5a2b" strokeWidth="10" strokeLinecap="round" />
               {PINS.map((p) => (
                 <circle key={p.e} cx={p.x} cy={p.y} r="22" fill={p.c} stroke="#fff" strokeWidth="6" />
@@ -520,9 +520,9 @@ function ShareChat({ show }: { show: boolean }) {
             </svg>
             <div className="px-2.5 py-2">
               <p className="text-[12px] font-bold">성수 빵지순례 🥐</p>
-              <p className="text-[10px] text-gray-500">My Concept Map · 장소 4곳</p>
+              <p className="text-[10px] text-(--chat-sub)">My Concept Map · 장소 4곳</p>
             </div>
-            <p className="border-t border-gray-100 py-1.5 text-center text-[11px] font-semibold">지도 보기</p>
+            <p className="border-t border-(--chat-line) py-1.5 text-center text-[11px] font-semibold">지도 보기</p>
           </div>
         </div>
         <div className="flex justify-end" style={appear(2)}>
@@ -533,8 +533,8 @@ function ShareChat({ show }: { show: boolean }) {
       </div>
 
       {/* 입력창 */}
-      <div className="flex items-center gap-2 bg-white px-3 py-2">
-        <span className="flex-1 text-[11px] text-gray-400">메시지 입력</span>
+      <div className="flex items-center gap-2 bg-(--chat-bubble) px-3 py-2">
+        <span className="flex-1 text-[11px] text-(--chat-sub)">메시지 입력</span>
         <span className="rounded-md bg-[#FEE500] px-2 py-0.5 text-[10px] font-bold text-gray-900">전송</span>
       </div>
     </div>
@@ -581,8 +581,8 @@ function StepMap({ step }: { step: number }) {
               [290, 185, '🚌 9분'],
             ].map(([x, y, t]) => (
               <g key={t as string}>
-                <rect x={(x as number) - 34} y={(y as number) - 13} width="68" height="26" rx="13" fill="#fff" stroke="currentColor" strokeOpacity="0.15" />
-                <text x={x as number} y={(y as number) + 5} textAnchor="middle" fontSize="12" fontWeight="700" fill="#171614">
+                <rect x={(x as number) - 34} y={(y as number) - 13} width="68" height="26" rx="13" fill="var(--chat-bubble)" stroke="currentColor" strokeOpacity="0.15" />
+                <text x={x as number} y={(y as number) + 5} textAnchor="middle" fontSize="12" fontWeight="700" fill="var(--chat-text)">
                   {t}
                 </text>
               </g>

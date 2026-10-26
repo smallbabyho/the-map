@@ -45,6 +45,7 @@ import type {
   MapSearchFilters,
   NoshowStatus,
   PersonSearchEntry,
+  Sticker,
 } from '../types'
 import { regionById, regionOf } from '../components/regions'
 import { categoriesMatching } from '../components/mapCategories'
@@ -1125,6 +1126,23 @@ export async function getProfile(userId: string): Promise<ProfilePage> {
  * @example
  * await saveProfileDeco({ ...deco, paper: 'lined', stickers: [...deco.stickers, sticker] })
  */
+/** 다이어리 판에 붙인 것 정리 (저장 전): 위치 · 크기 범위, 사진 주소 · 글 · 색 형식 */
+function cleanSticker(s: Sticker): Sticker {
+  const kind = s.kind && ['emoji', 'photo', 'note', 'tape'].includes(s.kind) ? s.kind : 'emoji'
+  return {
+    id: String(s.id).slice(0, 64),
+    emoji: String(s.emoji ?? '').slice(0, 16),
+    x: Math.min(100, Math.max(0, s.x)),
+    y: Math.min(100, Math.max(0, s.y)),
+    size: Math.min(160, Math.max(20, Math.round(s.size))),
+    rotate: Math.round(s.rotate) % 360,
+    kind,
+    ...(kind === 'photo' && typeof s.url === 'string' && /^(https?:|data:image\/)/.test(s.url) && s.url.length < 2_000_000 && { url: s.url }),
+    ...((kind === 'photo' || kind === 'note') && s.text && { text: String(s.text).trim().slice(0, 60) }),
+    ...((kind === 'note' || kind === 'tape') && /^#[0-9a-fA-F]{6}$/.test(s.color ?? '') && { color: s.color }),
+  }
+}
+
 export async function saveProfileDeco(input: ProfileDecoInput): Promise<ProfileDeco> {
   await tick()
   const db = load()
@@ -1138,16 +1156,10 @@ export async function saveProfileDeco(input: ProfileDecoInput): Promise<ProfileD
     font: FONTS.includes(input.font) ? input.font : 'basic',
     bio: input.bio.trim().slice(0, 150),
     mood: input.mood.trim().slice(0, 40),
-    stickers: input.stickers.slice(0, 30).map((s) => ({
-      ...s,
-      x: Math.min(100, Math.max(0, s.x)),
-      y: Math.min(100, Math.max(0, s.y)),
-      size: Math.min(160, Math.max(20, Math.round(s.size))),
-      rotate: Math.round(s.rotate) % 360,
-    })),
+    stickers: input.stickers.slice(0, 30).map(cleanSticker),
     pinnedMapIds: input.pinnedMapIds.filter((id) => myPublic.has(id)).slice(0, 6),
     mapStyle: input.mapStyle === 'tape' ? 'tape' : 'polaroid',
-    sections: { intro: !!input.sections.intro, stickers: !!input.sections.stickers, maps: !!input.sections.maps },
+    sections: { intro: !!input.sections.intro, stickers: !!input.sections.stickers, maps: !!input.sections.maps, stats: input.sections.stats !== false },
     bannerUrl: input.bannerUrl ?? null,
     updatedAt: now(),
   }

@@ -10,7 +10,7 @@ import { PinList } from '../components/editor/PinList'
 import { OptimizeCourseButton } from '../components/editor/OptimizeCourseButton'
 import { PlaceSearchBox } from '../components/editor/PlaceSearchBox'
 import { CollabButton } from '../components/editor/CollabButton'
-import { MapLookPicker } from '../components/editor/MapLookPicker'
+import { MapLookButton, MapLookPanel } from '../components/editor/MapLookPicker'
 import { StoryCardButton } from '../components/share/StoryCardButton'
 import { useMapDraft } from '../components/editor/useMapDraft'
 import { CheckIcon, ChevronLeftIcon, GlobeIcon, LockIcon, PinIcon } from '../components/icons'
@@ -27,7 +27,7 @@ import { MAP_PURPOSES, mapPurpose } from '../components/mapPurpose'
 const EDITOR_TOUR: TourStep[] = [
   { target: 'place-search', title: '장소 추가', body: '검색해서 핀을 꽂아요. 지도를 누르면 그 근처 가게 · 건물을 골라 꽂을 수도 있어요.' },
   { target: 'pins', title: '핀 목록', body: '핀을 누르면 사진 · 다녀온 날짜 · 메모를 남겨요. 끌어서 순서를 바꾸면 길이 다시 이어져요.' },
-  { target: 'map-look', title: '🎨 꾸미기', body: '색 테마, 마커 모양, 코스 선, 커버 사진, 카테고리를 여기 하나에서 다 골라요.' },
+  { target: 'map-look', title: '🎨 지도 꾸미기', body: '대표색, 마커, 코스 선, 커버, 카테고리를 여기서 골라요. 장소를 누르면 같은 자리에 그 핀 꾸미기가 열려요.' },
   { target: 'collab', title: '함께 꾸미기', body: '초대 링크를 보내면 친구와 한 지도를 같이 짜요.' },
   { target: 'map-public', title: '공개 설정', body: '공개하면 둘러보기에 올라가요. 비공개면 나와 함께 꾸미는 사람만 봐요.' },
   { target: 'save', title: '저장', body: '고친 내용은 저장을 눌러야 남아요.' },
@@ -139,6 +139,16 @@ export function MapEditorPage() {
   const theme = getTheme(map?.theme)
   const selectedIndex = pins.findIndex((p) => p.id === selectedId)
   const selectedPin = selectedIndex >= 0 ? pins[selectedIndex] : null
+  // 옆 창: 핀을 고르면 핀 꾸미기, 🎨 지도 꾸미기를 누르면 지도 꾸미기 (같은 자리, 하나만)
+  const [decoOpen, setDecoOpen] = useState(false)
+  // 지도 꾸미기를 연 채로 핀을 고르면 지도 꾸미기는 닫는다 (핀 창을 닫았을 때 다시 뜨지 않게)
+  if (decoOpen && selectedPin) setDecoOpen(false)
+  const mapDecoOpen = decoOpen && !selectedPin
+  const sidePanelOpen = !!selectedPin || mapDecoOpen
+  const toggleMapDeco = () => {
+    setSelectedId(null)
+    setDecoOpen((v) => !v || !!selectedPin)
+  }
   const totalMin = legs.reduce((sum, l) => sum + (l.durationMin ?? 0), 0)
 
   // 저장 안 한 변경이 있으면 창 닫기 전에 확인
@@ -200,8 +210,8 @@ export function MapEditorPage() {
 
   // 지도에서 패널이 가리는 부분 (핀 전체보기 때 피해서 맞춤)
   const insets: MapInsets = vp.desktop
-    ? { top: 72, right: 0, bottom: 0, left: RAIL_W + PANEL_W + (selectedPin ? DETAIL_W + 24 : 0) }
-    : { top: 64, right: 0, bottom: selectedPin ? Math.round(vp.h * 0.62) : sheet.height, left: 0 }
+    ? { top: 72, right: 0, bottom: 0, left: RAIL_W + PANEL_W + (sidePanelOpen ? DETAIL_W + 24 : 0) }
+    : { top: 64, right: 0, bottom: sidePanelOpen ? Math.round(vp.h * 0.62) : sheet.height, left: 0 }
 
   const saveLabel = draft.saving ? '저장 중…' : draft.dirty ? '저장' : draft.justSaved ? '저장됨' : '저장'
 
@@ -248,7 +258,7 @@ export function MapEditorPage() {
         </button>
         <div className="pointer-events-auto flex items-center gap-2">
           <div className="hidden md:block" data-tour="map-look">
-            <MapLookPicker look={map} coverUrl={map.coverUrl} onChange={draft.updateMap} theme={map.theme} onTheme={draft.setTheme} category={map.category} categoryLabel={map.categoryLabel ?? null} />
+            <MapLookButton open={mapDecoOpen} onClick={toggleMapDeco} />
           </div>
           {collab && user && (
             <div className="hidden md:block" data-tour="collab">
@@ -372,7 +382,7 @@ export function MapEditorPage() {
           {/* 할 일 버튼은 한 줄로: (모바일) 꾸미기 · 같이 꾸미기 + 모임 열기 · 이미지 카드 */}
           <div className="flex flex-wrap items-center gap-2">
             <span className="md:hidden" data-tour="map-look">
-              <MapLookPicker look={map} coverUrl={map.coverUrl} onChange={draft.updateMap} theme={map.theme} onTheme={draft.setTheme} category={map.category} categoryLabel={map.categoryLabel ?? null} variant="inline" />
+              <MapLookButton open={mapDecoOpen} onClick={toggleMapDeco} variant="inline" />
             </span>
             {collab && user && (
               <span className="md:hidden" data-tour="collab">
@@ -429,7 +439,28 @@ export function MapEditorPage() {
         </div>
       </section>
 
-      {/* 핀 꾸미기 패널: 데스크톱은 목록 옆, 모바일은 하단 시트 */}
+      {/* 옆 창 (핀 꾸미기 · 지도 꾸미기): 데스크톱은 목록 옆, 모바일은 하단 시트 */}
+      {mapDecoOpen && (
+        <>
+          <div className="absolute inset-0 z-30 bg-black/20 md:hidden" onClick={() => setDecoOpen(false)} aria-hidden />
+          <section
+            className="tm-float absolute inset-x-0 bottom-0 z-40 flex h-[62dvh] flex-col overflow-hidden rounded-t-3xl bg-(--c-surface) md:bottom-4 md:right-auto md:top-4 md:h-auto md:rounded-2xl"
+            style={vp.desktop ? { left: RAIL_W + PANEL_W + 12, width: DETAIL_W } : undefined}
+            aria-label="지도 꾸미기"
+          >
+            <MapLookPanel
+              look={map}
+              coverUrl={map.coverUrl}
+              onChange={draft.updateMap}
+              theme={map.theme}
+              onTheme={draft.setTheme}
+              category={map.category}
+              categoryLabel={map.categoryLabel ?? null}
+              onClose={() => setDecoOpen(false)}
+            />
+          </section>
+        </>
+      )}
       {selectedPin && (
         <>
           <div className="absolute inset-0 z-30 bg-black/20 md:hidden" onClick={() => setSelectedId(null)} aria-hidden />

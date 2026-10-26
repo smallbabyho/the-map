@@ -71,6 +71,21 @@
   --paper-road-label: #8a8170;
   --paper-photo: #ffffff;
   --paper-photo-text: #1f2937;
+  /* 프로필 다이어리 밝은 종이 (deco.ts paperStyle): 남길 종이 색 비율 · 글씨 · 줄 */
+  --paper-keep: 100%;
+  --paper-ink: #1f2937;
+  --paper-rule: rgb(30 64 175 / 0.13);
+  /* 소개 페이지 흐르는 띠 · 티켓: 라이트 · 다크 모두 어두운 띠 */
+  --c-strip: #171614;
+  --c-strip-text: #f1ece1;
+  /* 소개 페이지 단톡방 그림 (ShareChat) */
+  --chat-bg: #b8cadb;
+  --chat-head: #a9bdd0;
+  --chat-bubble: #ffffff;
+  --chat-text: #111827;
+  --chat-sub: #4b5563;
+  --chat-card-map: #fff4ec;
+  --chat-line: #f3f4f6;
 }
 :root[data-mode="dark"] {
   --paper-bg: #1b1d22;
@@ -89,6 +104,18 @@
   --paper-road-label: #8b8f99;
   --paper-photo: #2a2927;
   --paper-photo-text: #ece6da;
+  --paper-keep: 14%;
+  --paper-ink: #ece6da;
+  --paper-rule: rgb(255 255 255 / 0.09);
+  --c-strip: #1d1c1a;
+  --c-strip-text: #e8e2d6;
+  --chat-bg: #1f2a35;
+  --chat-head: #18222c;
+  --chat-bubble: #2d3138;
+  --chat-text: #ece6da;
+  --chat-sub: #9aa3ad;
+  --chat-card-map: #2b2622;
+  --chat-line: rgb(255 255 255 / 0.08);
 }
 
 @theme inline {
@@ -106,6 +133,10 @@
 html,
 body {
   height: 100%;
+}
+/* 페이지 바깥 (휴대폰에서 끝까지 당겨 스크롤할 때 보이는 여백)도 라이트 · 다크를 따르게 */
+html {
+  background: var(--c-base-bg);
 }
 
 body {

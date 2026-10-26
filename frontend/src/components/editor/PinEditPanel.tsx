@@ -6,7 +6,8 @@ import type { Pin } from '../../types'
 import { CheckIcon, CloseIcon, ImageIcon, TrashIcon } from '../icons'
 import { isCustomPlace } from '../map'
 import { placeHref } from '../place/PlaceStats'
-import { PIN_EMOJIS, type Theme } from '../themes'
+import { EmojiPicker } from '../EmojiPicker'
+import { similarColors, type Theme } from '../themes'
 
 interface Props {
   pin: Pin
@@ -24,7 +25,9 @@ export function PinEditPanel({ pin, index, theme, onChange, onRename, onDelete, 
   const fileRef = useRef<HTMLInputElement>(null)
   const [uploading, setUploading] = useState(false)
   const [photoError, setPhotoError] = useState('')
-  const colors = theme.palette.includes(pin.color) ? theme.palette : [...theme.palette, pin.color]
+  // 색 후보: 지도 대표색과 비슷한 계열. 지금 핀 색이 후보에 없으면 맨 앞에
+  const similar = similarColors(theme.accent)
+  const colors = similar.includes(pin.color.toLowerCase()) ? similar : [pin.color, ...similar]
 
   const onFile = async (file: File | undefined) => {
     if (!file) return
@@ -111,22 +114,7 @@ export function PinEditPanel({ pin, index, theme, onChange, onRename, onDelete, 
         {/* 아이콘 */}
         <section>
           <span className={label}>아이콘</span>
-          <div className="grid grid-cols-8 gap-1">
-            {PIN_EMOJIS.map((e) => (
-              <button
-                key={e}
-                type="button"
-                onClick={() => onChange({ icon: e })}
-                className={`grid aspect-square place-items-center rounded-lg text-xl transition ${
-                  pin.icon === e ? 'bg-(--c-accent)/15 ring-2 ring-(--c-accent)' : 'hover:bg-black/5'
-                }`}
-                aria-label={`아이콘 ${e}`}
-                aria-pressed={pin.icon === e}
-              >
-                {e}
-              </button>
-            ))}
-          </div>
+          <EmojiPicker value={pin.icon} onPick={(e) => onChange({ icon: e })} />
         </section>
 
         {/* 색상 */}
@@ -146,8 +134,9 @@ export function PinEditPanel({ pin, index, theme, onChange, onRename, onDelete, 
                 {pin.color === c && <CheckIcon size={16} className="text-white drop-shadow" />}
               </button>
             ))}
-            <label className="relative grid size-8 cursor-pointer place-items-center overflow-hidden rounded-full border border-(--c-border) text-xs text-(--c-muted)" title="직접 고르기">
-              <span aria-hidden>+</span>
+            <label className="relative flex h-8 cursor-pointer items-center gap-1 overflow-hidden rounded-full border border-(--c-border) px-2.5 text-xs font-semibold text-(--c-muted)" title="다른 색 고르기">
+              <span className="size-3.5 rounded-full" style={{ background: 'conic-gradient(#d98c8c, #d9c38c, #9cc49a, #8cb8d9, #b39cd9, #d98cb8, #d98c8c)' }} aria-hidden />
+              다른 색
               <input type="color" value={pin.color} onChange={(e) => onChange({ color: e.target.value })} className="absolute inset-0 cursor-pointer opacity-0" aria-label="색상 직접 고르기" />
             </label>
           </div>

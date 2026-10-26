@@ -42,8 +42,12 @@ export function isDarkPaper(color: string) {
 
 /** 속지 무늬 (CSS 배경). 선 색은 속지 밝기에 맞춘다 */
 export function paperStyle(paper: PaperId, color: string): CSSProperties {
-  const line = isDarkPaper(color) ? 'rgb(255 255 255 / 0.12)' : 'rgb(30 64 175 / 0.13)'
-  const base: CSSProperties = { backgroundColor: color, color: isDarkPaper(color) ? '#f3f4f6' : '#1f2937' }
+  // 밝은 종이는 다크 화면에서 어둡게 눌러 준다 (app/globals.css 의 --paper-keep · --paper-ink · --paper-rule)
+  const dark = isDarkPaper(color)
+  const line = dark ? 'rgb(255 255 255 / 0.12)' : 'var(--paper-rule)'
+  const base: CSSProperties = dark
+    ? { backgroundColor: color, color: '#f3f4f6' }
+    : { backgroundColor: `color-mix(in srgb, ${color} var(--paper-keep), #161615)`, color: 'var(--paper-ink)' }
   switch (paper) {
     case 'lined':
       return { ...base, backgroundImage: `linear-gradient(transparent 31px, ${line} 32px)`, backgroundSize: '100% 32px' }
@@ -62,16 +66,6 @@ export function paperStyle(paper: PaperId, color: string): CSSProperties {
       return base
   }
 }
-
-/** 스티커 서랍 (분류별) */
-export const STICKER_SET: { name: string; items: string[] }[] = [
-  { name: '하트·반짝', items: ['❤️', '🧡', '💛', '💚', '💙', '💜', '🤍', '💖', '✨', '⭐', '🌟', '💫'] },
-  { name: '자연', items: ['🌸', '🌷', '🌻', '🍀', '🌿', '🍁', '🌈', '☀️', '🌙', '☁️', '❄️', '🌊'] },
-  { name: '여행', items: ['📍', '🗺️', '✈️', '🚄', '🚲', '🏖️', '⛰️', '🏕️', '🗼', '⛩️', '🎡', '📸'] },
-  { name: '먹거리', items: ['☕', '🍞', '🥐', '🍰', '🍩', '🍦', '🍜', '🍣', '🍕', '🍺', '🍓', '🍑'] },
-  { name: '친구들', items: ['🐶', '🐱', '🐰', '🐻', '🐼', '🐥', '🦊', '🐸', '🦄', '🐳', '🎀', '🎈'] },
-  { name: '문구', items: ['📌', '📎', '✏️', '🖍️', '📒', '💌', '🏷️', '🎵', '💬', '✔️', '❗', '💯'] },
-]
 
 /** 마스킹테이프 색 (대표 지도 카드) */
 export const TAPE_COLORS = ['#fca5a5', '#fcd34d', '#86efac', '#93c5fd', '#c4b5fd', '#f9a8d4']

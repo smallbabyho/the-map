@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { AppRail, MobileTabBar } from '../components/AppRail'
 import { Avatar } from '../components/Avatar'
 import { ChevronLeftIcon, ChevronRightIcon, SearchIcon } from '../components/icons'
@@ -23,6 +23,8 @@ const SORTS: { id: Sort; label: string }[] = [
   { id: 'pins', label: '장소 많은 순' },
 ]
 const PIN_MINS = [0, 3, 5]
+/** 한 쪽에 보일 지도 수 */
+const PAGE_SIZE = 20
 
 /**
  * 둘러보기 (/explore?q=…): 검색 · 둘러보기 · 이달의 지도를 한 화면에.
@@ -85,6 +87,16 @@ export function ExplorePage() {
   const activeCount = [f.purpose, f.category, f.region, f.minPins, f.hasMeetup, f.sort].filter(Boolean).length
   const sort = f.sort ?? (q ? 'relevance' : 'popular')
   const browsing = tab === 'maps' && !q && activeCount === 0
+  // 쪽 번호: 검색어 · 필터가 바뀌면 1쪽부터 (어느 검색의 쪽인지 같이 둔다)
+  const pageKey = JSON.stringify([q, f])
+  const [paging, setPaging] = useState({ key: pageKey, page: 1 })
+  const pageCount = Math.max(1, Math.ceil((maps?.length ?? 0) / PAGE_SIZE))
+  const page = paging.key === pageKey ? Math.min(paging.page, pageCount) : 1
+  const gridTop = useRef<HTMLParagraphElement>(null)
+  const goPage = (n: number) => {
+    setPaging({ key: pageKey, page: n })
+    gridTop.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
 
   return (
     <div className="relative min-h-dvh pb-16 pt-14 md:pb-0">
@@ -204,8 +216,8 @@ export function ExplorePage() {
               {error ? (
                 <p role="alert" className="rounded-xl bg-red-500/10 px-4 py-3 text-sm text-red-600">{error}</p>
               ) : maps === null ? (
-                <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-                  {[0, 1, 2, 3].map((i) => (
+                <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                  {[0, 1, 2, 3, 4, 5].map((i) => (
                     <div key={i} className="h-60 animate-pulse rounded-2xl bg-black/5" />
                   ))}
                 </div>
@@ -213,14 +225,18 @@ export function ExplorePage() {
                 <Empty>{q ? `'${q}'에 맞는 지도가 없어요. 필터를 줄여 보세요.` : '조건에 맞는 지도가 없어요.'}</Empty>
               ) : (
                 <>
-                  <p className="mb-3 font-mono text-xs uppercase tracking-wider text-(--c-muted)">{browsing ? `all maps · ${maps.length}` : `${maps.length} maps`}</p>
-                  <ul className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-                    {maps.map((e) => (
+                  <p ref={gridTop} className="mb-3 scroll-mt-20 font-mono text-xs uppercase tracking-wider text-(--c-muted)">
+                    {browsing ? `all maps · ${maps.length}` : `${maps.length} maps`}
+                    {pageCount > 1 && ` · ${page}/${pageCount}`}
+                  </p>
+                  <ul className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                    {maps.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE).map((e) => (
                       <li key={e.map.id}>
                         <MapResult e={e} />
                       </li>
                     ))}
                   </ul>
+                  {pageCount > 1 && <Pager page={page} count={pageCount} onGo={goPage} />}
                 </>
               )}
             </section>
@@ -282,6 +298,34 @@ function Chip({ on, onClick, children }: { on: boolean; onClick: () => void; chi
     >
       {children}
     </button>
+  )
+}
+
+/** ← 이전 · 1 2 3 · 다음 → (쪽이 많으면 지금 쪽 근처만) */
+function Pager({ page, count, onGo }: { page: number; count: number; onGo: (n: number) => void }) {
+  const from = Math.max(1, Math.min(page - 2, count - 4))
+  const nums = Array.from({ length: Math.min(5, count) }, (_, i) => from + i)
+  const btn = 'grid h-9 min-w-9 place-items-center rounded-full px-3 text-sm font-semibold transition disabled:opacity-30'
+  return (
+    <nav className="mt-8 flex items-center justify-center gap-1" aria-label="쪽 넘기기">
+      <button type="button" onClick={() => onGo(page - 1)} disabled={page <= 1} className={`${btn} hover:bg-black/5`}>
+        ← 이전
+      </button>
+      {nums.map((n) => (
+        <button
+          key={n}
+          type="button"
+          onClick={() => onGo(n)}
+          aria-current={n === page ? 'page' : undefined}
+          className={`${btn} ${n === page ? 'bg-(--c-ink) text-(--c-bg)' : 'hover:bg-black/5'}`}
+        >
+          {n}
+        </button>
+      ))}
+      <button type="button" onClick={() => onGo(page + 1)} disabled={page >= count} className={`${btn} hover:bg-black/5`}>
+        다음 →
+      </button>
+    </nav>
   )
 }
 

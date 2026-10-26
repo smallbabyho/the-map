@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { deleteLeg, deletePin, getMap, saveLeg, saveMap, savePin } from '../../db/api'
 import type { ConceptMap, Leg, MapDetail, Pin, ThemeId, TravelMode } from '../../types'
 import { useRoutes, type PlaceSearchResult, type Route } from '../map'
-import { getTheme } from '../themes'
+import { getTheme, similarColors } from '../themes'
 
 // 편집 화면 상태. 바꾼 내용은 저장 버튼을 누를 때 한 번에 db 함수로 반영한다.
 // 아직 저장 안 된 새 핀은 'tmp-' 로 시작하는 임시 id 를 쓴다.
@@ -137,7 +137,8 @@ export function useMapDraft(mapId: string) {
 
   /** 검색 결과로 핀 추가. 새 핀 id 를 돌려준다. */
   const addPlace = (place: PlaceSearchResult): string => {
-    const palette = getTheme(map?.theme).palette
+    // 새 핀 색: 지도 대표색과 비슷한 계열을 돌아가며
+    const palette = similarColors(getTheme(map?.theme).accent)
     const id = tmpId()
     setPins((ps) => [
       ...ps,

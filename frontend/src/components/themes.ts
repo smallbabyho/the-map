@@ -92,6 +92,21 @@ export const THEME_LIST = PRESET_IDS.map((id) => getTheme(id))
  * 테마 색을 CSS 변수로. 루트 요소 style 에 넣으면 하위에서 bg-(--c-accent) 같은 식으로 쓴다.
  * 배경은 라이트/다크 기본색(--c-base-bg)에 대표색을 살짝 섞는다.
  */
+/**
+ * 핀 색 후보: 지도 대표색과 비슷한 계열 (같은 색의 밝은 ~ 진한 톤 + 이웃 색 둘). 무지개처럼 흩어지지 않게.
+ *
+ * @example
+ * similarColors('#2563eb') // ['#2563eb', '#…(밝게)', …]
+ */
+export function similarColors(accent: string): string[] {
+  const [h, s, l] = hexToHsl(accent)
+  const sat = Math.min(s, 70)
+  const tones = [l, 78, 66, 44, 32].map((v) => Math.min(Math.max(v, 22), 84))
+  const near = [-22, 22].map((d) => hslToHex((h + d + 360) % 360, sat, Math.min(Math.max(l, 40), 62)))
+  const out = [accent.toLowerCase(), ...tones.slice(1).map((v) => hslToHex(h, sat, v)), ...near]
+  return [...new Set(out)]
+}
+
 export function themeVars(theme: Theme): CSSProperties {
   return {
     '--c-accent': theme.accent,
@@ -100,9 +115,3 @@ export function themeVars(theme: Theme): CSSProperties {
     '--c-map-bg': `color-mix(in srgb, ${theme.accent} 6%, var(--c-base-map-bg))`,
   } as CSSProperties
 }
-
-export const PIN_EMOJIS = [
-  '📍', '☕', '🍞', '🍰', '🍜', '🍣', '🍔', '🍺',
-  '🎬', '📸', '🏛️', '🌳', '🛍️', '🎵', '🏖️', '⭐',
-  '❤️', '🎨', '📚', '⛩️', '🎡', '🐾', '🌸', '🚩',
-]

@@ -17,7 +17,6 @@ import {
   PINNED_MAX,
   PROFILE_FONTS_HREF,
   STICKER_MAX,
-  STICKER_SET,
   TAPE_COLORS,
   fontFamily,
   fontScale,
@@ -27,8 +26,12 @@ import {
   seeded,
 } from '../components/profile/deco'
 import { ReportButton } from '../components/report/ReportDialog'
+import { EmojiPicker } from '../components/EmojiPicker'
+import { ImageCropDialog } from '../components/ImageCropDialog'
 import { getBlockedUsers, getProfile, saveProfileDeco, setBlocked, updateMyProfile, uploadAvatar, uploadPinPhoto } from '../db/api'
-import type { MapCardStyle, ProfileDecoInput, ProfilePage as ProfileData, ProfileSections, PublicMapSummary, Sticker, User } from '../types'
+import type { MapCardStyle, ProfileDecoInput, ProfilePage as ProfileData, ProfileSections, PublicMapSummary, Sticker, StickerKind, User } from '../types'
+import { mapCategoryText } from '../components/mapCategories'
+import { mapPurpose } from '../components/mapPurpose'
 
 const newId = () => (typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `s-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`)
 
@@ -46,9 +49,12 @@ const toInput = (d: ProfileData['deco']): ProfileDecoInput => ({
 })
 
 /** 새 스티커: 판 위쪽 가운데 근처에 살짝 기울여서 */
-function newSticker(emoji: string): Sticker {
-  return { id: newId(), emoji, x: 30 + Math.random() * 40, y: 12 + Math.random() * 30, size: 48, rotate: Math.round(Math.random() * 30 - 15) }
+function newSticker(emoji: string, extra: Partial<Sticker> = {}): Sticker {
+  return { id: newId(), emoji, x: 30 + Math.random() * 40, y: 12 + Math.random() * 30, size: 48, rotate: Math.round(Math.random() * 30 - 15), ...extra }
 }
+const kindOf = (s: Sticker): StickerKind => s.kind ?? 'emoji'
+/** 메모지 · 테이프 색 */
+const NOTE_COLORS = ['#fde68a', '#fbcfe8', '#bfdbfe', '#bbf7d0', '#ddd6fe', '#fed7aa']
 
 /** 공개 프로필 (/u/[userId]). 내 프로필이면 '꾸미기'로 다이어리처럼 꾸민다. */
 export function ProfilePage() {
@@ -156,6 +162,7 @@ export function ProfilePage() {
                 <span className="hidden md:block">
                   <Avatar id={user.id} nickname={user.nickname} src={user.avatarUrl} size={136} />
                 </span>
+                {isMe && draft && <AvatarChange hasPhoto={!!user.avatarUrl} onError={setError} />}
               </div>
               <div className="flex flex-wrap justify-end gap-2 pt-3">
                 {isMe ? (
@@ -295,8 +302,9 @@ export function ProfilePage() {
 function ProfileBanner({ deco, editing, onBanner, onError }: { deco: ProfileDecoInput; editing: boolean; onBanner: (url: string | null) => void; onError: (msg: string) => void }) {
   const file = useRef<HTMLInputElement>(null)
   const [uploading, setUploading] = useState(false)
-  const onFile = async (f: File | undefined) => {
-    if (!f) return
+  const [picked, setPicked] = useState<File | null>(null) // 자르는 중인 사진
+  const onFile = async (f: File) => {
+    setPicked(null)
     setUploading(true)
     try {
       onBanner(await uploadPinPhoto(f))
@@ -304,7 +312,6 @@ function ProfileBanner({ deco, editing, onBanner, onError }: { deco: ProfileDeco
       onError(e instanceof Error ? e.message : '사진을 올리지 못했어요.')
     } finally {
       setUploading(false)
-      if (file.current) file.current.value = ''
     }
   }
   return (
@@ -314,9 +321,9 @@ function ProfileBanner({ deco, editing, onBanner, onError }: { deco: ProfileDeco
         <img src={deco.bannerUrl} alt="" className="size-full object-cover" />
       ) : (
         <>
-          <div className="absolute -right-10 -top-16 size-64 rounded-full bg-(--c-accent) opacity-80 mix-blend-multiply" aria-hidden />
-          <div className="absolute -bottom-20 left-1/3 size-56 rounded-full bg-(--c-sky) opacity-70 mix-blend-multiply" aria-hidden />
-          <div className="absolute -left-8 top-6 size-36 rotate-12 rounded-[40%] bg-(--c-lime) opacity-80 mix-blend-multiply" aria-hidden />
+          <div className="absolute -right-10 -top-16 size-64 rounded-full bg-(--c-accent) opacity-80 mix-blend-multiply [:root[data-mode=dark]_&]:opacity-45 [:root[data-mode=dark]_&]:mix-blend-normal" aria-hidden />
+          <div className="absolute -bottom-20 left-1/3 size-56 rounded-full bg-(--c-sky) opacity-70 mix-blend-multiply [:root[data-mode=dark]_&]:opacity-45 [:root[data-mode=dark]_&]:mix-blend-normal" aria-hidden />
+          <div className="absolute -left-8 top-6 size-36 rotate-12 rounded-[40%] bg-(--c-lime) opacity-80 mix-blend-multiply [:root[data-mode=dark]_&]:opacity-45 [:root[data-mode=dark]_&]:mix-blend-normal" aria-hidden />
           <p className="absolute bottom-3 right-5 font-mono text-[11px] font-bold uppercase tracking-[0.2em] opacity-60">my concept map ® diary</p>
         </>
       )}
@@ -330,9 +337,20 @@ function ProfileBanner({ deco, editing, onBanner, onError }: { deco: ProfileDeco
               빼기
             </button>
           )}
-          <input ref={file} type="file" accept="image/*" className="hidden" onChange={(e) => onFile(e.target.files?.[0])} />
+          <input
+            ref={file}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0]
+              if (f) setPicked(f)
+              e.target.value = ''
+            }}
+          />
         </div>
       )}
+      {picked && <ImageCropDialog file={picked} aspect={3} outWidth={1500} title="배너 사진 자르기" onCancel={() => setPicked(null)} onDone={onFile} />}
     </div>
   )
 }
@@ -434,6 +452,8 @@ function DiaryBoard({
             )}
           </section>
         )}
+
+        {deco.sections.stats !== false && <TravelStats maps={maps} scale={scale} dark={dark} />}
       </div>
 
       {/* 스티커 */}
@@ -444,11 +464,11 @@ function DiaryBoard({
               key={s.id}
               onPointerDown={(e) => onDown(e, s)}
               className={`absolute leading-none drop-shadow-[0_2px_2px_rgb(0_0_0/0.15)] ${editing ? 'cursor-grab touch-none active:cursor-grabbing' : ''} ${s.id === selected && editing ? 'rounded-lg outline-2 outline-offset-4 outline-dashed outline-(--c-accent)' : ''}`}
-              style={{ left: `${s.x}%`, top: `${s.y}%`, fontSize: s.size, transform: `translate(-50%, -50%) rotate(${s.rotate}deg)` }}
+              style={{ left: `${s.x}%`, top: `${s.y}%`, fontSize: kindOf(s) === 'emoji' ? s.size : undefined, transform: `translate(-50%, -50%) rotate(${s.rotate}deg)` }}
               aria-hidden={!editing}
-              aria-label={editing ? `스티커 ${s.emoji}` : undefined}
+              aria-label={editing ? `${{ emoji: '스티커', photo: '사진', note: '메모지', tape: '테이프' }[kindOf(s)]} ${s.text ?? s.emoji}` : undefined}
             >
-              {s.emoji}
+              <BoardItem s={s} font={fontFamily(deco.font)} />
             </span>
           ))}
           {sel && (
@@ -461,6 +481,22 @@ function DiaryBoard({
               <ToolBtn label="크게" onClick={() => patchSel({ size: Math.min(160, sel.size + 8) })}><PlusIcon size={15} /></ToolBtn>
               <ToolBtn label="왼쪽으로 돌리기" onClick={() => patchSel({ rotate: sel.rotate - 15 })}>↺</ToolBtn>
               <ToolBtn label="오른쪽으로 돌리기" onClick={() => patchSel({ rotate: sel.rotate + 15 })}>↻</ToolBtn>
+              {(kindOf(sel) === 'photo' || kindOf(sel) === 'note') && (
+                <ToolBtn
+                  label="글 고치기"
+                  onClick={() => {
+                    const t = window.prompt(kindOf(sel) === 'photo' ? '사진 설명 (60자까지)' : '메모 (60자까지)', sel.text ?? '')
+                    if (t !== null) patchSel({ text: t.slice(0, 60) })
+                  }}
+                >
+                  ✏️
+                </ToolBtn>
+              )}
+              {(kindOf(sel) === 'note' || kindOf(sel) === 'tape') && (
+                <ToolBtn label="색 바꾸기" onClick={() => patchSel({ color: NOTE_COLORS[(NOTE_COLORS.indexOf(sel.color ?? '') + 1) % NOTE_COLORS.length] })}>
+                  🎨
+                </ToolBtn>
+              )}
               <ToolBtn
                 label="떼기"
                 onClick={() => {
@@ -544,7 +580,6 @@ function DecoPanel({
   onError: (msg: string) => void
 }) {
   const [tab, setTab] = useState<Tab>('paper')
-  const [sheet, setSheet] = useState(0)
   const [uploading, setUploading] = useState(false)
   const file = useRef<HTMLInputElement>(null)
 
@@ -558,14 +593,37 @@ function DecoPanel({
     onSelect(s.id)
   }
 
+  /** 사진 · 메모지 · 테이프 붙이기 */
+  const addItem = (kind: Exclude<StickerKind, 'emoji'>, extra: Partial<Sticker> = {}) => {
+    if (draft.stickers.length >= STICKER_MAX) return onError(`다이어리에는 ${STICKER_MAX}개까지 붙일 수 있어요.`)
+    const s = newSticker('', { kind, size: kind === 'tape' ? 60 : 90, color: kind === 'photo' ? undefined : NOTE_COLORS[Math.floor(Math.random() * NOTE_COLORS.length)], ...extra })
+    patch({ stickers: [...draft.stickers, s], sections: { ...draft.sections, stickers: true } })
+    onSelect(s.id)
+  }
+  const photoFile = useRef<HTMLInputElement>(null)
+  const [photoBusy, setPhotoBusy] = useState(false)
+  const onDiaryPhoto = async (f: File | undefined) => {
+    if (!f) return
+    setPhotoBusy(true)
+    try {
+      addItem('photo', { url: await uploadPinPhoto(f), text: '' })
+    } catch (e) {
+      onError(e instanceof Error ? e.message : '사진을 올리지 못했어요.')
+    } finally {
+      setPhotoBusy(false)
+      if (photoFile.current) photoFile.current.value = ''
+    }
+  }
+
   const togglePin = (id: string) => {
     const on = draft.pinnedMapIds.includes(id)
     if (!on && draft.pinnedMapIds.length >= PINNED_MAX) return onError(`대표 지도는 ${PINNED_MAX}개까지 고를 수 있어요.`)
     patch({ pinnedMapIds: on ? draft.pinnedMapIds.filter((x) => x !== id) : [...draft.pinnedMapIds, id] })
   }
 
-  const onPhoto = async (f: File | undefined) => {
-    if (!f) return
+  const [avatarFile, setAvatarFile] = useState<File | null>(null) // 자르는 중인 프로필 사진
+  const onPhoto = async (f: File) => {
+    setAvatarFile(null)
     setUploading(true)
     try {
       await updateMyProfile({ avatarUrl: await uploadAvatar(f) })
@@ -573,7 +631,6 @@ function DecoPanel({
       onError(e instanceof Error ? e.message : '사진을 올리지 못했어요.')
     } finally {
       setUploading(false)
-      if (file.current) file.current.value = ''
     }
   }
 
@@ -637,22 +694,32 @@ function DecoPanel({
           <>
             <Toggle on={draft.sections.stickers} onChange={() => toggle('stickers')} label="스티커 보이기" />
             <p className="text-xs text-(--c-muted)">
-              누르면 붙어요. 판 위에서 끌어 옮기고, 눌러서 크기·회전을 바꿔요. ({draft.stickers.length}/{STICKER_MAX})
+              누르면 붙어요. 판 위에서 끌어 옮기고, 눌러서 크기·회전·글·색을 바꿔요. ({draft.stickers.length}/{STICKER_MAX})
             </p>
-            <div className="tm-scroll flex gap-1 overflow-x-auto">
-              {STICKER_SET.map((g, i) => (
-                <button key={g.name} type="button" onClick={() => setSheet(i)} className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold ${sheet === i ? 'bg-(--c-text) text-(--c-surface)' : 'bg-black/5 text-(--c-muted)'}`}>
-                  {g.name}
-                </button>
-              ))}
+            <div className="grid grid-cols-3 gap-1.5">
+              <button type="button" onClick={() => photoFile.current?.click()} disabled={photoBusy} className="flex flex-col items-center gap-1 rounded-xl border border-(--c-border) py-2.5 text-xs font-semibold hover:bg-black/[0.03] disabled:opacity-60">
+                <span className="text-xl" aria-hidden>📷</span>
+                {photoBusy ? '올리는 중…' : '사진'}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const t = window.prompt('메모지에 적을 말 (60자까지)', '')
+                  if (t) addItem('note', { text: t.slice(0, 60) })
+                }}
+                className="flex flex-col items-center gap-1 rounded-xl border border-(--c-border) py-2.5 text-xs font-semibold hover:bg-black/[0.03]"
+              >
+                <span className="text-xl" aria-hidden>📝</span>
+                메모지
+              </button>
+              <button type="button" onClick={() => addItem('tape')} className="flex flex-col items-center gap-1 rounded-xl border border-(--c-border) py-2.5 text-xs font-semibold hover:bg-black/[0.03]">
+                <span className="text-xl" aria-hidden>🎀</span>
+                테이프
+              </button>
             </div>
-            <div className="grid grid-cols-6 gap-1">
-              {STICKER_SET[sheet].items.map((e) => (
-                <button key={e} type="button" onClick={() => addSticker(e)} className="grid aspect-square place-items-center rounded-xl text-2xl transition hover:scale-110 hover:bg-black/5" aria-label={`${e} 붙이기`}>
-                  {e}
-                </button>
-              ))}
-            </div>
+            <input ref={photoFile} type="file" accept="image/*" className="hidden" onChange={(e) => onDiaryPhoto(e.target.files?.[0])} />
+            <p className="text-xs font-semibold text-(--c-muted)">이모지 스티커</p>
+            <EmojiPicker onPick={addSticker} cols={7} />
             {draft.stickers.length > 0 && (
               <button type="button" onClick={() => (patch({ stickers: [] }), onSelect(null))} className="text-xs font-semibold text-red-500 hover:underline">
                 스티커 모두 떼기
@@ -705,6 +772,7 @@ function DecoPanel({
         {tab === 'maps' && (
           <>
             <Toggle on={draft.sections.maps} onChange={() => toggle('maps')} label="지도 보이기" />
+            <Toggle on={draft.sections.stats !== false} onChange={() => patch({ sections: { ...draft.sections, stats: draft.sections.stats === false } })} label="📊 여행 기록장 보이기 (공개 지도로 자동 계산)" />
             <Field label="카드 모양">
               <div className="grid grid-cols-2 gap-2">
                 {(
@@ -770,9 +838,20 @@ function DecoPanel({
                     </button>
                   )}
                 </div>
-                <input ref={file} type="file" accept="image/*" className="hidden" onChange={(e) => onPhoto(e.target.files?.[0])} />
+                <input
+                  ref={file}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0]
+                    if (f) setAvatarFile(f)
+                    e.target.value = ''
+                  }}
+                />
+                {avatarFile && <ImageCropDialog file={avatarFile} aspect={1} outWidth={512} round title="프로필 사진 자르기" onCancel={() => setAvatarFile(null)} onDone={onPhoto} />}
               </div>
-              <p className="mt-2 text-xs text-(--c-muted)">사진은 올리는 즉시 바뀌어요.</p>
+              <p className="mt-2 text-xs text-(--c-muted)">고른 뒤 자르고 옮길 수 있어요. 적용하면 바로 바뀌어요.</p>
             </Field>
             <Field label="닉네임" count={`${nickname.length}/30`}>
               <input
@@ -809,5 +888,163 @@ function Toggle({ on, onChange, label }: { on: boolean; onChange: () => void; la
         <span className={`absolute top-0.5 size-5 rounded-full bg-white shadow transition-all ${on ? 'left-[18px]' : 'left-0.5'}`} />
       </span>
     </button>
+  )
+}
+
+/** 다이어리 판 위의 것 하나: 이모지 · 폴라로이드 사진 · 메모지 · 마스킹 테이프 */
+function BoardItem({ s, font }: { s: Sticker; font: string }) {
+  const kind = kindOf(s)
+  if (kind === 'photo') {
+    const w = Math.round(s.size * 1.7)
+    return (
+      <span className="block bg-white p-1.5 pb-2 shadow-[0_8px_18px_-6px_rgb(0_0_0/0.4)]" style={{ width: w }}>
+        {/* eslint-disable-next-line @next/next/no-img-element -- 스토리지 · data URL */}
+        {s.url ? <img src={s.url} alt={s.text || '다이어리 사진'} className="block aspect-square w-full object-cover" draggable={false} /> : <span className="block aspect-square w-full bg-black/10" />}
+        {s.text && (
+          <span className="mt-1.5 block truncate text-center text-gray-800" style={{ fontFamily: font, fontSize: Math.max(10, w / 11) }}>
+            {s.text}
+          </span>
+        )}
+      </span>
+    )
+  }
+  if (kind === 'note') {
+    const w = Math.round(s.size * 1.5)
+    return (
+      <span
+        className="grid place-items-center p-2.5 text-center leading-snug text-gray-800 shadow-[0_6px_14px_-6px_rgb(0_0_0/0.35)]"
+        style={{ width: w, minHeight: w, background: s.color ?? NOTE_COLORS[0], fontFamily: font, fontSize: Math.max(11, w / 9) }}
+      >
+        <span className="line-clamp-5 break-keep">{s.text}</span>
+      </span>
+    )
+  }
+  if (kind === 'tape') {
+    const w = Math.round(s.size * 2)
+    return (
+      <span
+        className="block opacity-80"
+        style={{
+          width: w,
+          height: Math.max(14, Math.round(s.size * 0.38)),
+          background: `repeating-linear-gradient(45deg, ${s.color ?? NOTE_COLORS[0]} 0 8px, color-mix(in srgb, ${s.color ?? NOTE_COLORS[0]} 75%, white) 8px 16px)`,
+          clipPath: 'polygon(2% 0, 98% 0, 100% 20%, 98% 40%, 100% 60%, 98% 80%, 100% 100%, 2% 100%, 0 80%, 2% 60%, 0 40%, 2% 20%, 0 0)',
+        }}
+      />
+    )
+  }
+  return <>{s.emoji}</>
+}
+
+/** 📊 여행 기록장: 공개 지도로 자동 계산 (기록 · 계획 · 다녀온 장소 · 자주 가는 카테고리) */
+function TravelStats({ maps, scale, dark }: { maps: PublicMapSummary[]; scale: number; dark: boolean }) {
+  if (maps.length === 0) return null
+  const records = maps.filter((m) => mapPurpose(m.map) === 'record')
+  const plans = maps.length - records.length
+  const visited = records.reduce((n, m) => n + m.pinCount, 0)
+  const cats = new Map<string, { label: string; emoji: string; n: number }>()
+  for (const m of maps) {
+    const c = mapCategoryText(m.map)
+    const cur = cats.get(c.label) ?? { ...c, n: 0 }
+    cur.n++
+    cats.set(c.label, cur)
+  }
+  const top = [...cats.values()].sort((a, b) => b.n - a.n).slice(0, 3)
+  const box = dark ? 'bg-white/10' : 'bg-black/[0.04]'
+  return (
+    <section className="mt-10">
+      <h2 className="font-bold" style={{ fontSize: 18 * scale }}>
+        📊 여행 기록장
+      </h2>
+      <div className="mt-4 grid grid-cols-3 gap-2 text-center" style={{ fontFamily: 'var(--font-sans)' }}>
+        {(
+          [
+            ['📖', '기록', records.length],
+            ['🗓️', '계획', plans],
+            ['📍', '다녀온 곳', visited],
+          ] as const
+        ).map(([e, label, n]) => (
+          <div key={label} className={`rounded-2xl px-2 py-3 ${box}`}>
+            <p className="text-2xl font-extrabold tracking-tight">{n}</p>
+            <p className={`mt-0.5 text-xs ${dark ? 'text-white/60' : 'text-black/50'}`}>
+              {e} {label}
+            </p>
+          </div>
+        ))}
+      </div>
+      {top.length > 0 && (
+        <p className="mt-4 flex flex-wrap items-center gap-1.5 text-sm" style={{ fontFamily: 'var(--font-sans)' }}>
+          <span className={dark ? 'text-white/60' : 'text-black/50'}>자주 가는 곳</span>
+          {top.map((c) => (
+            <span key={c.label} className={`rounded-full px-2.5 py-1 text-xs font-semibold ${box}`}>
+              {c.emoji} {c.label} · {c.n}
+            </span>
+          ))}
+        </p>
+      )}
+    </section>
+  )
+}
+
+/** 프로필 꾸미기 중: 사진 오른쪽 아래 📷 로 바꾸기 (자르고 옮긴 뒤 올린다) */
+function AvatarChange({ hasPhoto, onError }: { hasPhoto: boolean; onError: (msg: string) => void }) {
+  const file = useRef<HTMLInputElement>(null)
+  const [busy, setBusy] = useState(false)
+  const [open, setOpen] = useState(false)
+  const [picked, setPicked] = useState<File | null>(null) // 자르는 중인 사진
+  const onPick = async (f: File) => {
+    setPicked(null)
+    setBusy(true)
+    try {
+      await updateMyProfile({ avatarUrl: await uploadAvatar(f) })
+    } catch (e) {
+      onError(e instanceof Error ? e.message : '사진을 올리지 못했어요.')
+    } finally {
+      setBusy(false)
+      setOpen(false)
+    }
+  }
+  return (
+    <div className="absolute bottom-1 right-1">
+      <button
+        type="button"
+        onClick={() => (hasPhoto ? setOpen((v) => !v) : file.current?.click())}
+        disabled={busy}
+        className="tm-float grid size-9 place-items-center rounded-full bg-(--c-surface) text-base ring-2 ring-(--c-bg) transition hover:scale-105 disabled:opacity-60 md:size-10"
+        aria-label="프로필 사진 바꾸기"
+        title="프로필 사진 바꾸기"
+      >
+        {busy ? '…' : '📷'}
+      </button>
+      {open && (
+        <div className="tm-float absolute left-0 top-full z-30 mt-2 w-36 overflow-hidden rounded-xl border border-(--c-border) bg-(--c-surface) py-1 text-sm">
+          <button type="button" onClick={() => file.current?.click()} className="block w-full px-3 py-2 text-left hover:bg-black/5">
+            사진 바꾸기
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setOpen(false)
+              updateMyProfile({ avatarUrl: null }).catch((e: Error) => onError(e.message))
+            }}
+            className="block w-full px-3 py-2 text-left text-red-500 hover:bg-red-500/10"
+          >
+            사진 지우기
+          </button>
+        </div>
+      )}
+      <input
+        ref={file}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => {
+          const f = e.target.files?.[0]
+          if (f) setPicked(f)
+          e.target.value = ''
+        }}
+      />
+      {picked && <ImageCropDialog file={picked} aspect={1} outWidth={512} round title="프로필 사진 자르기" onCancel={() => setPicked(null)} onDone={onPick} />}
+    </div>
   )
 }

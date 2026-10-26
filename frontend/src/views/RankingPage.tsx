@@ -50,7 +50,7 @@ export function RankingPage() {
       <MobileTabBar active="explore" />
 
       <main className="mx-auto max-w-4xl px-4 pb-16 pt-6 md:px-10 md:pt-12">
-        <p className="tm-label dot">monthly chart · 많은 사람이 따라 걸은 지도</p>
+        <p className="tm-label dot">monthly chart · 많은 사람이 따라 다녀온 지도</p>
         <div className="mt-1 flex flex-wrap items-center justify-between gap-3">
           <h1 className="tm-headline mt-2 text-5xl md:text-7xl">
             이달의 <em>지도</em>

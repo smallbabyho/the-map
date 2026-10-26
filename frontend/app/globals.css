@@ -182,27 +182,25 @@ body::before {
 /* 스크롤하면 툭 나타나기. 숨기는 건 useReveal 이 준비됐을 때(<html data-reveal>)만 →
    자바스크립트가 늦거나 실패해도 내용은 항상 보인다 */
 .tm-reveal {
-  transition: opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1), transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+  /* 제자리에서 천천히 페이드인 */
+  transition: opacity 0.9s ease-in-out;
   transition-delay: var(--delay, 0s);
 }
 :root[data-reveal] .tm-reveal:not([data-shown="true"]) {
   opacity: 0;
-  transform: translateY(28px);
 }
 
-/* 첫 화면용: 자바스크립트 없이 CSS 만으로 떠오르기 (페이지가 뜨자마자) */
-@keyframes tm-rise {
+/* 첫 화면용: 자바스크립트 없이 CSS 만으로 페이드인 (페이지가 뜨자마자). 스크롤 등장(.tm-reveal)과 같은 속도 */
+@keyframes tm-fade {
   from {
     opacity: 0;
-    transform: translateY(24px);
   }
   to {
     opacity: 1;
-    transform: none;
   }
 }
 .tm-intro {
-  animation: tm-rise 0.8s cubic-bezier(0.16, 1, 0.3, 1) var(--delay, 0s) both;
+  animation: tm-fade 0.9s ease-in-out var(--delay, 0s) both;
 }
 }
 
@@ -213,7 +211,6 @@ body::before {
   :root[data-reveal] .tm-reveal:not([data-shown="true"]),
   .tm-reveal {
     opacity: 1;
-    transform: none;
     transition: none;
   }
   .tm-marquee {

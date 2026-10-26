@@ -249,7 +249,7 @@ export function ApiTestPage() {
       <header className="sticky top-0 z-20 flex flex-wrap items-center gap-3 border-b border-white/10 bg-[#0b1020]/95 px-4 py-3 backdrop-blur md:px-6">
         <Link href="/" className="flex items-center gap-0.5 text-sm text-gray-400 hover:text-white">
           <ChevronLeftIcon size={16} />
-          컨셉지도
+          My Concept Map
         </Link>
         <h1 className="text-base font-bold">API 테스트</h1>
         <span className="rounded-full bg-amber-400/15 px-2.5 py-1 text-xs font-bold text-amber-300">연결: MOCK (브라우저 localStorage)</span>

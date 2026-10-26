@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useState, type CSSProperties } from 'react'
+import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { useCurrentUser } from '../auth'
 import { AppRail, MobileTabBar } from '../components/AppRail'
 import { MapThumb } from '../components/MapThumb'
@@ -15,20 +15,25 @@ import type { MapRankingEntry } from '../types'
 const THEMES = ['🥐 빵지순례', '🎬 드라마 촬영지', '☕ 성수 카페 투어', '📚 동네 책방', '🍜 노포 맛집', '🌸 벚꽃 산책', '🎵 앨범 커버 성지', '🏛️ 근대 건축', '🐾 고양이 골목']
 
 const STEPS = [
-  { no: '01', title: '핀을 꽂고', en: 'Pin', body: '가고 싶은 곳을 검색하거나 지도를 길게 눌러 핀을 꽂아요. 이모지와 색으로 장소마다 표정을 줘요.' },
+  { no: '01', title: '핀을 꽂고', en: 'Pin', body: '가고 싶은 곳도, 이미 다녀온 곳도. 검색하거나 지도를 길게 눌러 핀을 꽂고, 이모지와 색으로 장소마다 표정을 줘요.' },
   { no: '02', title: '길을 잇고', en: 'Route', body: '걷기 · 대중교통 · 자동차 · 자전거. 버스 번호, 환승, KTX역까지 가는 길도 알아서 이어져요.' },
   { no: '03', title: '내 맘대로 꾸미고', en: 'Decorate', body: '테마 색, 마커 모양, 선 스타일, 커버 사진. 다이어리 꾸미듯 나만의 지도를 만들어요.' },
-  { no: '04', title: '같이 걸어요', en: 'Share', body: '친구들과의 여정을 공유해요. 우리끼리만 보는 비공개 모임으로 경로를 같이 보고, 카톡으로 초대해요.' },
+  { no: '04', title: '같이 떠나요', en: 'Together', body: '초대 링크 하나면 친구들이 한 지도에 들어와 핀을 넣고 순서를 바꾸며 코스를 같이 짜요. 완성된 지도는 단톡방에 공유하고 함께 떠나요.' },
 ]
 
 const FEATURES = [
   { icon: '🚇', title: '진짜 길찾기', body: '버스 · 지하철 · KTX · 고속버스까지. 핀 사이를 실제 길로 이어요.' },
   { icon: '🎨', title: '다이어리 꾸미기', body: '스티커, 속지, 손글씨 글꼴로 프로필을 꾸며요.' },
-  { icon: '🔒', title: '친구들과의 여정', body: '우리끼리만 보는 비공개 모임으로 여행 경로를 공유하고 추억을 남겨요.' },
-  { icon: '🚶', title: '성지순례 모임', body: '지도 하나로 모임을 열고 댓글로 “출구 앞이에요” 연락해요.' },
-  { icon: '🗂️', title: '카테고리 둘러보기', body: '맛집 투어, 데이트 코스, 1박 2일 여행… 남의 코스를 골라 따라 걸어요.' },
-  { icon: '📸', title: '이미지로 저장', body: '코스 전체를 담은 지도 이미지 한 장으로 자랑해요.' },
+  { icon: '👥', title: '여럿이 함께 기획', body: '친구를 초대해 한 지도를 같이 고쳐요. 각자 가고 싶은 곳을 넣다 보면 우리만의 코스가 완성돼요.' },
+  { icon: '🙌', title: '성지순례 모임', body: '지도 하나로 모임을 열고 댓글로 “출구 앞이에요” 연락해요. 우리끼리만 보는 비공개 모임도 돼요.' },
+  { icon: '🗂️', title: '카테고리 둘러보기', body: '맛집 투어, 데이트 코스, 1박 2일 여행… 남의 코스를 골라 그대로 따라가 봐요.' },
+  { icon: '📔', title: '사랑했던 곳 기록', body: '다녀온 날짜, 사진, 한 줄 메모를 핀마다 남겨요. 계획이 아니어도 좋아요. 추억을 담은 지도는 이미지 한 장으로 간직해요.' },
 ]
+
+/** 이달의 컨셉지도 슬라이드: 카드 너비 · 카드 한 칸(카드 + 간격) · 넘기는 간격(ms) */
+const CARD_W = 240
+const SLIDE_W = CARD_W + 24
+const SLIDE_EVERY = 2600
 
 export function LandingPage({ embedded = false }: { embedded?: boolean }) {
   const reveal = useReveal<HTMLDivElement>()
@@ -45,6 +50,33 @@ export function LandingPage({ embedded = false }: { embedded?: boolean }) {
   // 이미 로그인했으면 시작 버튼은 로그인 화면(계정 정보) 대신 내 지도로
   const loggedIn = !!useCurrentUser()
   const startHref = loggedIn ? '/' : '/login'
+  // 흐르는 카드 줄: 지도가 적어도 화면을 채우도록 최소 6장이 되게 반복한다
+  // 이달의 컨셉지도 슬라이드: 한 장씩 가운데로 넘어와 커진 채로 잠깐 머문다.
+  // 끝없이 돌도록 같은 줄을 세 번 이어 붙이고 가운데 줄에서 시작한다. 지도가 적어도 한 줄이 최소 6장이 되게 반복.
+  const slides = top && top.length ? Array.from({ length: Math.ceil(6 / top.length) }, () => top).flat() : []
+  const n = slides.length
+  const stripRef = useRef<HTMLDivElement>(null)
+  const [stripW, setStripW] = useState(0)
+  const [slide, setSlide] = useState(0) // 가운데 줄 기준 몇 번째 카드가 가운데인지 (n 이 되면 0 으로 몰래 되감는다)
+  const [animate, setAnimate] = useState(true)
+  const [paused, setPaused] = useState(false)
+  useEffect(() => {
+    const el = stripRef.current
+    if (!el) return
+    const ro = new ResizeObserver(() => setStripW(el.clientWidth))
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [n])
+  useEffect(() => {
+    // 화면 움직임 줄이기 설정이면 넘기지 않는다
+    if (!n || paused || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    const t = window.setInterval(() => {
+      if (document.hidden) return // 다른 탭에 있을 땐 넘기지 않는다 (되감기 신호를 놓치지 않게)
+      setAnimate(true)
+      setSlide((i) => Math.min(i + 1, n))
+    }, SLIDE_EVERY)
+    return () => window.clearInterval(t)
+  }, [n, paused])
 
   useEffect(() => {
     let cancelled = false
@@ -68,14 +100,14 @@ export function LandingPage({ embedded = false }: { embedded?: boolean }) {
       {/* ---- 1. 첫 화면 ---- */}
       <section className="mx-auto grid max-w-6xl items-center gap-10 px-4 pb-10 pt-10 md:grid-cols-[1.1fr_0.9fr] md:px-10 md:pt-20">
         <div>
-          <p className="tm-label dot tm-intro">concept map — vol.01</p>
+          <p className="tm-label dot tm-intro">my concept map — vol.01</p>
           <h1 className="tm-headline tm-intro mt-5 text-[13vw] md:text-[88px]" style={{ '--delay': '0.08s' } as CSSProperties}>
             나만의 테마로
             <br />
             <em>지도</em>를 <span className="tm-mark">꾸미다</span>
           </h1>
           <p className="tm-intro mt-6 max-w-md text-[17px] leading-relaxed text-(--c-muted)" style={{ '--delay': '0.16s' } as CSSProperties}>
-            빵지순례, 데이트 코스, 1박 2일 여행. 좋아하는 것들로 코스를 만들고, 다이어리처럼 꾸미고, 친구들과의 여정을 공유해요.
+            가고 싶은 곳은 친구들과 함께 코스로 짜고, 사랑했던 곳은 사진과 메모로 남겨요. 계획도 추억도, 다이어리처럼 꾸민 나만의 지도 한 장에.
           </p>
           <div className="tm-intro mt-8 flex flex-wrap gap-3" style={{ '--delay': '0.24s' } as CSSProperties}>
             <Link href={startHref} className="tm-btn rounded-full bg-(--c-accent) px-6 py-3 text-[15px] font-bold text-(--c-accent-text)">
@@ -145,12 +177,12 @@ export function LandingPage({ embedded = false }: { embedded?: boolean }) {
       {/* ---- 3. 기능 ---- */}
       <section className="mx-auto max-w-6xl px-4 py-24 md:px-10">
         <p className="tm-label dot tm-reveal">features</p>
-        <h2 className="tm-headline tm-reveal mt-4 text-4xl md:text-6xl">
-          걷고 싶어지는 <em>모든 것</em>
+        <h2 className="tm-headline tm-reveal mt-4 text-4xl md:text-6xl" style={{ '--delay': '0.1s' } as CSSProperties}>
+          어디든 가고 싶어지는 <em>마법</em>
         </h2>
         <div className="mt-12 grid gap-px overflow-hidden rounded-2xl border border-(--c-border) bg-(--c-border) sm:grid-cols-2 lg:grid-cols-3">
           {FEATURES.map((f, i) => (
-            <div key={f.title} className="tm-reveal bg-(--c-surface) p-6" style={{ '--delay': `${(i % 3) * 0.08}s` } as CSSProperties}>
+            <div key={f.title} className="tm-reveal bg-(--c-surface) p-6" style={{ '--delay': `${0.1 + (i % 3) * 0.1}s` } as CSSProperties}>
               <div className="flex items-start justify-between">
                 <span className="text-3xl" aria-hidden>{f.icon}</span>
                 <span className="font-mono text-xs text-(--c-muted)">{String(i + 1).padStart(2, '0')}</span>
@@ -167,25 +199,53 @@ export function LandingPage({ embedded = false }: { embedded?: boolean }) {
         <section className="py-16">
           <div className="mx-auto max-w-6xl px-4 md:px-10">
             <p className="tm-label dot tm-reveal">this month</p>
-            <h2 className="tm-headline tm-reveal mt-4 text-4xl md:text-6xl">
-              이달에 많이 <em>걸은</em> 지도
+            <h2 className="tm-headline tm-reveal mt-4 text-4xl md:text-6xl" style={{ '--delay': '0.1s' } as CSSProperties}>
+              이달의 <em>컨셉지도</em>
             </h2>
           </div>
-          <div className="tm-scroll mt-10 flex snap-x gap-6 overflow-x-auto px-4 pb-8 md:px-[max(40px,calc((100vw-1152px)/2+40px))]">
-            {top.map((e, i) => (
-              <Link
-                key={e.map.id}
-                href={`/maps/${e.map.id}`}
-                className="tm-reveal w-60 shrink-0 snap-start bg-white p-2.5 pb-4 text-gray-900 shadow-[0_12px_30px_-10px_rgb(0_0_0/0.35)] transition hover:-translate-y-1 hover:rotate-0"
-                style={{ transform: `rotate(${[-2, 1.5, -1, 2][i % 4]}deg)`, '--delay': `${i * 0.06}s` } as CSSProperties}
-              >
-                <MapThumb id={e.map.id} theme={e.map.theme} cover={e.map.coverUrl} dots={e.pinCount} className="h-48" />
-                <p className="mt-3 truncate font-bold">{e.map.title}</p>
-                <p className="mt-0.5 font-mono text-[11px] uppercase text-gray-500">
-                  #{e.rank} · {e.owner.nickname} · {e.users} walked
-                </p>
-              </Link>
-            ))}
+          {/* 한 장씩 가운데로 넘어와 커진 채로 머문다. 마우스를 올리거나 카드에 초점이 가면 멈춘다 */}
+          <div
+            ref={stripRef}
+            onMouseEnter={() => setPaused(true)}
+            onMouseLeave={() => setPaused(false)}
+            onFocus={() => setPaused(true)}
+            onBlur={() => setPaused(false)}
+            className="mt-8 overflow-hidden pb-8 pt-6 [mask-image:linear-gradient(to_right,transparent,black_6%,black_94%,transparent)]"
+          >
+            <div
+              className={`flex w-max ${animate ? 'transition-transform duration-700 ease-[cubic-bezier(0.65,0,0.35,1)]' : ''}`}
+              style={{ transform: `translateX(${stripW / 2 - (n + slide) * SLIDE_W - CARD_W / 2}px)` }}
+              onTransitionEnd={(ev) => {
+                // 가운데 줄 끝까지 왔으면 애니메이션 없이 처음 위치로 되감는다 (보이는 모습은 똑같다)
+                if (ev.target !== ev.currentTarget || slide < n) return
+                setAnimate(false)
+                setSlide((i) => i - n)
+              }}
+            >
+              {[...slides, ...slides, ...slides].map((e, i) => {
+                const copy = i < n || i >= 2 * n
+                const center = i === n + slide
+                return (
+                  <div key={i} className="shrink-0 pr-6" aria-hidden={copy || undefined}>
+                    {/* 카드 크기와 딱 맞는 상자를 키워서 제자리에서 커진다 (카드의 .tm-reveal 은 투명도 전환만 가져서 여기서 따로) */}
+                    <div className={`w-60 transition-[scale] duration-500 ease-out ${center ? 'scale-[1.08] motion-reduce:scale-100' : ''}`}>
+                      <Link
+                        href={`/maps/${e.map.id}`}
+                        tabIndex={copy ? -1 : undefined}
+                        className="tm-reveal block w-60 bg-white p-2.5 pb-4 text-gray-900 shadow-[0_12px_30px_-10px_rgb(0_0_0/0.35)] transition hover:-translate-y-1 hover:rotate-0"
+                        style={{ transform: `rotate(${[-2, 1.5, -1, 2][i % 4]}deg)`, '--delay': `${0.1 + (i % n) * 0.08}s` } as CSSProperties}
+                      >
+                        <MapThumb id={e.map.id} theme={e.map.theme} cover={e.map.coverUrl} dots={e.pinCount} className="h-48" />
+                        <p className="mt-3 truncate font-bold">{e.map.title}</p>
+                        <p className="mt-0.5 font-mono text-[11px] uppercase text-gray-500">
+                          #{e.rank} · {e.owner.nickname} · {e.users} explored
+                        </p>
+                      </Link>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
           </div>
         </section>
       )}
@@ -193,15 +253,19 @@ export function LandingPage({ embedded = false }: { embedded?: boolean }) {
       {/* ---- 5. 마지막 한마디 ---- */}
       <section className="border-t border-(--c-border) px-4 py-28 text-center md:px-10">
         <p className="tm-label dot tm-reveal">your turn</p>
-        <h2 className="tm-headline tm-reveal mx-auto mt-6 max-w-4xl text-5xl md:text-8xl">
-          내가 지나온 <em>추억</em>을
-          <br />
-          지도에 남겨요
+        {/* 한 줄씩 차례로 떠오른다 */}
+        <h2 className="tm-headline mx-auto mt-6 max-w-4xl text-5xl md:text-8xl">
+          <span className="tm-reveal block" style={{ '--delay': '0.1s' } as CSSProperties}>
+            내가 지나온 <em>추억</em>을
+          </span>
+          <span className="tm-reveal block" style={{ '--delay': '0.3s' } as CSSProperties}>
+            지도에 남겨요
+          </span>
         </h2>
-        <Link href={startHref} className="tm-btn tm-reveal mt-10 inline-block rounded-full bg-(--c-accent) px-8 py-4 text-base font-bold text-(--c-accent-text)">
+        <Link href={startHref} style={{ '--delay': '0.5s' } as CSSProperties} className="tm-btn tm-reveal mt-10 inline-block rounded-full bg-(--c-accent) px-8 py-4 text-base font-bold text-(--c-accent-text)">
           {loggedIn ? '내 지도로 가기 →' : '무료로 시작하기 →'}
         </Link>
-        <p className="mt-16 font-mono text-[11px] uppercase tracking-wider text-(--c-muted)">© concept map · made for walkers</p>
+        <p className="tm-reveal mt-16 font-mono text-[11px] uppercase tracking-wider text-(--c-muted)" style={{ '--delay': '0.65s' } as CSSProperties}>© my concept map · made for explorers</p>
       </section>
     </div>
   )
@@ -228,7 +292,7 @@ function MapPaper({ children, tint = '#ff5a2b' }: { children?: React.ReactNode; 
     [168, 300, 62, 40], [244, 296, 74, 36], [332, 290, 60, 44], [96, 304, 50, 30],
   ]
   return (
-    <svg viewBox="0 0 400 440" className="block h-auto w-full" role="img" aria-label="컨셉지도 예시 (성수동 코스)">
+    <svg viewBox="0 0 400 440" className="block h-auto w-full" role="img" aria-label="My Concept Map 예시 (성수동 코스)">
       <defs>
         <pattern id="tm-grid" width="22" height="22" patternUnits="userSpaceOnUse">
           <path d="M22 0H0V22" fill="none" stroke="currentColor" strokeOpacity="0.05" />
@@ -390,13 +454,85 @@ const STEP_TINTS = ['#ff5a2b', '#ff5a2b', '#7c5cff', '#ff5a2b']
 /** 단계별 그림: 0 핀 · 1 길 + 대중교통 · 2 꾸미기(색 · 스티커) · 3 공유(카드 · 카톡) */
 const PICK_COLORS = ['#7c5cff', '#ff5a2b', '#22c55e', '#ff4fa3', '#0ea5e9', '#171614']
 
+/** 채팅 말풍선이 차례로 나타나기 (i 번째, 사라질 때는 한꺼번에) */
+const chatAppear = (show: boolean, i: number): CSSProperties => {
+  const delay = show ? 0.35 + i * 0.45 : 0
+  return { opacity: show ? 1 : 0, transform: show ? 'none' : 'translateY(10px)', transition: `opacity .4s ${delay}s, transform .4s ${delay}s` }
+}
+
+/** 친구 말풍선 (왼쪽: 얼굴 + 이름 + 흰 말풍선) */
+function FriendBubble({ style, face, name, text }: { style: CSSProperties; face: string; name: string; text: string }) {
+  return (
+    <div className="flex items-end gap-1.5" style={style}>
+      <span className="grid size-7 shrink-0 place-items-center rounded-full bg-white text-sm">{face}</span>
+      <div>
+        <p className="mb-0.5 text-[10px] text-gray-600">{name}</p>
+        <p className="rounded-xl rounded-tl-sm bg-white px-2.5 py-1.5 text-[12px] leading-snug text-gray-900">{text}</p>
+      </div>
+    </div>
+  )
+}
+
+/** 4단계 그림: 친구들 단톡방에 내 지도를 공유하고, 친구들이 답하는 모습. 말풍선이 하나씩 올라온다 */
+function ShareChat({ show }: { show: boolean }) {
+  const appear = (i: number) => chatAppear(show, i)
+  return (
+    <div
+      className="pointer-events-none absolute inset-0 flex flex-col overflow-hidden rounded-3xl border-[1.5px] border-(--c-ink) bg-[#b8cadb] shadow-[8px_8px_0_var(--c-ink)] transition-all duration-700"
+      style={{ opacity: show ? 1 : 0, transform: show ? 'none' : 'scale(0.96)' }}
+      aria-hidden
+    >
+      {/* 방 제목 */}
+      <div className="flex items-center gap-2 bg-[#a9bdd0] px-4 py-2.5 text-gray-900">
+        <span className="text-sm">‹</span>
+        <span className="text-[13px] font-bold">주말 빵지순례 🥐</span>
+        <span className="text-[12px] text-gray-600">4</span>
+      </div>
+
+      <div className="flex flex-1 flex-col justify-end gap-2 px-3 pb-2">
+        <FriendBubble style={appear(0)} face="🐰" name="민지" text="이번 주말에 뭐 하지?" />
+
+        {/* 내가 보낸 지도 카드 */}
+        <div className="flex justify-end" style={appear(1)}>
+          <div className="w-44 overflow-hidden rounded-xl bg-white text-gray-900 shadow-sm">
+            <svg viewBox="0 0 400 440" className="block h-24 w-full" preserveAspectRatio="xMidYMid slice">
+              <rect width="400" height="440" fill="#fff4ec" />
+              <path d={ROUTE} fill="none" stroke="#ff5a2b" strokeWidth="10" strokeLinecap="round" />
+              {PINS.map((p) => (
+                <circle key={p.e} cx={p.x} cy={p.y} r="22" fill={p.c} stroke="#fff" strokeWidth="6" />
+              ))}
+            </svg>
+            <div className="px-2.5 py-2">
+              <p className="text-[12px] font-bold">성수 빵지순례 🥐</p>
+              <p className="text-[10px] text-gray-500">My Concept Map · 장소 4곳</p>
+            </div>
+            <p className="border-t border-gray-100 py-1.5 text-center text-[11px] font-semibold">지도 보기</p>
+          </div>
+        </div>
+        <div className="flex justify-end" style={appear(2)}>
+          <p className="rounded-xl rounded-tr-sm bg-[#FEE500] px-2.5 py-1.5 text-[12px] text-gray-900">여기 다 같이 가자!</p>
+        </div>
+
+        <FriendBubble style={appear(3)} face="🐻" name="준호" text="나 📚 동네 책방도 지도에 넣어놨어! 토요일 콜?" />
+      </div>
+
+      {/* 입력창 */}
+      <div className="flex items-center gap-2 bg-white px-3 py-2">
+        <span className="flex-1 text-[11px] text-gray-400">메시지 입력</span>
+        <span className="rounded-md bg-[#FEE500] px-2 py-0.5 text-[10px] font-bold text-gray-900">전송</span>
+      </div>
+    </div>
+  )
+}
+
 function StepMap({ step }: { step: number }) {
   // 3단계(꾸미기)에서 색 동그라미를 누르면 진짜로 지도 색이 바뀐다
   const [pick, setPick] = useState(PICK_COLORS[0])
   const tint = step === 2 ? pick : STEP_TINTS[step]
   return (
     <div className="relative mx-auto w-full max-w-sm">
-      <div className="overflow-hidden rounded-3xl border-[1.5px] border-(--c-ink) shadow-[8px_8px_0_var(--c-ink)] transition-transform duration-700" style={{ transform: step === 3 ? 'rotate(-4deg) scale(0.92)' : 'none' }}>
+      {/* 4단계에서는 지도 대신 채팅방 그림이 그 자리에 뜬다 */}
+      <div className="overflow-hidden rounded-3xl border-[1.5px] border-(--c-ink) shadow-[8px_8px_0_var(--c-ink)] transition-all duration-700" style={{ opacity: step === 3 ? 0 : 1, transform: step === 3 ? 'scale(0.94)' : 'none' }}>
         <MapPaper tint={tint}>
           <path d={ROUTE} fill="none" stroke="#fff" strokeWidth="12" strokeLinecap="round" opacity={step >= 1 ? 1 : 0} style={{ transition: 'opacity .5s' }} />
           <path
@@ -444,14 +580,8 @@ function StepMap({ step }: { step: number }) {
           </g>
         </MapPaper>
       </div>
-      {/* 4단계: 공유 카드들 */}
-      <div className="pointer-events-none absolute inset-0" aria-hidden>
-        <div className="absolute -right-4 top-6 w-40 rotate-[8deg] rounded-xl bg-[#FEE500] p-3 text-gray-900 shadow-xl transition-all duration-700" style={{ opacity: step === 3 ? 1 : 0, transform: step === 3 ? 'rotate(8deg) translateY(0)' : 'rotate(8deg) translateY(30px)' }}>
-          <p className="text-xs font-bold">💬 카카오톡</p>
-          <p className="mt-1 text-sm font-bold">성수 빵지순례</p>
-          <p className="text-[11px]">10월 30일 · 성수역 · 3/6명</p>
-        </div>
-      </div>
+      {/* 4단계: 단톡방에 지도를 공유한 그림 */}
+      <ShareChat show={step === 3} />
       {/* 3단계: 꾸미기 도구 */}
       <div
         className={`absolute -bottom-6 left-1/2 flex items-center gap-2 rounded-full bg-(--c-surface) p-2 pl-3.5 shadow-lg ring-1 ring-(--c-border) transition-all duration-500 ${step === 2 ? '' : 'pointer-events-none'}`}

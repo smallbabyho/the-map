@@ -317,7 +317,7 @@ function ProfileBanner({ deco, editing, onBanner, onError }: { deco: ProfileDeco
           <div className="absolute -right-10 -top-16 size-64 rounded-full bg-(--c-accent) opacity-80 mix-blend-multiply" aria-hidden />
           <div className="absolute -bottom-20 left-1/3 size-56 rounded-full bg-(--c-sky) opacity-70 mix-blend-multiply" aria-hidden />
           <div className="absolute -left-8 top-6 size-36 rotate-12 rounded-[40%] bg-(--c-lime) opacity-80 mix-blend-multiply" aria-hidden />
-          <p className="absolute bottom-3 right-5 font-mono text-[11px] font-bold uppercase tracking-[0.2em] opacity-60">concept map ® diary</p>
+          <p className="absolute bottom-3 right-5 font-mono text-[11px] font-bold uppercase tracking-[0.2em] opacity-60">my concept map ® diary</p>
         </>
       )}
       {editing && (

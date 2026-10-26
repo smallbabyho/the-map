@@ -24,14 +24,14 @@ async function koreanFont(text: string): Promise<ArrayBuffer | null> {
 
 export async function GET(req: NextRequest) {
   const q = req.nextUrl.searchParams;
-  const title = (q.get("t") ?? "").slice(0, 40) || "컨셉지도";
+  const title = (q.get("t") ?? "").slice(0, 40) || "My Concept Map";
   const sub = (q.get("s") ?? "").slice(0, 60);
   const theme = getTheme(q.get("th") ?? undefined);
   // 코스는 아래 제목 띠(약 110px)를 피해 위쪽에, 비율을 지켜 가운데로
   const area = H - 110;
   const k = Math.min(W / 1000, area / 500);
   const pts = decodeCourse(q.get("p")).map((p) => ({ x: (W - 1000 * k) / 2 + p.x * k, y: 8 + p.y * k }));
-  const font = await koreanFont(`${title}${sub}컨셉지도0123456789`);
+  const font = await koreanFont(`${title}${sub}My Concept Map0123456789`);
 
   return new ImageResponse(
     (

@@ -229,13 +229,13 @@ function Illustration() {
         </div>
       ))}
       <div className="absolute bottom-12 left-12 right-12">
-        <p className="tm-label dot !text-white/60">concept map ® vol.01</p>
+        <p className="tm-label dot !text-white/60">my concept map ® vol.01</p>
         <h2 className="tm-headline mt-4 text-6xl">
           나만의 테마로
           <br />
           <em className="text-(--c-lime)">지도</em>를 꾸미고,
           <br />
-          함께 걸어요
+          세상을 누벼요
         </h2>
       </div>
     </aside>

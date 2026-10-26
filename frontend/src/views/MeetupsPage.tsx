@@ -51,7 +51,7 @@ export function MeetupsPage() {
       <main className="mx-auto max-w-6xl px-4 pb-16 pt-6 md:px-10 md:pt-12">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
-            <p className="tm-label dot">walk together · 함께 걷는 컨셉지도</p>
+            <p className="tm-label dot">explore together · 함께 떠나는 여정</p>
             <h1 className="tm-headline mt-3 text-5xl md:text-7xl">
               성지<em>순례</em>
             </h1>

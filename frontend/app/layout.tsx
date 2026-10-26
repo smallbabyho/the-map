@@ -4,8 +4,9 @@ import { EARLY_APPEARANCE_SCRIPT } from "@/src/components/appearanceScript";
 import { AppearanceSync } from "@/src/components/AppearanceSync";
 
 export const metadata: Metadata = {
-  title: "컨셉지도",
-  description: "나만의 테마로 지도를 꾸미고 공유하는 컨셉지도",
+  // 각 페이지는 '성지순례' 처럼 앞부분만 정하면 뒤에 사이트 이름이 붙는다
+  title: { default: "My Concept Map", template: "%s · My Concept Map" },
+  description: "나만의 테마로 지도를 꾸미고 공유하는 My Concept Map",
 };
 
 export const viewport: Viewport = {

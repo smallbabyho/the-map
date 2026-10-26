@@ -64,7 +64,7 @@ export function MeetupNewPage() {
       if (cancelled) return
       setDetail(d)
       if (d?.pins[0]) setMeetPoint((cur) => cur || d.pins[0].place.name)
-      if (d) setTitle((cur) => cur || `${d.map.title || '우리 지도'} 같이 걸어요`)
+      if (d) setTitle((cur) => cur || `${d.map.title || '우리 지도'} 같이 떠나요`)
     })
     return () => {
       cancelled = true

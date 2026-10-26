@@ -5,6 +5,8 @@ const nextConfig: NextConfig = {
   experimental: {
     agentFeedback: true,
   },
+  // 개발 서버 화면 구석의 Next.js 아이콘 끄기 (컴파일 · 실행 오류 창은 그대로 뜬다)
+  devIndicators: false,
   cacheComponents: true,
   partialPrefetching: true,
   async redirects() {

@@ -50,7 +50,7 @@ function StoryCardDialog({ data, onClose }: { data: StoryCardData; onClose: () =
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose])
 
-  const fileName = `${(data.map.title || '컨셉지도').replace(/[\\/:*?"<>|]/g, '').slice(0, 40)}.png`
+  const fileName = `${(data.map.title || 'My Concept Map').replace(/[\\/:*?"<>|]/g, '').slice(0, 40)}.png`
   const file = blob ? new File([blob], fileName, { type: 'image/png' }) : null
   const canShare = !!file && typeof navigator !== 'undefined' && !!navigator.canShare?.({ files: [file] })
 

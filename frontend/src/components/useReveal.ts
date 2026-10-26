@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, type RefObject } from 'react'
 
 /**
- * 안쪽의 .tm-reveal 요소가 화면에 들어오면 data-shown="true" 를 붙인다 (app/globals.css 의 .tm-reveal 이 툭 나타나게).
+ * 안쪽의 .tm-reveal 요소가 화면에 들어오면 data-shown="true" 를 붙인다 (app/globals.css 의 .tm-reveal 이 서서히 페이드인).
  * 한 번 나타나면 다시 숨기지 않는다. 지연은 style={{ '--delay': '0.1s' }} 로.
  *
  * @example

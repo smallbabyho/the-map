@@ -114,7 +114,7 @@ export async function drawStoryCard(canvas: HTMLCanvasElement, { map, pins, legs
   ctx.fill()
   ctx.fillStyle = sub
   ctx.font = `700 30px ${FONT}`
-  ctx.fillText('CONCEPT MAP · 컨셉지도', 106, 136)
+  ctx.fillText('MY CONCEPT MAP', 106, 136)
 
   ctx.fillStyle = ink
   ctx.font = `800 84px ${FONT}`
@@ -280,6 +280,6 @@ export async function drawStoryCard(canvas: HTMLCanvasElement, { map, pins, legs
   ctx.fillStyle = '#9ca3af'
   ctx.font = `600 28px ${FONT}`
   ctx.textAlign = 'center'
-  ctx.fillText(`📍 컨셉지도 · ${window.location.host}`, STORY_W / 2, STORY_H - 60)
+  ctx.fillText(`📍 My Concept Map · ${window.location.host}`, STORY_W / 2, STORY_H - 60)
   ctx.textAlign = 'left'
 }

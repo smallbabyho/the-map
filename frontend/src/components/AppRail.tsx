@@ -32,16 +32,16 @@ function navItems(isAdmin: boolean): NavItem[] {
 /** 헤더 높이(px). 목록형 화면은 이만큼 위를 비운다 (pt-14) */
 export const HEADER_H = 56
 
-/** 로고: 핀 + CONCEPT MAP® */
+/** 로고: 핀 + My Concept Map® */
 export function Wordmark({ className = '' }: { className?: string }) {
   return (
-    <Link href="/about" className={`flex items-center gap-2 ${className}`} aria-label="컨셉지도 소개">
+    <Link href="/about" className={`flex items-center gap-2 ${className}`} aria-label="My Concept Map 소개">
       <span className="grid size-8 place-items-center rounded-full bg-(--c-ink) text-[15px] text-(--c-bg)" aria-hidden>
         📍
       </span>
       {/* 고전 세리프 (Playfair Display 900): 오래된 지도책 표지 느낌 */}
-      <span className="whitespace-nowrap text-[24px] leading-none tracking-[-0.01em]" style={{ fontFamily: '"Playfair Display", "Noto Serif KR", serif', fontWeight: 900 }}>
-        Concept <span className="italic">Map</span>
+      <span className="whitespace-nowrap text-[24px] italic leading-none tracking-[-0.01em]" style={{ fontFamily: '"Playfair Display", "Noto Serif KR", serif', fontWeight: 900 }}>
+        My <span className="text-(--c-accent)">Concept</span> Map
         <sup className="ml-0.5 align-super font-mono text-[10px] font-bold">®</sup>
       </span>
     </Link>
@@ -63,6 +63,7 @@ export function AppRail({ active }: { active: NavKey }) {
             <Link
               key={it.key}
               href={it.href}
+              data-tour={`nav-${it.key}`}
               aria-current={active === it.key ? 'page' : undefined}
               className={`rounded-full px-3 py-1.5 text-sm font-semibold transition ${active === it.key ? 'bg-(--c-ink) text-(--c-bg)' : 'text-(--c-muted) hover:text-(--c-text)'}`}
             >
@@ -93,6 +94,7 @@ export function HeaderActions({ user: given, active, floating = false }: { user?
       ) : user ? (
         <Link
           href={`/u/${user.id}`}
+          data-tour="nav-profile"
           className={`flex items-center gap-2 rounded-full py-0.5 pl-0.5 pr-0.5 transition hover:bg-black/5 sm:pr-3 ${active === 'profile' ? 'ring-2 ring-(--c-accent)' : ''}`}
           aria-label="내 프로필"
         >
@@ -219,7 +221,7 @@ function MainMenu({ user }: { user: User | null }) {
             문제 제보 · 신고 <span aria-hidden>🛠️</span>
           </button>
           <Link href="/about" onClick={close} className={item}>
-            컨셉지도 소개 <span aria-hidden>📍</span>
+            My Concept Map 소개 <span aria-hidden>📍</span>
           </Link>
           {user?.role === 'admin' && (
             <Link href="/customers" onClick={close} className={item}>
@@ -263,6 +265,7 @@ export function MobileTabBar({ active }: { active: NavKey }) {
         <Link
           key={it.key}
           href={it.href}
+          data-tour={`nav-${it.key}`}
           className={`flex flex-1 flex-col items-center gap-0.5 py-2 text-[11px] font-semibold ${active === it.key ? 'text-(--c-text)' : 'text-(--c-muted)'}`}
         >
           {it.icon}

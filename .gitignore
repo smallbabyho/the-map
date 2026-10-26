@@ -25,6 +25,9 @@ backend/supabase/.branches/
 .idea/
 *.log
 
+# 예시 데이터 SQL (로컬 전용, 저장소에 올리지 않음)
+backend/supabase/seed_demo.sql
+
 # 환경 변수 (키가 들어가므로 절대 커밋 금지, .env.example만 커밋)
 # ⚠️ 이 블록은 항상 파일 맨 아래에 두세요. 아래에 .env.* 를 다시 쓰면 .env.example 까지 무시됩니다.
 .env

@@ -1,6 +1,6 @@
 -- ============================================================================
 -- 컨셉지도 DB 전체 설정 (자동 생성 파일 — 직접 고치지 말고 migrations/ 를 고친 뒤 다시 만든다)
--- migrations/ 의 SQL 17개를 파일 이름 순서대로 이어 붙인 것.
+-- migrations/ 의 SQL 25개를 파일 이름 순서대로 이어 붙인 것.
 -- Supabase 대시보드 → SQL Editor → New query 에 전체를 붙여 넣고 Run. 여러 번 실행해도 괜찮다.
 -- ============================================================================
 
@@ -1331,3 +1331,592 @@ drop policy if exists "maps: 공개 · 주인 · 편집자 · 모임 읽기" on 
 create policy "maps: 공개 · 주인 · 편집자 · 모임 읽기" on public.maps
   for select to anon, authenticated
   using (is_public or owner_id = (select auth.uid()) or public.is_map_editor(id) or public.map_in_visible_meetup(id));
+
+-- ---------------------------------------------------------------------------
+-- migrations/20261026001100_place_reviews.sql
+-- ---------------------------------------------------------------------------
+-- 장소 리뷰 · 장소 통계 (인기 장소)
+--   place_reviews : 장소마다 한 사람당 리뷰 1개 (별점 1~5 + 한 줄 후기). 그 장소를 자기 지도(주인 · 공동 편집자)에 담은 사람만 쓸 수 있다.
+--   place_stats() : 장소별 '담긴 지도 수'(비공개 지도 포함) · 리뷰 수 · 평균 별점. 어느 지도인지는 알려주지 않고 숫자만 준다.
+
+create table if not exists public.place_reviews (
+  id         uuid primary key default gen_random_uuid(),
+  place_id   uuid not null references public.places (id) on delete cascade,
+  user_id    uuid not null default auth.uid() references public.profiles (id) on delete cascade,
+  rating     smallint not null check (rating between 1 and 5),
+  body       text not null default '' check (char_length(body) <= 100),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint place_reviews_one_per_user unique (place_id, user_id)
+);
+create index if not exists place_reviews_place_idx on public.place_reviews (place_id, created_at desc);
+
+drop trigger if exists place_reviews_set_updated_at on public.place_reviews;
+create trigger place_reviews_set_updated_at
+  before update on public.place_reviews
+  for each row execute function public.set_updated_at();
+
+-- ---------------------------------------------------------------------------
+-- 헬퍼: 내가 고칠 수 있는 지도(주인 · 공동 편집자)에 이 장소가 핀으로 있나
+-- ---------------------------------------------------------------------------
+create or replace function public.has_pinned_place(p_place_id uuid)
+returns boolean language sql stable security definer set search_path = ''
+as $$
+  select exists (
+    select 1 from public.pins p
+    join public.maps m on m.id = p.map_id
+    where p.place_id = p_place_id
+      and (m.owner_id = (select auth.uid()) or public.is_map_editor(m.id))
+  );
+$$;
+revoke all on function public.has_pinned_place(uuid) from public;
+grant execute on function public.has_pinned_place(uuid) to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- 권한: 읽기는 누구나, 쓰기는 담은 사람 본인만, 지우기는 본인 또는 관리자
+-- ---------------------------------------------------------------------------
+alter table public.place_reviews enable row level security;
+
+drop policy if exists "place_reviews: 누구나 읽기" on public.place_reviews;
+create policy "place_reviews: 누구나 읽기" on public.place_reviews
+  for select to anon, authenticated using (true);
+
+drop policy if exists "place_reviews: 담은 사람만 작성" on public.place_reviews;
+create policy "place_reviews: 담은 사람만 작성" on public.place_reviews
+  for insert to authenticated
+  with check (user_id = (select auth.uid()) and public.has_pinned_place(place_id));
+
+drop policy if exists "place_reviews: 본인만 수정" on public.place_reviews;
+create policy "place_reviews: 본인만 수정" on public.place_reviews
+  for update to authenticated
+  using (user_id = (select auth.uid()))
+  with check (user_id = (select auth.uid()) and public.has_pinned_place(place_id));
+
+drop policy if exists "place_reviews: 본인 또는 관리자 삭제" on public.place_reviews;
+create policy "place_reviews: 본인 또는 관리자 삭제" on public.place_reviews
+  for delete to authenticated
+  using (user_id = (select auth.uid()) or public.is_admin());
+
+-- ---------------------------------------------------------------------------
+-- 장소 통계: 카카오 장소 ID 목록 → 담긴 지도 수 · 리뷰 수 · 평균 별점
+--   비공개 지도도 세야 해서 security definer. 아직 아무도 담지 않은 장소는 결과에 없다.
+--
+--   select * from place_stats(array['8134820', '27531028']);
+-- ---------------------------------------------------------------------------
+create or replace function public.place_stats(p_external_ids text[])
+returns table (external_id text, place_id uuid, map_count bigint, review_count bigint, avg_rating numeric)
+language sql stable security definer set search_path = ''
+as $$
+  select pl.external_id, pl.id,
+    (select count(distinct p.map_id) from public.pins p where p.place_id = pl.id),
+    (select count(*) from public.place_reviews r where r.place_id = pl.id),
+    (select round(avg(r.rating), 1) from public.place_reviews r where r.place_id = pl.id)
+  from public.places pl
+  where pl.external_id = any (p_external_ids[1:100]);
+$$;
+revoke all on function public.place_stats(text[]) from public;
+grant execute on function public.place_stats(text[]) to anon, authenticated;
+
+-- ---------------------------------------------------------------------------
+-- migrations/20261026001200_review_moderation.sql
+-- ---------------------------------------------------------------------------
+-- 장소 리뷰 악성 방지
+--   1. 신고: reports.target 에 'review' 추가. 서로 다른 3명이 신고하면 리뷰를 자동으로 숨긴다 (별점 평균에서도 빠짐).
+--      관리자가 신고를 '기각'하면 다시 보이고, '콘텐츠 내리기'면 지운다.
+--   2. 가입하고 24시간이 지나야 리뷰를 쓸 수 있다 (관리자 제외).
+--   3. 한 사람이 24시간 동안 새 리뷰는 10개까지.
+--   4. 금지어가 들어간 후기는 저장하지 않는다 (띄어쓰기 · 기호를 빼고 비교). 목록은 frontend/src/lib/bannedWords.ts 와 같게 유지.
+
+-- ---------------------------------------------------------------------------
+-- 1. 신고 대상에 리뷰 추가 + 숨김 표시
+-- ---------------------------------------------------------------------------
+alter table public.reports drop constraint if exists reports_target_check;
+alter table public.reports add constraint reports_target_check check (target in ('user', 'meetup', 'map', 'comment', 'bug', 'review'));
+
+alter table public.place_reviews add column if not exists hidden boolean not null default false;
+
+-- 숨긴 리뷰는 쓴 사람과 관리자만 본다
+drop policy if exists "place_reviews: 누구나 읽기" on public.place_reviews;
+create policy "place_reviews: 누구나 읽기" on public.place_reviews
+  for select to anon, authenticated
+  using (not hidden or user_id = (select auth.uid()) or (select public.is_admin()));
+
+-- 신고가 3명 이상 모이면 숨기기
+create or replace function public.reports_autohide_review()
+returns trigger language plpgsql security definer set search_path = ''
+as $$
+begin
+  if new.target = 'review' and new.target_id is not null then
+    if (select count(distinct reporter_id) from public.reports
+        where target = 'review' and target_id = new.target_id and status = 'open' and reporter_id is not null) >= 3 then
+      update public.place_reviews set hidden = true where id = new.target_id;
+    end if;
+  end if;
+  return new;
+end;
+$$;
+drop trigger if exists reports_autohide_review on public.reports;
+create trigger reports_autohide_review
+  after insert on public.reports
+  for each row execute function public.reports_autohide_review();
+
+-- ---------------------------------------------------------------------------
+-- 2~4. 쓰기 제한 (가입 하루 · 하루 10개 · 금지어) + 숨김 표시는 관리자만 바꾼다
+-- ---------------------------------------------------------------------------
+create or replace function public.has_banned_word(p_text text)
+returns boolean language sql immutable set search_path = ''
+as $$
+  select exists (
+    select 1
+    from unnest(array[
+      '시발', '씨발', '씨바', 'ㅅㅂ', 'ㅆㅂ', '병신', 'ㅂㅅ', '븅신', '좆', '존나', '개새끼', '개새', '미친놈', '미친년',
+      '지랄', 'ㅈㄹ', '닥쳐', '꺼져', '엿먹', '썅', '염병', '등신', '창녀', '니애미', '느금마', '애미뒤', '애비뒤',
+      'fuck', 'shit', 'bitch'
+    ]) as w
+    -- 한글 · 자모 · 영문 · 숫자만 남기고 비교 (띄어쓰기 · 기호로 피하는 것 막기)
+    where position(w in regexp_replace(lower(coalesce(p_text, '')), '[^가-힣ㄱ-ㅎㅏ-ㅣa-z0-9]', '', 'g')) > 0
+  );
+$$;
+
+create or replace function public.place_reviews_guard()
+returns trigger language plpgsql security definer set search_path = ''
+as $$
+declare
+  v_admin boolean := public.is_admin();
+begin
+  -- 숨김은 신고 · 관리자만 바꾼다 (쓴 사람이 풀 수 없게)
+  if tg_op = 'INSERT' then
+    new.hidden := false;
+  elsif not v_admin then
+    new.hidden := old.hidden;
+  end if;
+
+  if public.has_banned_word(new.body) then
+    raise exception '후기에 쓸 수 없는 말이 들어 있어요. 바르고 고운 말로 써 주세요.';
+  end if;
+
+  -- 새 리뷰일 때만. upsert 로 고칠 때도 INSERT 트리거가 먼저 불리므로 이미 쓴 리뷰가 있으면 건너뛴다
+  if tg_op = 'INSERT' and not v_admin
+     and not exists (select 1 from public.place_reviews where place_id = new.place_id and user_id = new.user_id) then
+    if (select created_at from public.profiles where id = new.user_id) > now() - interval '24 hours' then
+      raise exception '가입하고 하루가 지나면 리뷰를 남길 수 있어요.';
+    end if;
+    if (select count(*) from public.place_reviews where user_id = new.user_id and created_at > now() - interval '24 hours') >= 10 then
+      raise exception '리뷰는 하루에 10개까지 남길 수 있어요. 내일 다시 남겨 주세요.';
+    end if;
+  end if;
+  return new;
+end;
+$$;
+drop trigger if exists place_reviews_guard on public.place_reviews;
+create trigger place_reviews_guard
+  before insert or update on public.place_reviews
+  for each row execute function public.place_reviews_guard();
+
+-- ---------------------------------------------------------------------------
+-- 장소 통계: 숨긴 리뷰는 리뷰 수 · 평균 별점에서 뺀다
+-- ---------------------------------------------------------------------------
+create or replace function public.place_stats(p_external_ids text[])
+returns table (external_id text, place_id uuid, map_count bigint, review_count bigint, avg_rating numeric)
+language sql stable security definer set search_path = ''
+as $$
+  select pl.external_id, pl.id,
+    (select count(distinct p.map_id) from public.pins p where p.place_id = pl.id),
+    (select count(*) from public.place_reviews r where r.place_id = pl.id and not r.hidden),
+    (select round(avg(r.rating), 1) from public.place_reviews r where r.place_id = pl.id and not r.hidden)
+  from public.places pl
+  where pl.external_id = any (p_external_ids[1:100]);
+$$;
+
+-- ---------------------------------------------------------------------------
+-- 신고 처리: 리뷰는 '콘텐츠 내리기'면 삭제, '기각'이면 다시 보이게
+-- ---------------------------------------------------------------------------
+create or replace function public.admin_resolve_report(p_report_id uuid, p_status text, p_note text default '', p_remove_content boolean default false)
+returns void language plpgsql security definer set search_path = ''
+as $$
+declare
+  r public.reports;
+begin
+  perform public.require_admin();
+  select * into r from public.reports where id = p_report_id;
+  if r.id is null then raise exception '신고를 찾을 수 없어요.'; end if;
+  if p_remove_content and r.target_id is not null then
+    if r.target = 'comment' then delete from public.meetup_comments where id = r.target_id;
+    elsif r.target = 'meetup' then update public.meetups set status = 'canceled' where id = r.target_id;
+    elsif r.target = 'map' then update public.maps set is_public = false where id = r.target_id;
+    elsif r.target = 'review' then delete from public.place_reviews where id = r.target_id;
+    end if;
+  elsif r.target = 'review' and p_status = 'dismissed' and r.target_id is not null then
+    update public.place_reviews set hidden = false where id = r.target_id;
+  end if;
+  update public.reports set
+    status = p_status,
+    admin_note = left(coalesce(p_note, ''), 500),
+    resolved_at = case when p_status = 'open' then null else now() end
+  where id = p_report_id;
+end;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- migrations/20261026001300_meetup_room.sql
+-- ---------------------------------------------------------------------------
+-- 순례방: 모임 참여자끼리만 쓰는 방 (/meetups/[id]/room)
+--   meetup_comments : 공개 댓글 → 참여자 전용 채팅으로 (읽기도 참여자만). 공지(주최자) · 후기(모임 뒤) 구분은 그대로.
+--   meetup_checkins : 코스 도착 체크. 누가 몇 번째 장소까지 왔는지 서로 본다.
+--   두 표 모두 실시간(supabase_realtime)으로 바뀐 걸 바로 받는다. 실시간도 읽기 권한(RLS)을 따른다.
+
+-- ---------------------------------------------------------------------------
+-- 채팅: 참여자만 읽기
+-- ---------------------------------------------------------------------------
+drop policy if exists "meetup_comments: 볼 수 있는 모임 읽기" on public.meetup_comments;
+drop policy if exists "meetup_comments: 참여자만 읽기" on public.meetup_comments;
+create policy "meetup_comments: 참여자만 읽기" on public.meetup_comments
+  for select to authenticated
+  using (public.is_meetup_member(meetup_id));
+revoke select on public.meetup_comments from anon;
+
+-- ---------------------------------------------------------------------------
+-- 도착 체크: (모임, 사람, 핀) 하나씩
+-- ---------------------------------------------------------------------------
+create table if not exists public.meetup_checkins (
+  meetup_id  uuid not null references public.meetups (id) on delete cascade,
+  user_id    uuid not null default auth.uid() references public.profiles (id) on delete cascade,
+  pin_id     uuid not null references public.pins (id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (meetup_id, user_id, pin_id)
+);
+
+alter table public.meetup_checkins enable row level security;
+grant select, insert, delete on public.meetup_checkins to authenticated;
+
+drop policy if exists "meetup_checkins: 참여자 읽기" on public.meetup_checkins;
+create policy "meetup_checkins: 참여자 읽기" on public.meetup_checkins
+  for select to authenticated
+  using (public.is_meetup_member(meetup_id));
+
+drop policy if exists "meetup_checkins: 내 도착 체크" on public.meetup_checkins;
+create policy "meetup_checkins: 내 도착 체크" on public.meetup_checkins
+  for insert to authenticated
+  with check (user_id = (select auth.uid()) and public.is_meetup_member(meetup_id));
+
+drop policy if exists "meetup_checkins: 내 체크 풀기" on public.meetup_checkins;
+create policy "meetup_checkins: 내 체크 풀기" on public.meetup_checkins
+  for delete to authenticated
+  using (user_id = (select auth.uid()));
+
+-- ---------------------------------------------------------------------------
+-- 실시간: 이미 들어 있으면 건너뛴다
+-- ---------------------------------------------------------------------------
+do $$
+begin
+  if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'meetup_comments') then
+    alter publication supabase_realtime add table public.meetup_comments;
+  end if;
+  if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'meetup_checkins') then
+    alter publication supabase_realtime add table public.meetup_checkins;
+  end if;
+end;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- migrations/20261026001400_map_plan.sql
+-- ---------------------------------------------------------------------------
+-- 지도 일정: 이 코스를 언제 갈지 (날짜만). 비워 두면 일정 없음.
+--   화면에서는 주인 · 같이 꾸미는 사람에게만 보여 준다 (공개 지도 화면에는 안 나옴).
+
+alter table public.maps add column if not exists planned_date date;
+
+-- ---------------------------------------------------------------------------
+-- migrations/20261026001500_map_purpose.sql
+-- ---------------------------------------------------------------------------
+-- 지도 용도: 기록(record, 다녀온 곳) / 계획(plan, 갈 곳).
+--   기록은 공유돼서 다른 사람의 계획이 된다 (가져오기 → 내 계획). 계획은 다녀온 뒤 [다녀왔어요]로 기록이 된다.
+--   기존 지도는 칸을 처음 만들 때 한 번만 나눈다: 공개 = 기록, 비공개 = 계획. 여러 번 실행해도 다시 나누지 않는다.
+
+-- 가는 날 (20261026001400_map_plan.sql 과 같음. 그 파일을 건너뛰었어도 되게)
+alter table public.maps add column if not exists planned_date date;
+
+do $$
+begin
+  if not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'maps' and column_name = 'purpose') then
+    alter table public.maps add column purpose text not null default 'record';
+    update public.maps set purpose = 'plan' where not is_public;
+  end if;
+end $$;
+
+alter table public.maps drop constraint if exists maps_purpose_check;
+alter table public.maps add constraint maps_purpose_check check (purpose in ('record', 'plan'));
+
+-- 가져오기: 내 계획으로
+create or replace function public.copy_map(p_map_id uuid)
+returns uuid language plpgsql security definer set search_path = ''
+as $$
+declare
+  src public.maps;
+  v_new uuid;
+  v_me uuid := (select auth.uid());
+begin
+  if v_me is null then raise exception '로그인이 필요해요.'; end if;
+  select * into src from public.maps where id = p_map_id;
+  if src.id is null or not (src.is_public or src.owner_id = v_me or public.is_map_editor(src.id)) then
+    raise exception '가져올 수 없는 지도예요.';
+  end if;
+
+  -- 가져온 지도는 내 '계획' (비공개, 가는 날은 비움)
+  insert into public.maps (owner_id, title, theme, is_public, category, marker_shape, line_style, line_width, cover_url, purpose)
+  values (v_me, case when src.owner_id = v_me then left(src.title || ' (복사본)', 60) else src.title end,
+          src.theme, false, src.category, src.marker_shape, src.line_style, src.line_width, src.cover_url, 'plan')
+  returning id into v_new;
+
+  -- 핀: 옛 id → 새 id 를 짝지어 두고 구간을 옮긴다
+  create temporary table _pin_map (old_id uuid, new_id uuid) on commit drop;
+  insert into _pin_map (old_id, new_id) select id, gen_random_uuid() from public.pins where map_id = src.id;
+  insert into public.pins (id, map_id, place_id, sort_order, icon, color, memo, photo_url, visited_at)
+  select pm.new_id, v_new, p.place_id, p.sort_order, p.icon, p.color, p.memo, p.photo_url, null -- 남이 다녀온 날은 안 가져온다
+  from public.pins p join _pin_map pm on pm.old_id = p.id;
+  insert into public.legs (map_id, from_pin_id, to_pin_id, mode, duration_min, is_manual)
+  select v_new, f.new_id, t.new_id, l.mode, l.duration_min, l.is_manual
+  from public.legs l join _pin_map f on f.old_id = l.from_pin_id join _pin_map t on t.old_id = l.to_pin_id
+  where l.map_id = src.id;
+
+  if src.owner_id <> v_me then
+    insert into public.map_uses (map_id, user_id, kind) values (src.id, v_me, 'copy');
+  end if;
+  return v_new;
+end;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- migrations/20261026001600_transit_cache.sql
+-- ---------------------------------------------------------------------------
+-- 대중교통 길찾기 결과를 모두가 같이 쓰는 저장소.
+--   ODsay 무료 키는 하루 호출 수가 적어서(구간 하나 = 경로 검색 + 노선 모양 2번), 한 번 찾은 구간은 2주 동안 다시 부르지 않는다.
+--   key: '출발 lat,lng>도착 lat,lng' (소수 5자리). result: 화면용으로 정리한 결과(JSON).
+--   읽기는 누구나, 쓰기는 로그인한 사람만 (크기 · key 모양 제한).
+
+create table if not exists public.transit_cache (
+  key        text primary key check (key ~ '^-?[0-9]+\.[0-9]{5},-?[0-9]+\.[0-9]{5}>-?[0-9]+\.[0-9]{5},-?[0-9]+\.[0-9]{5}$'),
+  result     jsonb not null check (octet_length(result::text) < 300000),
+  created_at timestamptz not null default now()
+);
+alter table public.transit_cache enable row level security;
+
+grant select on public.transit_cache to anon, authenticated;
+grant insert, update on public.transit_cache to authenticated;
+
+drop policy if exists "transit_cache: 2주 안의 것 읽기" on public.transit_cache;
+create policy "transit_cache: 2주 안의 것 읽기" on public.transit_cache
+  for select to anon, authenticated
+  using (created_at > now() - interval '14 days');
+
+drop policy if exists "transit_cache: 로그인 쓰기" on public.transit_cache;
+create policy "transit_cache: 로그인 쓰기" on public.transit_cache
+  for insert to authenticated with check (true);
+
+drop policy if exists "transit_cache: 로그인 고쳐 쓰기" on public.transit_cache;
+create policy "transit_cache: 로그인 고쳐 쓰기" on public.transit_cache
+  for update to authenticated using (true) with check (true);
+
+-- ---------------------------------------------------------------------------
+-- migrations/20261026001700_meetup_noshow.sql
+-- ---------------------------------------------------------------------------
+-- 노쇼 방지: 주최자가 끝난 모임의 참여자를 '노쇼'로 표시한다.
+--   30일 안에(모임 날짜 기준) 노쇼가 2번 쌓이면, 마지막 노쇼 표시부터 14일 동안 새 모임에 참여할 수 없다 (DB 가 막는다).
+--   노쇼 기록은 주최자와 본인만 본다.
+
+create table if not exists public.meetup_noshows (
+  meetup_id  uuid not null references public.meetups (id) on delete cascade,
+  user_id    uuid not null references public.profiles (id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (meetup_id, user_id)
+);
+create index if not exists meetup_noshows_user_idx on public.meetup_noshows (user_id);
+alter table public.meetup_noshows enable row level security;
+grant select, insert, delete on public.meetup_noshows to authenticated;
+
+-- 끝난 내 모임(주최자)의 참여자인가
+create or replace function public.can_mark_noshow(p_meetup_id uuid, p_user_id uuid)
+returns boolean language sql stable security definer set search_path = ''
+as $$
+  select exists (
+    select 1 from public.meetups m
+    join public.meetup_members mm on mm.meetup_id = m.id and mm.user_id = p_user_id
+    where m.id = p_meetup_id and m.host_id = (select auth.uid()) and m.meet_at < now() and p_user_id <> m.host_id
+  );
+$$;
+revoke all on function public.can_mark_noshow(uuid, uuid) from public;
+grant execute on function public.can_mark_noshow(uuid, uuid) to authenticated;
+
+drop policy if exists "meetup_noshows: 주최자 · 본인 읽기" on public.meetup_noshows;
+create policy "meetup_noshows: 주최자 · 본인 읽기" on public.meetup_noshows
+  for select to authenticated
+  using (user_id = (select auth.uid()) or exists (select 1 from public.meetups m where m.id = meetup_id and m.host_id = (select auth.uid())));
+
+drop policy if exists "meetup_noshows: 주최자 표시" on public.meetup_noshows;
+create policy "meetup_noshows: 주최자 표시" on public.meetup_noshows
+  for insert to authenticated with check (public.can_mark_noshow(meetup_id, user_id));
+
+drop policy if exists "meetup_noshows: 주최자 취소" on public.meetup_noshows;
+create policy "meetup_noshows: 주최자 취소" on public.meetup_noshows
+  for delete to authenticated using (public.can_mark_noshow(meetup_id, user_id));
+
+-- 언제까지 참여가 막혔나 (안 막혔으면 null)
+create or replace function public.noshow_blocked_until(p_user_id uuid)
+returns timestamptz language sql stable security definer set search_path = ''
+as $$
+  select case when count(*) >= 2 and max(n.created_at) + interval '14 days' > now() then max(n.created_at) + interval '14 days' end
+  from public.meetup_noshows n join public.meetups m on m.id = n.meetup_id
+  where n.user_id = p_user_id and m.meet_at > now() - interval '30 days';
+$$;
+revoke all on function public.noshow_blocked_until(uuid) from public, anon, authenticated;
+
+-- 내 노쇼 상태 (화면 안내용)
+create or replace function public.my_noshow_status()
+returns table (recent_count int, blocked_until timestamptz) language sql stable security definer set search_path = ''
+as $$
+  select (select count(*)::int from public.meetup_noshows n join public.meetups m on m.id = n.meetup_id
+          where n.user_id = (select auth.uid()) and m.meet_at > now() - interval '30 days'),
+         public.noshow_blocked_until((select auth.uid()));
+$$;
+revoke all on function public.my_noshow_status() from public;
+grant execute on function public.my_noshow_status() to authenticated;
+
+-- 참여할 때 막기 (주최자 본인이 자기 모임에 들어가는 건 그대로)
+create or replace function public.check_noshow_block()
+returns trigger language plpgsql security definer set search_path = ''
+as $$
+declare
+  v_until timestamptz;
+begin
+  if exists (select 1 from public.meetups m where m.id = new.meetup_id and m.host_id = new.user_id) then
+    return new;
+  end if;
+  v_until := public.noshow_blocked_until(new.user_id);
+  if v_until is not null then
+    raise exception '노쇼가 2번 쌓여서 %까지 새 모임에 참여할 수 없어요.', to_char(v_until at time zone 'Asia/Seoul', 'FMMM"월" FMDD"일"');
+  end if;
+  return new;
+end;
+$$;
+drop trigger if exists meetup_members_noshow_block on public.meetup_members;
+create trigger meetup_members_noshow_block before insert on public.meetup_members
+  for each row execute function public.check_noshow_block();
+
+-- ---------------------------------------------------------------------------
+-- migrations/20261026001800_search.sql
+-- ---------------------------------------------------------------------------
+-- 검색: 공개 지도(제목 · 안에 든 장소 이름) / 사람(닉네임).
+--   지도 필터: 용도(기록/계획) · 카테고리 · 지역(시 · 도, 핀이 하나라도 그 지역에 있으면) · 장소 수 · 모집 중인 성지순례 여부 · 정렬.
+--   검색어는 지도 제목 · 장소 이름 · 직접 적은 카테고리 이름에, 그리고 화면이 넘긴 기본 카테고리(p_q_categories, 예: '카페' → cafe)에 맞춰 본다.
+
+-- 직접 적은 카테고리 이름 (category = 'etc' 일 때 '기타' 대신 보인다)
+alter table public.maps add column if not exists category_label text;
+alter table public.maps drop constraint if exists maps_category_label_check;
+alter table public.maps add constraint maps_category_label_check check (category_label is null or char_length(category_label) between 1 and 20);
+
+-- 예전 모양으로 먼저 만들어 둔 경우 지운다
+drop function if exists public.search_maps(text, text, text, double precision, double precision, double precision, double precision, int, boolean, text, int);
+drop function if exists public.search_maps(text, text, text, double precision, double precision, double precision, double precision, int, boolean, text, int, text[]);
+
+-- 좌표 → 시 · 도 id (근사). 화면 src/components/regions.ts 의 regionOf 와 숫자 · 순서를 똑같이 맞춘다.
+--   특별 · 광역시는 중심에서 반경(km) 안이면 그 도시(가까운 것 먼저), 아니면 가장 가까운 도 중심.
+create or replace function public.region_of(p_lat double precision, p_lng double precision)
+returns text language sql immutable set search_path = ''
+as $$
+  with metro(id, lat, lng, radius) as (values
+    ('seoul', 37.5665, 126.978, 16),
+    ('busan', 35.18, 129.075, 16),
+    ('daegu', 35.871, 128.601, 17),
+    ('incheon', 37.456, 126.705, 15),
+    ('gwangju', 35.16, 126.851, 13),
+    ('daejeon', 36.35, 127.385, 14),
+    ('ulsan', 35.539, 129.311, 20),
+    ('sejong', 36.48, 127.289, 11)
+  ), prov(id, lat, lng) as (values
+    ('gyeonggi', 37.45, 127.2),
+    ('gangwon', 37.75, 128.3),
+    ('chungbuk', 36.75, 127.75),
+    ('chungnam', 36.55, 126.85),
+    ('jeonbuk', 35.72, 127.15),
+    ('jeonnam', 34.85, 126.95),
+    ('gyeongbuk', 36.35, 128.75),
+    ('gyeongnam', 35.3, 128.25),
+    ('jeju', 33.4, 126.55)
+  )
+  select coalesce(
+    (select id from metro
+      where sqrt(power((p_lat - lat) * 111.32, 2) + power((p_lng - lng) * 111.32 * cos(radians((p_lat + lat) / 2)), 2)) <= radius
+      order by power((p_lat - lat) * 111.32, 2) + power((p_lng - lng) * 111.32 * cos(radians((p_lat + lat) / 2)), 2) limit 1),
+    (select id from prov
+      order by power((p_lat - lat) * 111.32, 2) + power((p_lng - lng) * 111.32 * cos(radians((p_lat + lat) / 2)), 2) limit 1)
+  );
+$$;
+
+create or replace function public.search_maps(
+  p_q text default null,
+  p_purpose text default null,
+  p_category text default null,
+  p_region text default null,
+  p_min_pins int default 0,
+  p_has_meetup boolean default false,
+  p_sort text default 'popular',
+  p_limit int default 60,
+  p_q_categories text[] default null
+)
+returns table (map_id uuid, users bigint, pin_count bigint, open_meetups bigint)
+language sql stable security definer set search_path = ''
+as $$
+  with q as (
+    -- % _ 는 글자 그대로 찾게
+    select nullif('%' || replace(replace(replace(btrim(coalesce(p_q, '')), '\', '\\'), '%', '\%'), '_', '\_') || '%', '%%') as pat
+  ),
+  hits as (
+    select m.id, m.updated_at,
+           coalesce(r.users, 0) as users,
+           -- 관련도: 제목 4 · 카테고리 3 · 안의 장소 이름 1
+           case when q.pat is null then 0 else
+             (case when m.title ilike q.pat then 4 else 0 end)
+             + (case when m.category_label ilike q.pat or m.category = any(coalesce(p_q_categories, '{}')) then 3 else 0 end)
+             + (case when exists (select 1 from public.pins p join public.places pl on pl.id = p.place_id where p.map_id = m.id and pl.name ilike q.pat) then 1 else 0 end)
+           end as score,
+           (select count(*) from public.pins p where p.map_id = m.id) as pin_count,
+           (select count(*) from public.meetups mt
+             where mt.map_id = m.id and mt.status = 'open' and mt.visibility = 'public' and mt.meet_at > now()) as open_meetups
+    from public.maps m
+    cross join q
+    left join public.map_users_in_month(to_char(now() at time zone 'Asia/Seoul', 'YYYY-MM')) r on r.map_id = m.id
+    where m.is_public
+      and (q.pat is null or m.title ilike q.pat or m.category_label ilike q.pat or m.category = any(coalesce(p_q_categories, '{}'))
+           or exists (select 1 from public.pins p join public.places pl on pl.id = p.place_id where p.map_id = m.id and pl.name ilike q.pat))
+      and (p_purpose is null or m.purpose = p_purpose)
+      and (p_category is null or m.category = p_category)
+      and (p_region is null or exists (
+            select 1 from public.pins p join public.places pl on pl.id = p.place_id
+            where p.map_id = m.id and public.region_of(pl.lat, pl.lng) = p_region))
+  )
+  select id, users, pin_count, open_meetups from hits
+  where pin_count >= greatest(coalesce(p_min_pins, 0), 0)
+    and (not coalesce(p_has_meetup, false) or open_meetups > 0)
+  -- relevance: 관련도 → 인기. recent: 최근 고친 순. pins: 장소 많은 순. 그 밖(popular): 이번 달 사용한 사람 수
+  order by case when p_sort = 'relevance' then score else 0 end desc,
+           case p_sort when 'recent' then 0 when 'pins' then pin_count else users end desc, updated_at desc
+  limit least(greatest(coalesce(p_limit, 60), 1), 200);
+$$;
+revoke all on function public.search_maps(text, text, text, text, int, boolean, text, int, text[]) from public;
+grant execute on function public.search_maps(text, text, text, text, int, boolean, text, int, text[]) to anon, authenticated;
+
+-- 사람: 닉네임으로. 공개 지도가 많은 사람 먼저. p_has_maps 면 공개 지도가 있는 사람만
+create or replace function public.search_people(p_q text, p_has_maps boolean default false, p_limit int default 30)
+returns table (user_id uuid, public_maps bigint)
+language sql stable security definer set search_path = ''
+as $$
+  select pr.id, (select count(*) from public.maps m where m.owner_id = pr.id and m.is_public) as public_maps
+  from public.profiles pr
+  where btrim(coalesce(p_q, '')) <> ''
+    and pr.nickname ilike '%' || replace(replace(replace(btrim(p_q), '\', '\\'), '%', '\%'), '_', '\_') || '%'
+    and (not coalesce(p_has_maps, false) or exists (select 1 from public.maps m where m.owner_id = pr.id and m.is_public))
+  order by public_maps desc, pr.nickname
+  limit least(greatest(coalesce(p_limit, 30), 1), 100);
+$$;
+revoke all on function public.search_people(text, boolean, int) from public;
+grant execute on function public.search_people(text, boolean, int) to anon, authenticated;

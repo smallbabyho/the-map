@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation'
 import { useEffect, useLayoutEffect, useState } from 'react'
 import { AppRail, MobileTabBar } from '../components/AppRail'
 import { MapCard } from '../components/MapCard'
-import { PlusIcon } from '../components/icons'
+import { PlusIcon, TrashIcon } from '../components/icons'
 import { Tour, type TourStep } from '../components/onboarding/Tour'
 import { useCurrentUser } from '../auth'
 import { deleteMap, getMyMaps, removeMapEditor, saveMap } from '../db/api'
@@ -28,6 +28,9 @@ export function MyMapsPage() {
   const [error, setError] = useState('')
   const [creating, setCreating] = useState<MapPurpose | null>(null)
   const [filter, setFilter] = useState<MapPurpose | 'all'>('all')
+  /** 여러 개 골라 한 번에 지우기. null 이면 고르는 중이 아님 */
+  const [selected, setSelected] = useState<Set<string> | null>(null)
+  const [removing, setRemoving] = useState(false)
   // 성공하면 다음 화면으로 넘어가며 creating 를 안 푼다. 뒤로 오면 Next 가 이 화면을 상태째 다시 보여 주므로, 떠날 때 푼다
   useLayoutEffect(() => () => setCreating(null), [])
 
@@ -69,6 +72,44 @@ export function MyMapsPage() {
     } catch (e) {
       setError(e instanceof Error ? e.message : '삭제하지 못했어요.')
     }
+  }
+
+  const visible = maps?.filter((m) => filter === 'all' || mapPurpose(m) === filter) ?? []
+  const allPicked = !!selected && visible.length > 0 && visible.every((m) => selected.has(m.id))
+
+  const toggleOne = (map: ConceptMap) =>
+    setSelected((prev) => {
+      const next = new Set(prev)
+      if (next.has(map.id)) next.delete(map.id)
+      else next.add(map.id)
+      return next
+    })
+
+  const toggleAll = () => setSelected(allPicked ? new Set() : new Set(visible.map((m) => m.id)))
+
+  /** 고른 지도를 한 번에: 내 지도는 삭제, 함께 꾸미던 남의 지도는 나가기 */
+  const removeSelected = async () => {
+    if (!user || !maps || !selected?.size || removing) return
+    const picked = maps.filter((m) => selected.has(m.id))
+    const sharedCount = picked.filter((m) => m.ownerId !== user.id).length
+    const ownCount = picked.length - sharedCount
+    const parts = [ownCount && `${ownCount}개 삭제`, sharedCount && `${sharedCount}개 함께 꾸미기에서 나가기`].filter(Boolean).join(', ')
+    if (!window.confirm(`고른 지도 ${picked.length}개를 정리할까요? (${parts})${ownCount ? '\n삭제한 지도는 핀도 모두 사라지고 되돌릴 수 없어요.' : ''}`)) return
+    setRemoving(true)
+    setError('')
+    const results = await Promise.allSettled(
+      picked.map((m) => (m.ownerId !== user.id ? removeMapEditor(m.id, user.id) : deleteMap(m.id))),
+    )
+    const done = new Set(picked.filter((_, i) => results[i].status === 'fulfilled').map((m) => m.id))
+    setMaps((prev) => prev?.filter((m) => !done.has(m.id)) ?? null)
+    const failed = picked.length - done.size
+    if (failed) {
+      setError(`${failed}개는 정리하지 못했어요. 잠시 후 다시 시도해 주세요.`)
+      setSelected(new Set(picked.filter((m) => !done.has(m.id)).map((m) => m.id)))
+    } else {
+      setSelected(null)
+    }
+    setRemoving(false)
   }
 
   // 로그인 안 했으면 서비스 소개
@@ -146,7 +187,8 @@ export function MyMapsPage() {
           )}
 
           {maps && maps.length > 0 && (
-            <div className="mb-6 flex gap-1.5" role="tablist" aria-label="지도 용도">
+            <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex gap-1.5" role="tablist" aria-label="지도 용도">
               {([{ id: 'all', label: '전체', emoji: '' }, ...MAP_PURPOSES] as const).map((t) => {
                 const n = t.id === 'all' ? maps.length : maps.filter((m) => mapPurpose(m) === t.id).length
                 return (
@@ -155,7 +197,10 @@ export function MyMapsPage() {
                     type="button"
                     role="tab"
                     aria-selected={filter === t.id}
-                    onClick={() => setFilter(t.id)}
+                    onClick={() => {
+                      setFilter(t.id)
+                      if (selected) setSelected(new Set()) // 안 보이는 지도가 몰래 지워지지 않게
+                    }}
                     className={`rounded-full px-4 py-2 text-sm font-semibold transition ${filter === t.id ? 'bg-(--c-ink) text-(--c-bg)' : 'text-(--c-muted) hover:text-(--c-text)'}`}
                   >
                     {t.emoji} {t.label} <span className="opacity-60">{n}</span>
@@ -163,12 +208,45 @@ export function MyMapsPage() {
                 )
               })}
             </div>
+            {selected ? (
+              <div className="flex flex-wrap items-center gap-1.5 text-sm">
+                <span className="px-2 font-semibold" aria-live="polite">{selected.size}개 선택</span>
+                <button type="button" onClick={toggleAll} className="rounded-full px-4 py-2 font-semibold text-(--c-muted) hover:text-(--c-text)">
+                  {allPicked ? '전체 해제' : '전체 선택'}
+                </button>
+                <button
+                  type="button"
+                  onClick={removeSelected}
+                  disabled={!selected.size || removing}
+                  className="inline-flex items-center gap-1.5 rounded-full bg-red-500 px-4 py-2 font-bold text-white disabled:opacity-40"
+                >
+                  <TrashIcon size={15} />
+                  {removing ? '정리하는 중…' : '삭제'}
+                </button>
+                <button type="button" onClick={() => setSelected(null)} disabled={removing} className="rounded-full px-4 py-2 font-semibold text-(--c-muted) hover:text-(--c-text)">
+                  취소
+                </button>
+              </div>
+            ) : (
+              <button type="button" onClick={() => setSelected(new Set())} className="rounded-full px-4 py-2 text-sm font-semibold text-(--c-muted) ring-1 ring-(--c-border) hover:text-(--c-text)">
+                선택
+              </button>
+            )}
+            </div>
           )}
 
           {maps && maps.length > 0 && (
             <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-              {maps.filter((m) => filter === 'all' || mapPurpose(m) === filter).map((m, i) => (
-                <MapCard key={m.id} map={m} index={i} shared={!!user && m.ownerId !== user.id} onDelete={removeMap} />
+              {visible.map((m, i) => (
+                <MapCard
+                  key={m.id}
+                  map={m}
+                  index={i}
+                  shared={!!user && m.ownerId !== user.id}
+                  onDelete={removeMap}
+                  onToggle={selected ? toggleOne : undefined}
+                  selected={!!selected?.has(m.id)}
+                />
               ))}
             </div>
           )}

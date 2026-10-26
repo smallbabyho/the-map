@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { daysUntil, formatPlanDate, planDday } from '../lib/planDate'
 import type { ConceptMap } from '../types'
-import { GlobeIcon, LockIcon, TrashIcon } from './icons'
+import { CheckIcon, GlobeIcon, LockIcon, TrashIcon } from './icons'
 import { MapThumb } from './MapThumb'
 import { mapCategoryText } from './mapCategories'
 import { mapPurpose, purposeMeta } from './mapPurpose'
@@ -16,14 +16,17 @@ interface Props {
   /** 남의 지도를 함께 꾸미는 중이면 true (삭제 대신 나가기) */
   shared?: boolean
   onDelete: (map: ConceptMap) => void
+  /** 여러 개 고르는 중이면 넘긴다. 카드를 누르면 열지 않고 고르기만 한다 */
+  onToggle?: (map: ConceptMap) => void
+  selected?: boolean
 }
 
-export function MapCard({ map, index, shared = false, onDelete }: Props) {
+export function MapCard({ map, index, shared = false, onDelete, onToggle, selected = false }: Props) {
   const theme = getTheme(map.theme)
   const updated = new Date(map.updatedAt).toLocaleDateString('ko-KR', { year: '2-digit', month: '2-digit', day: '2-digit' })
 
   return (
-    <div className="tm-card group relative overflow-hidden rounded-2xl">
+    <div className={`tm-card group relative overflow-hidden rounded-2xl ${selected ? 'ring-[3px] ring-(--c-accent)' : ''}`}>
       <Link href={`/maps/${map.id}`} className="block">
         <MapThumb id={map.id} theme={map.theme} cover={map.coverUrl} className="h-44">
           <span className="absolute left-3 top-3 rounded-full bg-(--c-ink) px-2.5 py-1 font-mono text-[10px] font-bold uppercase tracking-wider text-(--c-bg)">
@@ -54,15 +57,33 @@ export function MapCard({ map, index, shared = false, onDelete }: Props) {
           </div>
         </div>
       </Link>
-      <button
-        type="button"
-        onClick={() => onDelete(map)}
-        className="absolute right-2 top-2 grid size-8 place-items-center rounded-full bg-(--c-surface) text-(--c-muted) opacity-100 ring-1 ring-(--c-border) transition hover:text-red-500 md:opacity-0 md:group-hover:opacity-100"
-        aria-label={shared ? `${map.title}에서 나가기` : `${map.title} 삭제`}
-        title={shared ? '함께 꾸미기에서 나가기' : '삭제'}
-      >
-        <TrashIcon size={16} />
-      </button>
+      {onToggle ? (
+        // 고르는 중: 카드 전체를 덮는 버튼 하나로 고르기만 (지도로 넘어가지 않게)
+        <button
+          type="button"
+          onClick={() => onToggle(map)}
+          aria-pressed={selected}
+          aria-label={`${map.title || '제목 없는 지도'} ${selected ? '선택 해제' : '선택'}`}
+          className="absolute inset-0 z-10 cursor-pointer"
+        >
+          <span
+            className={`absolute right-2 top-2 grid size-8 place-items-center rounded-full ring-1 transition ${selected ? 'bg-(--c-accent) text-(--c-accent-text) ring-(--c-accent)' : 'bg-(--c-surface) text-transparent ring-(--c-border)'}`}
+            aria-hidden
+          >
+            <CheckIcon size={16} strokeWidth={2.6} />
+          </span>
+        </button>
+      ) : (
+        <button
+          type="button"
+          onClick={() => onDelete(map)}
+          className="absolute right-2 top-2 grid size-8 place-items-center rounded-full bg-(--c-surface) text-(--c-muted) opacity-100 ring-1 ring-(--c-border) transition hover:text-red-500 md:opacity-0 md:group-hover:opacity-100"
+          aria-label={shared ? `${map.title}에서 나가기` : `${map.title} 삭제`}
+          title={shared ? '함께 꾸미기에서 나가기' : '삭제'}
+        >
+          <TrashIcon size={16} />
+        </button>
+      )}
     </div>
   )
 }

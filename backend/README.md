@@ -25,7 +25,8 @@ backend/
 3. **Project Settings → API**에서 아래 두 값을 복사합니다.
    - `Project URL` → `NEXT_PUBLIC_SUPABASE_URL`
    - `anon` `public` 키 → `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-   - ⚠️ `service_role` 키는 RLS를 무시하는 관리자 키입니다. **프론트 코드나 .env, 깃 어디에도 넣지 마세요.**
+   - ⚠️ `service_role` 키는 RLS를 무시하는 관리자 키입니다. **프론트 코드, `NEXT_PUBLIC_` 변수, 깃 어디에도 넣지 마세요.**
+     네이버 로그인을 쓸 때만 서버 전용 변수 `SUPABASE_SERVICE_ROLE_KEY`(아래 6번)에 넣습니다.
 
 > 팀원끼리 같은 Supabase 프로젝트를 쓰면 1번은 한 사람만 하면 됩니다. 나머지 사람은 URL과 anon 키만 받아서 3번(.env)으로 넘어가세요.
 
@@ -108,6 +109,39 @@ NEXT_PUBLIC_TURNSTILE_SITE_KEY=0x4AAAAAAA...       # Turnstile Site Key (Secret 
 `NEXT_PUBLIC_`로 시작하는 값은 빌드 결과물에 그대로 들어가서 **누구나 볼 수 있습니다.**
 그래서 공개해도 되는 값(anon 키, Site Key)만 넣고, 비밀 키는 절대 넣지 않습니다.
 데이터 보호는 RLS가 담당합니다.
+
+### 6. 카카오 · 네이버 · 구글로 시작하기
+
+버튼 하나로 처음이면 가입, 다음부터는 로그인입니다. **같은 이메일이면 이메일 가입 계정과 같은 계정**으로 이어집니다.
+별명과 프로필 사진은 처음 가입할 때 `profiles`에 자동으로 채워집니다 (`20261027000100_social_profile.sql`).
+키를 안 넣은 소셜 버튼은 눌러도 에러 문구만 나오고, 나머지 로그인은 그대로 동작합니다.
+공통: 위 4번의 Redirect URLs(`/**`)에 돌아오는 주소 `/auth/callback`이 포함되어 있어야 합니다.
+
+**구글** (Supabase가 직접 처리)
+1. [Google Cloud Console](https://console.cloud.google.com/) → API 및 서비스 → OAuth 동의 화면 → 사용자 인증 정보 → **OAuth 클라이언트 ID** (웹 애플리케이션)
+2. 승인된 리디렉션 URI: `https://<프로젝트 ref>.supabase.co/auth/v1/callback`
+3. Supabase 대시보드 → **Authentication → Sign In / Providers → Google**에 Client ID · Secret 입력 후 켜기
+
+**카카오** (Supabase가 직접 처리)
+1. [Kakao Developers](https://developers.kakao.com/) → 내 애플리케이션 → 앱 만들기 (지도용 앱이 이미 있으면 그 앱을 써도 됩니다)
+2. 카카오 로그인 활성화, Redirect URI: `https://<프로젝트 ref>.supabase.co/auth/v1/callback`
+3. 동의항목: 닉네임 · 프로필 사진 · **카카오계정(이메일)**. 이메일은 **비즈 앱 전환**을 해야 받을 수 있습니다.
+   이메일 없이 쓰려면 Supabase의 Kakao 설정에서 `Allow users without an email`을 켭니다 (이 경우 이메일 가입 계정과 이어지지 않음).
+4. 보안 → Client Secret 발급 · 활성화
+5. Supabase 대시보드 → **Authentication → Sign In / Providers → Kakao**에 REST API 키(Client ID) · Client Secret 입력 후 켜기
+
+**네이버** (Supabase에 없어서 우리 서버 `frontend/app/api/auth/naver`가 처리)
+1. [네이버 개발자 센터](https://developers.naver.com/apps/) → 애플리케이션 등록 → 사용 API: **네이버 로그인**
+2. 제공 정보: **이메일 주소(필수)**, 별명, 프로필 사진
+3. 서비스 URL `https://myconceptmap.vercel.app`, Callback URL은 둘 다 등록:
+   `https://myconceptmap.vercel.app/api/auth/naver/callback`, `http://localhost:3000/api/auth/naver/callback`
+4. `frontend/.env.local`과 Vercel 환경변수에 넣습니다 (**`NEXT_PUBLIC_` 붙이지 않음**, 서버에서만 쓰임)
+   ```bash
+   NAVER_CLIENT_ID=...
+   NAVER_CLIENT_SECRET=...
+   SUPABASE_SERVICE_ROLE_KEY=...   # Project Settings → API → service_role
+   ```
+5. 개발 중에는 네이버 앱에 등록한 테스트 ID만 로그인됩니다. 모두가 쓰려면 네이버에 **검수 요청**을 합니다.
 
 ---
 

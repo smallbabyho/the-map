@@ -5,11 +5,16 @@ import { hasSupabase } from '../lib/supabase'
 import * as mock from './mock'
 import * as real from './supabase'
 
-type AuthApi = Pick<typeof mock, 'signUp' | 'signIn' | 'signOut' | 'onAuthChange' | 'DEMO_ACCOUNT'>
+type AuthApi = Pick<typeof mock, 'signUp' | 'signIn' | 'signInWithProvider' | 'completeSocialSignIn' | 'getSeenTours' | 'rememberTourSeen' | 'signOut' | 'onAuthChange' | 'DEMO_ACCOUNT'>
 const impl: AuthApi = hasSupabase ? real : mock
 
 export const signUp = impl.signUp
 export const signIn = impl.signIn
+export const signInWithProvider = impl.signInWithProvider
+export const completeSocialSignIn = impl.completeSocialSignIn
+export const getSeenTours = impl.getSeenTours
+export const rememberTourSeen = impl.rememberTourSeen
 export const signOut = impl.signOut
 export const onAuthChange = impl.onAuthChange
 export const DEMO_ACCOUNT = impl.DEMO_ACCOUNT
+export type { SocialProvider } from './mock'

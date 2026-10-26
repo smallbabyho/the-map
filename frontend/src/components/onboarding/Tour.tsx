@@ -2,10 +2,11 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { getSeenTours, rememberTourSeen } from '../../auth'
 
 // 처음 온 사람에게 화면의 실제 버튼을 하나씩 짚어 주는 짧은 안내.
 // 짚을 요소에는 data-tour="이름" 을 붙인다. 같은 이름이 여러 개(데스크톱 · 모바일 메뉴)면 지금 보이는 것을 짚는다.
-// 다 보거나 건너뛰면 이 브라우저에 기억해서 같은 사람에게 다시 뜨지 않는다.
+// 한 번 뜨면 계정에 기억해서(브라우저에도 같이) 다른 기기 · 시크릿 창에서도 같은 사람에게 다시 뜨지 않는다.
 
 export interface TourStep {
   /** 짚을 요소의 data-tour 값. 없거나 화면에 안 보이면 가운데에 띄운다 */
@@ -44,6 +45,12 @@ function markSeen(id: string, userId: string) {
   }
 }
 
+/** 계정에도 기억한다. 실패해도 브라우저에는 기억했으니 넘어간다 */
+function markSeenEverywhere(id: string, userId: string) {
+  markSeen(id, userId)
+  rememberTourSeen(id).catch(() => {})
+}
+
 /** data-tour 이름으로 지금 화면에 보이는 요소 찾기 */
 function findTarget(name: string | undefined): HTMLElement | null {
   if (!name) return null
@@ -67,13 +74,27 @@ export function Tour({ id, userId, steps }: Props) {
 
   // 화면이 다 그려진 뒤에 띄운다 (짚을 버튼이 늦게 나타날 수 있어서).
   // 뜨는 순간 본 것으로 기억한다: 중간에 다른 화면으로 가거나 새로고침해도 다시 뜨지 않게
+  // 브라우저에 기록이 없으면 계정 기록을 확인한다 (다른 기기에서 이미 봤을 수 있다)
   useEffect(() => {
-    if (!userId || wasSeen(id, userId)) return
-    const t = window.setTimeout(() => {
-      markSeen(id, userId)
-      setIndex(0)
-    }, 700)
-    return () => window.clearTimeout(t)
+    if (!userId) return
+    // 예전처럼 이 브라우저에만 기억된 사람도 계정에 옮겨 둔다
+    if (wasSeen(id, userId)) return void rememberTourSeen(id).catch(() => {})
+    let cancelled = false
+    let t = 0
+    getSeenTours()
+      .catch(() => null)
+      .then((seen) => {
+        if (cancelled) return
+        if (seen?.includes(id)) return markSeen(id, userId)
+        t = window.setTimeout(() => {
+          markSeenEverywhere(id, userId)
+          setIndex(0)
+        }, 700)
+      })
+    return () => {
+      cancelled = true
+      window.clearTimeout(t)
+    }
   }, [id, userId])
 
   const step = index === null ? null : steps[index]
@@ -99,7 +120,7 @@ export function Tour({ id, userId, steps }: Props) {
   }, [step])
 
   const close = useCallback(() => {
-    if (userId) markSeen(id, userId)
+    if (userId) markSeenEverywhere(id, userId)
     setIndex(null)
   }, [id, userId])
 

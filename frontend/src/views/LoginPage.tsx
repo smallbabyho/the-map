@@ -2,8 +2,8 @@
 
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { useState, useSyncExternalStore, type FormEvent } from 'react'
-import { CaptchaWidget, DEMO_ACCOUNT, signIn, signOut, signUp, useCurrentUser } from '../auth'
+import { useEffect, useState, useSyncExternalStore, type FormEvent, type ReactNode } from 'react'
+import { CaptchaWidget, DEMO_ACCOUNT, signIn, signInWithProvider, signOut, signUp, useCurrentUser, type SocialProvider } from '../auth'
 import { AppearanceOptions } from '../components/AppearanceButton'
 import { SiteColorPicker } from '../components/SiteColorPicker'
 import { AppRail, MobileTabBar } from '../components/AppRail'
@@ -55,6 +55,26 @@ export function LoginPage() {
   const [captchaReset, setCaptchaReset] = useState(0)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+  const [socialBusy, setSocialBusy] = useState<SocialProvider | null>(null)
+  // 소셜 로그인 화면에서 뒤로 오면 브라우저가 떠날 때 화면(이동하는 중…)을 그대로 되살린다 → 다시 보일 때 푼다
+  useEffect(() => {
+    const onShow = (e: PageTransitionEvent) => e.persisted && setSocialBusy(null)
+    window.addEventListener('pageshow', onShow)
+    return () => window.removeEventListener('pageshow', onShow)
+  }, [])
+
+  /** 카카오 · 네이버 · 구글: 처음이면 가입, 아니면 로그인. 성공하면 페이지가 넘어가서 돌아오지 않는다 */
+  const startSocial = async (provider: SocialProvider) => {
+    if (socialBusy) return
+    setError('')
+    setSocialBusy(provider)
+    try {
+      await signInWithProvider(provider, next)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '잠시 후 다시 시도해 주세요.')
+      setSocialBusy(null)
+    }
+  }
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault()
@@ -144,7 +164,7 @@ export function LoginPage() {
               <>
                 <h1 className="tm-headline text-5xl">{mode === 'signin' ? <>다시 <em>만나서</em> 반가워요</> : <>지도를 <em>시작</em>해요</>}</h1>
                 <p className="mt-1.5 text-sm text-(--c-muted)">
-                  {next !== '/' ? '로그인이 필요한 기능이에요.' : mode === 'signin' ? '로그인하고 내 지도를 이어서 꾸며 보세요.' : '이메일로 가입하고 첫 지도를 만들어 보세요.'}
+                  {next !== '/' ? '로그인이 필요한 기능이에요.' : mode === 'signin' ? '로그인하고 내 지도를 이어서 꾸며 보세요.' : '간편하게 가입하고 첫 지도를 만들어 보세요.'}
                 </p>
 
                 <div className="mt-7 grid grid-cols-2 rounded-xl bg-black/[0.04] p-1" role="tablist">
@@ -160,6 +180,27 @@ export function LoginPage() {
                       {m === 'signin' ? '로그인' : '회원가입'}
                     </button>
                   ))}
+                </div>
+
+                <div className="mt-6 grid gap-2">
+                  {SOCIAL.map((s) => (
+                    <button
+                      key={s.id}
+                      type="button"
+                      onClick={() => startSocial(s.id)}
+                      disabled={!!socialBusy}
+                      className={`relative flex h-12 w-full items-center justify-center rounded-xl text-[15px] font-semibold transition hover:brightness-95 disabled:opacity-60 ${s.className}`}
+                    >
+                      <span className="absolute left-4">{s.logo}</span>
+                      {socialBusy === s.id ? '이동하는 중…' : `${s.label}로 시작하기`}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="mt-6 flex items-center gap-3 text-xs text-(--c-muted)">
+                  <span className="h-px flex-1 bg-(--c-border)" />
+                  또는 이메일로
+                  <span className="h-px flex-1 bg-(--c-border)" />
                 </div>
 
                 <form onSubmit={onSubmit} className="mt-6 space-y-3" noValidate>
@@ -199,13 +240,6 @@ export function LoginPage() {
                   </button>
                 </form>
 
-                <p className="mt-6 text-center text-sm text-(--c-muted)">
-                  {mode === 'signin' ? '아직 계정이 없나요? ' : '이미 계정이 있나요? '}
-                  <button type="button" onClick={() => switchMode(mode === 'signin' ? 'signup' : 'signin')} className="font-semibold text-(--c-accent) hover:underline">
-                    {mode === 'signin' ? '회원가입' : '로그인'}
-                  </button>
-                </p>
-
                 {/* 체험 계정 (가짜 데이터 모드에서만) */}
                 {demo && (
                 <button
@@ -230,6 +264,43 @@ export function LoginPage() {
     </div>
   )
 }
+
+/** 소셜 로그인 버튼 (각 회사 가이드 색) */
+const SOCIAL: { id: SocialProvider; label: string; className: string; logo: ReactNode }[] = [
+  {
+    id: 'kakao',
+    label: '카카오',
+    className: 'bg-[#FEE500] text-black/85',
+    logo: (
+      <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden>
+        <path fill="#000" d="M12 3C6.48 3 2 6.5 2 10.82c0 2.8 1.87 5.25 4.68 6.63l-.95 3.48c-.08.3.26.55.52.37l4.15-2.75c.52.06 1.05.1 1.6.1 5.52 0 10-3.5 10-7.83S17.52 3 12 3z" />
+      </svg>
+    ),
+  },
+  {
+    id: 'naver',
+    label: '네이버',
+    className: 'bg-[#03C75A] text-white',
+    logo: (
+      <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden>
+        <path fill="#fff" d="M16.27 12.84 7.38 0H0v24h7.73V11.16L16.62 24H24V0h-7.73z" />
+      </svg>
+    ),
+  },
+  {
+    id: 'google',
+    label: 'Google',
+    className: 'border border-(--c-border) bg-white text-gray-800',
+    logo: (
+      <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden>
+        <path fill="#4285F4" d="M23.5 12.27c0-.82-.07-1.6-.2-2.36H12v4.46h6.45a5.5 5.5 0 0 1-2.4 3.62v3h3.88c2.27-2.09 3.57-5.17 3.57-8.72z" />
+        <path fill="#34A853" d="M12 24c3.24 0 5.96-1.07 7.94-2.91l-3.88-3c-1.08.72-2.45 1.15-4.06 1.15-3.12 0-5.77-2.11-6.71-4.95H1.28v3.1A12 12 0 0 0 12 24z" />
+        <path fill="#FBBC05" d="M5.29 14.29a7.2 7.2 0 0 1 0-4.58v-3.1H1.28a12 12 0 0 0 0 10.78z" />
+        <path fill="#EA4335" d="M12 4.75c1.76 0 3.34.6 4.59 1.8l3.44-3.44A12 12 0 0 0 1.28 6.61l4.01 3.1C6.23 6.86 8.88 4.75 12 4.75z" />
+      </svg>
+    ),
+  },
+]
 
 /** 외부 주소로 튀지 않게 내부 경로만 허용 */
 function safeNext(next: string | null): string {

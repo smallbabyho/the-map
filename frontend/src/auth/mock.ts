@@ -195,6 +195,31 @@ export async function signIn(email: string, password: string, captchaToken: stri
   return toUser(user)
 }
 
+export type SocialProvider = 'kakao' | 'naver' | 'google'
+
+/** 가짜 데이터 모드는 계정 저장소가 따로 없다 → null (Tour 가 브라우저에만 기억한다) */
+export async function getSeenTours(): Promise<string[] | null> {
+  return null
+}
+
+export async function rememberTourSeen(id: string): Promise<void> {
+  void id
+}
+
+/** 가짜 데이터 모드에는 소셜 로그인이 없다 (Supabase 를 연결해야 동작) */
+export async function signInWithProvider(provider: SocialProvider, next: string): Promise<void> {
+  void provider
+  void next
+  throw new Error('소셜 로그인은 Supabase 를 연결해야 쓸 수 있어요. 체험 계정으로 둘러보세요.')
+}
+
+export async function completeSocialSignIn(url: URL): Promise<User> {
+  void url
+  const me = mockCurrentUser()
+  if (!me) throw new Error('소셜 로그인은 Supabase 를 연결해야 쓸 수 있어요.')
+  return me
+}
+
 /**
  * 로그아웃.
  *

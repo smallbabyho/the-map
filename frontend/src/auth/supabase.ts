@@ -89,6 +89,68 @@ export async function signIn(email: string, password: string, captchaToken: stri
   return me
 }
 
+/** 카카오 · 네이버 · 구글로 시작하기. 처음이면 가입, 이미 있으면 로그인 (같은 이메일 계정에 자동으로 이어진다) */
+export type SocialProvider = 'kakao' | 'naver' | 'google'
+
+/**
+ * 소셜 로그인 화면으로 보낸다 (이 함수는 돌아오지 않고 페이지가 넘어간다).
+ * 끝나면 /auth/callback?next=… 로 돌아와 completeSocialSignIn 이 마무리한다.
+ * 카카오 · 구글은 Supabase 가 직접 처리하고, 네이버는 Supabase 에 없어서 우리 서버(/api/auth/naver)가 대신한다.
+ */
+export async function signInWithProvider(provider: SocialProvider, next: string): Promise<void> {
+  const back = `${siteOrigin()}/auth/callback?next=${encodeURIComponent(next)}`
+  if (provider === 'naver') {
+    // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- 페이지가 아니라 서버 라우트(네이버로 넘기는 곳)라 주소 이동이 맞다
+    window.location.assign(`${siteOrigin()}/api/auth/naver?next=${encodeURIComponent(next)}`)
+    return
+  }
+  const { error } = await supabase.auth.signInWithOAuth({ provider, options: { redirectTo: back } })
+  if (error) throw authError(error.message)
+}
+
+/**
+ * 소셜 로그인에서 돌아온 뒤 세션을 마무리한다 (/auth/callback 화면이 부른다).
+ * - 카카오 · 구글: 주소에 붙어 온 토큰은 Supabase 클라이언트가 알아서 읽는다
+ * - 네이버: 우리 서버가 만든 일회용 token_hash 로 로그인
+ * - 취소하거나 실패하면 주소에 error 가 붙어 온다
+ */
+export async function completeSocialSignIn(url: URL): Promise<User> {
+  const hash = new URLSearchParams(url.hash.slice(1))
+  const failed = url.searchParams.get('error_description') ?? hash.get('error_description') ?? url.searchParams.get('error') ?? hash.get('error')
+  if (failed) throw socialError(failed)
+  const tokenHash = url.searchParams.get('token_hash')
+  if (tokenHash) {
+    const { error } = await supabase.auth.verifyOtp({ token_hash: tokenHash, type: 'magiclink' })
+    if (error) throw authError(error.message)
+  }
+  const me = await fetchMe()
+  if (!me) throw new Error('로그인하지 못했어요. 다시 시도해 주세요.')
+  return me
+}
+
+function socialError(message: string): Error {
+  const m = message.toLowerCase()
+  if (m.includes('access_denied') || m.includes('cancel')) return new Error('로그인을 취소했어요.')
+  if (m.includes('email')) return new Error('이메일 제공에 동의해야 가입할 수 있어요. 다시 시도하면서 이메일 항목에 동의해 주세요.')
+  if (m.includes('naver_not_configured')) return new Error('네이버 로그인은 아직 준비 중이에요.')
+  return authError(message)
+}
+
+/** 이 계정이 이미 본 기능 안내(Tour) 이름들. 계정에 저장해서 브라우저 · 기기가 바뀌어도 다시 뜨지 않는다. 로그인 안 했으면 null */
+export async function getSeenTours(): Promise<string[] | null> {
+  const { data } = await supabase.auth.getSession()
+  const user = data.session?.user
+  if (!user) return null
+  const tours = user.user_metadata?.tours_seen
+  return Array.isArray(tours) ? tours.filter((t): t is string => typeof t === 'string') : []
+}
+
+export async function rememberTourSeen(id: string): Promise<void> {
+  const seen = await getSeenTours()
+  if (!seen || seen.includes(id)) return
+  await supabase.auth.updateUser({ data: { tours_seen: [...seen, id] } })
+}
+
 export async function signOut(): Promise<void> {
   await supabase.auth.signOut()
 }

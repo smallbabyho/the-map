@@ -95,7 +95,7 @@ export function LoginPage() {
                     {next === '/' ? '내 지도로' : '계속하기'}
                   </Link>
                   {user.role === 'admin' && (
-                    <Link href="/admin" className="grid h-12 place-items-center rounded-xl border border-(--c-border) text-[15px] font-semibold">
+                    <Link href="/customers" className="grid h-12 place-items-center rounded-xl border border-(--c-border) text-[15px] font-semibold">
                       관리자 모드
                     </Link>
                   )}

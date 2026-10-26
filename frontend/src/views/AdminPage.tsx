@@ -79,7 +79,7 @@ export function AdminPage() {
             <div className="text-5xl" aria-hidden>🔒</div>
             <h1 className="mt-4 text-lg font-bold">관리자만 볼 수 있어요</h1>
             <p className="mt-1 text-sm text-(--c-muted)">관리자 계정으로 로그인해 주세요. (체험: admin@example.com / test1234)</p>
-            <Link href="/login?next=/admin" className="mt-6 inline-block rounded-full bg-(--c-text) px-5 py-2.5 text-sm font-semibold text-(--c-surface)">
+            <Link href="/login?next=/customers" className="mt-6 inline-block rounded-full bg-(--c-text) px-5 py-2.5 text-sm font-semibold text-(--c-surface)">
               {me ? '다른 계정으로 로그인' : '로그인'}
             </Link>
           </div>

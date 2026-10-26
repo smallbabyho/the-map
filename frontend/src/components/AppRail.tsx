@@ -23,7 +23,7 @@ function navItems(isAdmin: boolean): NavItem[] {
     { key: 'meetups', href: '/meetups', label: '성지순례', icon: <UsersIcon size={20} /> },
     { key: 'ranking', href: '/ranking', label: '순위', icon: <TrophyIcon size={20} /> },
   ]
-  if (isAdmin) items.push({ key: 'admin', href: '/admin', label: '관리자', icon: <ShieldIcon size={20} /> })
+  if (isAdmin) items.push({ key: 'admin', href: '/customers', label: '관리자', icon: <ShieldIcon size={20} /> })
   return items
 }
 

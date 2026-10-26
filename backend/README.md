@@ -65,7 +65,7 @@ npx supabase db push                             # 아직 적용 안 된 마이�
 캡차 검증은 Supabase Auth 서버가 직접 하므로 **비밀 키는 Supabase 대시보드에만** 넣습니다.
 
 1. **Turnstile 위젯 만들기**: <https://dash.cloudflare.com> → **Turnstile** → **Add widget**
-   - Hostname: `the-map-bice.vercel.app` + `localhost`
+   - Hostname: `myconceptmap.vercel.app` + `localhost`
    - Widget mode: `Managed`
    - 발급된 **Site Key**(공개용) → `NEXT_PUBLIC_TURNSTILE_SITE_KEY`
    - 발급된 **Secret Key**(비밀) → 다음 단계에서 Supabase에 넣습니다. **깃이나 .env에 넣지 마세요.**
@@ -87,8 +87,8 @@ npx supabase db push                             # 아직 적용 안 된 마이�
 ### 4. 이메일 인증 / 리다이렉트 URL
 
 - 대시보드 → **Authentication → URL Configuration**
-  - Site URL: `https://the-map-bice.vercel.app`
-  - Redirect URLs: `https://the-map-bice.vercel.app/**`, `http://localhost:3000/**`
+  - Site URL: `https://myconceptmap.vercel.app`
+  - Redirect URLs: `https://myconceptmap.vercel.app/**`, `http://localhost:3000/**`
 - **Authentication → Sign In / Providers → Email**의 `Confirm email`이 켜져 있으면 가입 후 메일 인증을 해야 로그인됩니다.
   개발 중에 번거로우면 개발용 프로젝트에서만 끄세요.
 - Supabase 기본 메일 발송은 시간당 몇 통으로 제한됩니다. 테스트 가입이 막히면 잠시 기다리거나 위 설정을 끄세요.

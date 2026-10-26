@@ -1,5 +1,5 @@
 // 사이트 대표 주소. 공유 링크 · 초대 링크 · 인증 메일은 어느 주소로 들어왔든 이 주소로 만든다.
-// Vercel Production 에 NEXT_PUBLIC_SITE_URL=https://the-map-bice.vercel.app 이 있고,
+// Vercel Production 에 NEXT_PUBLIC_SITE_URL=https://myconceptmap.vercel.app 이 있고,
 // 로컬(.env.local)에서는 비워둬서 지금 열어둔 주소(localhost:3000)를 쓴다.
 const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL ?? '').trim().replace(/\/+$/, '')
 

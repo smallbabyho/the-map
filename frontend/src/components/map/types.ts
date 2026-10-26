@@ -1,4 +1,4 @@
-import type { Pin, TravelMode } from '../../types'
+import type { MapLook, Pin, TravelMode } from '../../types'
 import type { Theme } from '../themes'
 import type { PlaceSearchResult } from './placeSearch'
 
@@ -21,6 +21,8 @@ export interface MapViewProps {
   pins: Pin[]
   legs: MapLegView[]
   theme: Theme
+  /** 마커 모양 · 선 모양/굵기. 없으면 기본 (segments.ts DEFAULT_LOOK) */
+  look?: MapLook
   selectedPinId: string | null
   onSelectPin: (pinId: string) => void
   insets?: MapInsets

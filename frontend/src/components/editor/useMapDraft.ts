@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { deleteLeg, deletePin, getMap, saveLeg, saveMap, savePin } from '../../db/api'
 import type { ConceptMap, Leg, MapDetail, Pin, ThemeId, TravelMode } from '../../types'
-import type { PlaceSearchResult } from '../map'
+import { useRoutes, type PlaceSearchResult, type Route } from '../map'
 import { getTheme } from '../themes'
 
 // 편집 화면 상태. 바꾼 내용은 저장 버튼을 누를 때 한 번에 db 함수로 반영한다.
@@ -17,11 +17,14 @@ export interface LegDraft {
 export interface DraftLeg extends LegDraft {
   fromPinId: string
   toPinId: string
+  /** 길찾기 결과 (거리 · 경로). 아직 없으면 undefined */
+  route?: Route
 }
 
 const TMP = 'tmp-'
 const pairKey = (from: string, to: string) => `${from}>${to}`
 const DEFAULT_LEG: LegDraft = { mode: 'walk', durationMin: null, isManual: false }
+const at = (p: Pin) => ({ lat: p.place.lat, lng: p.place.lng })
 
 function tmpId() {
   return TMP + (typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : String(Date.now() + Math.random()))
@@ -37,6 +40,7 @@ export function useMapDraft(mapId: string) {
   const [legDrafts, setLegDrafts] = useState<Record<string, LegDraft>>({})
   const [removedPinIds, setRemovedPinIds] = useState<string[]>([])
   const serverLegs = useRef<Leg[]>([])
+  const [loadedLegs, setLoadedLegs] = useState<Leg[]>([])
   const [dirty, setDirty] = useState(false)
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState('')
@@ -51,6 +55,7 @@ export function useMapDraft(mapId: string) {
       ),
     )
     serverLegs.current = d.legs
+    setLoadedLegs(d.legs)
     setRemovedPinIds([])
     setDirty(false)
   }, [])
@@ -75,13 +80,33 @@ export function useMapDraft(mapId: string) {
   }, [mapId, apply])
 
   /** 핀 순서대로 이어지는 구간 목록 (항상 핀 순서에서 계산) */
-  const legs: DraftLeg[] = useMemo(
+  const pairs = useMemo(
     () =>
       pins.slice(1).map((to, i) => {
         const from = pins[i]
-        return { fromPinId: from.id, toPinId: to.id, ...(legDrafts[pairKey(from.id, to.id)] ?? DEFAULT_LEG) }
+        return { from, to, draft: legDrafts[pairKey(from.id, to.id)] ?? DEFAULT_LEG }
       }),
     [pins, legDrafts],
+  )
+  const { routeOf, version } = useRoutes(pairs.map((p) => ({ from: at(p.from), to: at(p.to), mode: p.draft.mode })))
+  /** 시간을 직접 적지 않은 구간은 길찾기 시간으로 채운다 */
+  const legs: DraftLeg[] = useMemo(
+    () =>
+      pairs.map(({ from, to, draft }) => {
+        const route = routeOf(at(from), at(to), draft.mode)
+        return {
+          fromPinId: from.id,
+          toPinId: to.id,
+          ...draft,
+          // 시간은 길찾기 결과로만 (직접 적기는 없앴다. 예전에 적어 둔 값도 길찾기가 오면 덮는다)
+          isManual: false,
+          durationMin: route?.durationMin ?? draft.durationMin,
+          route,
+        }
+      }),
+    // version: 길찾기 결과가 도착하면 다시 계산
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [pairs, routeOf, version],
   )
 
   const touch = () => {
@@ -90,7 +115,7 @@ export function useMapDraft(mapId: string) {
     setSaveError('')
   }
 
-  const updateMap = (patch: Partial<Pick<ConceptMap, 'title' | 'isPublic'>>) => {
+  const updateMap = (patch: Partial<Pick<ConceptMap, 'title' | 'isPublic' | 'category' | 'markerShape' | 'lineStyle' | 'lineWidth' | 'coverUrl'>>) => {
     setMap((m) => (m ? { ...m, ...patch } : m))
     touch()
   }
@@ -160,9 +185,22 @@ export function useMapDraft(mapId: string) {
     touch()
   }
 
+  /**
+   * 이동수단을 바꾸면 시간은 다시 자동(길찾기)으로.
+   * 시간을 적으면 직접 입력, 비우면 다시 자동.
+   */
   const updateLeg = (fromPinId: string, toPinId: string, patch: Partial<Omit<LegDraft, 'isManual'>>) => {
     const key = pairKey(fromPinId, toPinId)
-    setLegDrafts((d) => ({ ...d, [key]: { ...(d[key] ?? DEFAULT_LEG), ...patch, isManual: true } }))
+    setLegDrafts((d) => {
+      const cur = d[key] ?? DEFAULT_LEG
+      const next: LegDraft =
+        patch.mode !== undefined && patch.mode !== cur.mode
+          ? { mode: patch.mode, durationMin: null, isManual: false }
+          : 'durationMin' in patch
+            ? { ...cur, durationMin: patch.durationMin ?? null, isManual: patch.durationMin != null }
+            : cur
+      return { ...d, [key]: next }
+    })
     touch()
   }
 
@@ -175,7 +213,17 @@ export function useMapDraft(mapId: string) {
     setSaving(true)
     setSaveError('')
     try {
-      await saveMap({ id: map.id, title: map.title.trim(), theme: map.theme, isPublic: map.isPublic })
+      await saveMap({
+        id: map.id,
+        title: map.title.trim(),
+        theme: map.theme,
+        isPublic: map.isPublic,
+        category: map.category,
+        markerShape: map.markerShape,
+        lineStyle: map.lineStyle,
+        lineWidth: map.lineWidth,
+        coverUrl: map.coverUrl,
+      })
 
       for (const id of removedPinIds) await deletePin(id)
 
@@ -224,6 +272,8 @@ export function useMapDraft(mapId: string) {
   return {
     status,
     loadError,
+    /** 마지막으로 불러온(저장된) 이동구간 — 읽기 전용 화면용 */
+    serverLegs: loadedLegs,
     map,
     pins,
     legs,

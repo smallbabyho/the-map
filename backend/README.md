@@ -12,7 +12,7 @@ backend/
 ```
 
 프론트에서 쓰는 Supabase 클라이언트, 인증 함수, 데이터 함수(`src/lib/supabase.ts`, `src/auth/`, `src/db/index.ts`)는
-프론트 Next.js 프로젝트(`frontend/src/`) 안에 들어갑니다.
+`frontend/` (Next.js) 안에 들어 있습니다.
 
 ---
 
@@ -58,14 +58,14 @@ npx supabase db push                             # 아직 적용 안 된 마이�
 > SQL이 여러 번 실행해도 안전하게 짜여 있어서 그대로 `db push` 해도 됩니다.
 
 **로컬 Supabase (선택, Docker 필요)**: `cd backend && npx supabase start`를 실행하면 마이그레이션이 자동 적용된 로컬 DB가 뜹니다.
-출력되는 `API URL`과 `anon key`를 `.env`에 넣으면 됩니다. 로컬에서는 캡차가 꺼져 있습니다.
+출력되는 `API URL`과 `anon key`를 `frontend/.env.local`에 넣으면 됩니다. 로컬에서는 캡차가 꺼져 있습니다.
 
 ### 3. 캡차 설정 (Cloudflare Turnstile)
 
 캡차 검증은 Supabase Auth 서버가 직접 하므로 **비밀 키는 Supabase 대시보드에만** 넣습니다.
 
 1. **Turnstile 위젯 만들기**: <https://dash.cloudflare.com> → **Turnstile** → **Add widget**
-   - Hostname: 배포 도메인 + `localhost`
+   - Hostname: `myconceptmap.vercel.app` + `localhost`
    - Widget mode: `Managed`
    - 발급된 **Site Key**(공개용) → `NEXT_PUBLIC_TURNSTILE_SITE_KEY`
    - 발급된 **Secret Key**(비밀) → 다음 단계에서 Supabase에 넣습니다. **깃이나 .env에 넣지 마세요.**
@@ -87,8 +87,8 @@ npx supabase db push                             # 아직 적용 안 된 마이�
 ### 4. 이메일 인증 / 리다이렉트 URL
 
 - 대시보드 → **Authentication → URL Configuration**
-  - Site URL: 배포 주소 (개발 중에는 `http://localhost:3000`)
-  - Redirect URLs: `http://localhost:3000/**`, 배포 주소 `/**`
+  - Site URL: `https://myconceptmap.vercel.app`
+  - Redirect URLs: `https://myconceptmap.vercel.app/**`, `http://localhost:3000/**`
 - **Authentication → Sign In / Providers → Email**의 `Confirm email`이 켜져 있으면 가입 후 메일 인증을 해야 로그인됩니다.
   개발 중에 번거로우면 개발용 프로젝트에서만 끄세요.
 - Supabase 기본 메일 발송은 시간당 몇 통으로 제한됩니다. 테스트 가입이 막히면 잠시 기다리거나 위 설정을 끄세요.
@@ -105,7 +105,7 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOi...        # anon public 키 (service_ro
 NEXT_PUBLIC_TURNSTILE_SITE_KEY=0x4AAAAAAA...       # Turnstile Site Key (Secret Key 아님!)
 ```
 
-`NEXT_PUBLIC_`으로 시작하는 값은 브라우저 코드에 그대로 들어가서 **누구나 볼 수 있습니다.**
+`NEXT_PUBLIC_`로 시작하는 값은 빌드 결과물에 그대로 들어가서 **누구나 볼 수 있습니다.**
 그래서 공개해도 되는 값(anon 키, Site Key)만 넣고, 비밀 키는 절대 넣지 않습니다.
 데이터 보호는 RLS가 담당합니다.
 

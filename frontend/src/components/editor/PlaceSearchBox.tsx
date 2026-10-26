@@ -1,8 +1,11 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { getPlaceStats } from '../../db/api'
+import type { PlaceStats } from '../../types'
 import { CloseIcon, PlusIcon, SearchIcon } from '../icons'
-import { hasKakaoKey, searchPlaces, type PlaceSearchResult } from '../map'
+import { hasKakaoKey, isCustomPlace, searchPlaces, type PlaceSearchResult } from '../map'
+import { PlaceStatsLine } from '../place/PlaceStats'
 
 interface Props {
   onPick: (place: PlaceSearchResult) => void
@@ -14,6 +17,8 @@ export function PlaceSearchBox({ onPick }: Props) {
   const [results, setResults] = useState<PlaceSearchResult[] | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  /** 검색 결과 장소별 '리뷰 수 · 별점 · 담긴 지도 수'. null = 아직 불러오는 중 (결과는 먼저 보여준다) */
+  const [stats, setStats] = useState<Record<string, PlaceStats> | null>(null)
   const boxRef = useRef<HTMLDivElement>(null)
   const reqId = useRef(0)
 
@@ -33,9 +38,15 @@ export function PlaceSearchBox({ onPick }: Props) {
     const id = ++reqId.current
     setLoading(true)
     setError('')
+    setStats(null)
     try {
       const list = await searchPlaces(q)
       if (id === reqId.current) setResults(list)
+      const ids = list.map((r) => r.externalId).filter((x) => !isCustomPlace(x))
+      if (ids.length)
+        getPlaceStats(ids)
+          .then((s) => id === reqId.current && setStats(s))
+          .catch(() => {}) // 통계는 없어도 검색은 된다
     } catch (e) {
       if (id === reqId.current) {
         setError(e instanceof Error ? e.message : '검색하지 못했어요.')
@@ -96,14 +107,14 @@ export function PlaceSearchBox({ onPick }: Props) {
           ) : (
             <ul className="divide-y divide-(--c-border)">
               {results.map((r) => (
-                <li key={r.externalId}>
+                <li key={r.externalId} className="transition hover:bg-black/[0.03]">
                   <button
                     type="button"
                     onClick={() => {
                       onPick(r)
                       clear()
                     }}
-                    className="flex w-full items-center gap-3 px-4 py-3 text-left transition hover:bg-black/[0.03]"
+                    className={`flex w-full items-center gap-3 px-4 text-left ${stats ? 'pb-1 pt-3' : 'py-3'}`}
                   >
                     <div className="min-w-0 flex-1">
                       <div className="flex items-baseline gap-2">
@@ -116,6 +127,8 @@ export function PlaceSearchBox({ onPick }: Props) {
                       <PlusIcon size={16} />
                     </span>
                   </button>
+                  {/* 버튼 안에 링크를 넣을 수 없어서 아래에 따로 둔다 */}
+                  {stats && <PlaceStatsLine stats={stats[r.externalId]} externalId={r.externalId} className="mb-3 ml-4" />}
                 </li>
               ))}
             </ul>

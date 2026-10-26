@@ -5,6 +5,7 @@ import { uploadPinPhoto } from '../../db/api'
 import type { Pin } from '../../types'
 import { CheckIcon, CloseIcon, ImageIcon, TrashIcon } from '../icons'
 import { isCustomPlace } from '../map'
+import { placeHref } from '../place/PlaceStats'
 import { PIN_EMOJIS, type Theme } from '../themes'
 
 interface Props {
@@ -45,7 +46,7 @@ export function PinEditPanel({ pin, index, theme, onChange, onRename, onDelete, 
     <div className="flex h-full min-h-0 flex-col">
       {/* 머리 */}
       <div className="flex items-start gap-3 border-b border-(--c-border) px-5 pb-4 pt-5">
-        <span className="grid size-12 shrink-0 place-items-center rounded-full text-2xl shadow-sm ring-2 ring-white" style={{ background: pin.color }}>
+        <span className="grid size-12 shrink-0 place-items-center rounded-full text-2xl shadow-sm ring-2 ring-(--c-surface)" style={{ background: pin.color }}>
           {pin.icon}
         </span>
         <div className="min-w-0 flex-1 pt-0.5">
@@ -62,7 +63,12 @@ export function PinEditPanel({ pin, index, theme, onChange, onRename, onDelete, 
               aria-label="장소 이름"
             />
           ) : (
-            <h2 className="truncate text-lg font-bold">{pin.place.name}</h2>
+            <>
+              <h2 className="truncate text-lg font-bold">{pin.place.name}</h2>
+              <a href={placeHref(pin.place.externalId)} target="_blank" rel="noopener" className="text-xs font-semibold text-(--c-accent) hover:underline">
+                ★ 장소 리뷰 · 담긴 횟수 보기 ↗
+              </a>
+            </>
           )}
         </div>
         <button type="button" onClick={onClose} className="grid size-9 shrink-0 place-items-center rounded-full text-(--c-muted) hover:bg-black/5" aria-label="닫기">

@@ -2,18 +2,38 @@
 
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
-import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
-import { AppRail } from '../components/AppRail'
+import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
+import { useCurrentUser } from '../auth'
+import { HeaderActions } from '../components/AppRail'
 import { PinEditPanel } from '../components/editor/PinEditPanel'
 import { PinList } from '../components/editor/PinList'
 import { PlaceSearchBox } from '../components/editor/PlaceSearchBox'
+import { CollabButton } from '../components/editor/CollabButton'
+import { MapLookPicker } from '../components/editor/MapLookPicker'
+import { StoryCardButton } from '../components/share/StoryCardButton'
+import { MAP_CATEGORIES } from '../components/mapCategories'
 import { ThemePicker } from '../components/editor/ThemePicker'
 import { useMapDraft } from '../components/editor/useMapDraft'
-import { CheckIcon, ChevronLeftIcon, GlobeIcon, LockIcon, PinIcon } from '../components/icons'
+import { CheckIcon, ChevronLeftIcon, ChevronRightIcon, GlobeIcon, LockIcon, PinIcon } from '../components/icons'
 import { MapView, type MapInsets } from '../components/map'
 import { getTheme, themeVars } from '../components/themes'
+import { getMapCollab } from '../db/api'
+import type { MapCollab } from '../types'
+import { Tour, type TourStep } from '../components/onboarding/Tour'
+import { MapViewer } from './MapViewer'
 
-const RAIL_W = 72
+/** 지도 편집 화면을 처음 연 사람에게 한 번 보여주는 안내 */
+const EDITOR_TOUR: TourStep[] = [
+  { target: 'place-search', title: '장소 추가', body: '검색해서 핀을 꽂아요. 지도를 길게 누르면(컴퓨터는 우클릭) 아무 곳이나 찍을 수 있어요.' },
+  { target: 'pins', title: '핀 목록', body: '핀을 누르면 사진 · 다녀온 날짜 · 메모를 남겨요. 끌어서 순서를 바꾸면 길이 다시 이어져요.' },
+  { target: 'map-look', title: '꾸미기', body: '테마 색, 마커 모양, 선 스타일로 지도에 표정을 줘요.' },
+  { target: 'collab', title: '함께 꾸미기', body: '초대 링크를 보내면 친구와 한 지도를 같이 짜요.' },
+  { target: 'map-public', title: '공개 설정', body: '공개하면 둘러보기에 올라가요. 비공개면 나와 함께 꾸미는 사람만 봐요.' },
+  { target: 'save', title: '저장', body: '고친 내용은 저장을 눌러야 남아요.' },
+]
+
+/** 왼쪽 세로 메뉴를 없앴다 (오른쪽 위 HeaderActions 로) */
+const RAIL_W = 0
 const PANEL_W = 380
 const DETAIL_W = 360
 const DESKTOP_MIN = 768
@@ -84,6 +104,25 @@ export function MapEditorPage() {
   const router = useRouter()
   const draft = useMapDraft(mapId)
   const { map, pins, legs } = draft
+  const user = useCurrentUser()
+  const isOwner = !!user && !!map && map.ownerId === user.id
+  // 함께 꾸미기: 주인이 아니어도 공동 편집자면 편집 화면
+  const [collab, setCollab] = useState<MapCollab | null>(null)
+  const loadCollab = useCallback(() => {
+    getMapCollab(mapId).then(setCollab).catch(() => setCollab(null))
+  }, [mapId])
+  const userId = user?.id
+  const mapReady = !!map
+  useEffect(() => {
+    if (userId && mapReady) loadCollab()
+  }, [userId, mapReady, loadCollab])
+  const canEdit = isOwner || collab?.myRole === 'editor'
+
+  // 로그인 안 한 상태에서 지도를 못 찾으면 (내 비공개 지도일 수 있으니) 로그인으로
+  const needLogin = user === null && draft.status === 'notfound'
+  useEffect(() => {
+    if (needLogin) router.replace(`/login?next=${encodeURIComponent(`/maps/${mapId}`)}`)
+  }, [needLogin, mapId, router])
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const vp = useViewport()
   const sheet = useBottomSheet(vp.h || 800)
@@ -127,7 +166,7 @@ export function MapEditorPage() {
     router.push('/')
   }
 
-  if (draft.status === 'loading') return <EditorLoading />
+  if (draft.status === 'loading' || user === undefined || needLogin) return <EditorLoading />
   if (draft.status !== 'ready' || !map) {
     return (
       <div className="grid h-dvh place-items-center px-6 text-center">
@@ -135,12 +174,19 @@ export function MapEditorPage() {
           <div className="text-5xl" aria-hidden>🧭</div>
           <h1 className="mt-4 text-lg font-bold">{draft.status === 'notfound' ? '지도를 찾을 수 없어요' : '지도를 불러오지 못했어요'}</h1>
           <p className="mt-1 text-sm text-(--c-muted)">{draft.status === 'notfound' ? '삭제됐거나 볼 수 없는 지도예요.' : draft.loadError}</p>
-          <Link href="/" className="mt-6 inline-block rounded-full bg-gray-900 px-5 py-2.5 text-sm font-semibold text-white">
+          <Link href="/" className="mt-6 inline-block rounded-full bg-(--c-text) px-5 py-2.5 text-sm font-semibold text-(--c-surface)">
             내 지도로
           </Link>
         </div>
       </div>
     )
+  }
+
+  // 로그인했는데 권한 확인 중이면 잠깐 기다린다 (편집자인데 읽기 화면이 깜빡이지 않게)
+  if (!isOwner && user && !collab) return <EditorLoading />
+  if (!canEdit) {
+    // 남의 공개 지도 → 읽기 전용
+    return <MapViewer detail={{ map, pins, legs: draft.serverLegs }} />
   }
 
   // 지도에서 패널이 가리는 부분 (핀 전체보기 때 피해서 맞춤)
@@ -156,7 +202,7 @@ export function MapEditorPage() {
       onClick={save}
       disabled={draft.saving || !draft.dirty}
       className={`tm-float inline-flex h-10 items-center gap-1.5 rounded-full px-5 text-sm font-bold transition ${
-        draft.dirty ? 'bg-(--c-accent) text-(--c-accent-text) hover:opacity-90' : 'bg-white text-gray-500'
+        draft.dirty ? 'bg-(--c-accent) text-(--c-accent-text) hover:opacity-90' : 'bg-(--c-surface) text-(--c-muted)'
       }`}
     >
       {!draft.dirty && draft.justSaved && <CheckIcon size={16} />}
@@ -172,6 +218,7 @@ export function MapEditorPage() {
           pins={pins}
           legs={legs}
           theme={theme}
+          look={map}
           selectedPinId={selectedId}
           onSelectPin={(id) => setSelectedId((cur) => (cur === id ? null : id))}
           insets={insets}
@@ -179,23 +226,31 @@ export function MapEditorPage() {
         />
       </div>
 
-      <AppRail active="maps" />
 
       {/* 상단 떠 있는 바 */}
       <div className="pointer-events-none absolute inset-x-3 top-3 z-20 flex items-start justify-between gap-2 md:left-auto md:right-4 md:top-4">
         <button
           type="button"
           onClick={goBack}
-          className="tm-float pointer-events-auto grid size-10 place-items-center rounded-full bg-white text-gray-800 md:hidden"
+          className="tm-float pointer-events-auto grid size-10 place-items-center rounded-full bg-(--c-surface) text-(--c-text) md:hidden"
           aria-label="내 지도로"
         >
           <ChevronLeftIcon size={20} />
         </button>
         <div className="pointer-events-auto flex items-center gap-2">
-          <div className="hidden md:block">
+          <div className="hidden md:block" data-tour="map-look">
             <ThemePicker value={map.theme} onChange={draft.setTheme} />
           </div>
-          {saveButton}
+          <div className="hidden md:block">
+            <MapLookPicker look={map} coverUrl={map.coverUrl} onChange={draft.updateMap} />
+          </div>
+          {collab && user && (
+            <div className="hidden md:block" data-tour="collab">
+              <CollabButton mapId={map.id} myId={user.id} collab={collab} onChange={loadCollab} />
+            </div>
+          )}
+          <div data-tour="save">{saveButton}</div>
+          <HeaderActions user={user} active="maps" floating />
         </div>
       </div>
 
@@ -204,6 +259,8 @@ export function MapEditorPage() {
           {draft.saveError}
         </div>
       )}
+
+      <Tour id="editor" userId={user?.id} steps={EDITOR_TOUR} />
 
       {/* 왼쪽 패널 (데스크톱) / 하단 시트 (모바일) */}
       <section
@@ -235,28 +292,67 @@ export function MapEditorPage() {
             />
             <button
               type="button"
-              onClick={() => draft.updateMap({ isPublic: !map.isPublic })}
+              onClick={() => isOwner && draft.updateMap({ isPublic: !map.isPublic })}
+              disabled={!isOwner}
               className={`inline-flex h-8 shrink-0 items-center gap-1 rounded-full border px-3 text-xs font-semibold transition ${
                 map.isPublic ? 'border-(--c-accent) bg-(--c-accent)/10 text-(--c-accent)' : 'border-(--c-border) text-(--c-muted)'
               }`}
               aria-pressed={map.isPublic}
-              title={map.isPublic ? '누구나 볼 수 있어요' : '나만 볼 수 있어요'}
+              data-tour="map-public"
+              title={!isOwner ? '공개 여부는 지도 주인만 바꿀 수 있어요' : map.isPublic ? '누구나 볼 수 있어요' : '나와 함께 꾸미는 사람만 볼 수 있어요'}
             >
               {map.isPublic ? <GlobeIcon size={14} /> : <LockIcon size={14} />}
               {map.isPublic ? '공개' : '비공개'}
             </button>
           </div>
 
-          {/* 모바일에서는 테마를 패널 안에 */}
-          <div className="tm-scroll -mx-4 overflow-x-auto px-4 md:hidden">
+          {/* 카테고리 (둘러보기에서 이 칸으로 보여요) */}
+          <div className="tm-scroll -mx-4 flex gap-1.5 overflow-x-auto px-4 md:-mx-5 md:px-5" role="radiogroup" aria-label="지도 카테고리">
+            {MAP_CATEGORIES.map((c) => (
+              <button
+                key={c.id}
+                type="button"
+                role="radio"
+                aria-checked={map.category === c.id}
+                onClick={() => draft.updateMap({ category: c.id })}
+                className={`shrink-0 rounded-full border px-3 py-1.5 text-xs font-semibold transition ${map.category === c.id ? 'border-(--c-ink) bg-(--c-ink) text-(--c-bg)' : 'border-(--c-border) text-(--c-muted) hover:text-(--c-text)'}`}
+              >
+                {c.emoji} {c.label}
+              </button>
+            ))}
+          </div>
+
+          <Link
+            href={`/meetups/new?mapId=${map.id}`}
+            onClick={(e) => {
+              if (draft.dirty && !window.confirm('저장하지 않은 변경이 있어요. 저장하지 않고 모임 만들기로 갈까요?')) e.preventDefault()
+            }}
+            className="flex items-center gap-2 rounded-xl bg-(--c-accent)/10 px-3 py-2 text-[13px] font-semibold text-(--c-accent) transition hover:bg-(--c-accent)/15"
+          >
+            <span aria-hidden>🚶</span>
+            이 지도로 성지순례 모집하기
+            <ChevronRightIcon size={14} className="ml-auto" />
+          </Link>
+          <StoryCardButton className="h-9 text-[13px]" data={{ map, pins, legs, theme, ownerName: user?.nickname }} />
+
+          {/* 모바일에서는 테마 · 꾸미기를 패널 안에 */}
+          <div className="tm-scroll -mx-4 overflow-x-auto px-4 md:hidden" data-tour="map-look">
             <div className="w-max">
               <ThemePicker value={map.theme} onChange={draft.setTheme} />
             </div>
           </div>
+          <div className="flex flex-wrap gap-2 md:hidden">
+            <MapLookPicker look={map} coverUrl={map.coverUrl} onChange={draft.updateMap} variant="inline" />
+            {collab && user && (
+              <span data-tour="collab">
+                <CollabButton mapId={map.id} myId={user.id} collab={collab} onChange={loadCollab} variant="inline" />
+              </span>
+            )}
+          </div>
 
-          <PlaceSearchBox
-            onPick={(place) => draft.addPlace(place)}
-          />
+          <div data-tour="place-search">
+            <PlaceSearchBox onPick={(place) => draft.addPlace(place)} />
+          </div>
         </div>
 
         <div className="flex shrink-0 items-center justify-between border-t border-(--c-border) px-5 py-2.5 text-[13px]">
@@ -266,7 +362,7 @@ export function MapEditorPage() {
           {totalMin > 0 && <span className="text-(--c-muted)">이동 총 {totalMin >= 60 ? `${Math.floor(totalMin / 60)}시간 ${totalMin % 60}분` : `${totalMin}분`}</span>}
         </div>
 
-        <div className="tm-scroll min-h-0 flex-1 overflow-y-auto pb-[env(safe-area-inset-bottom)]">
+        <div className="tm-scroll min-h-0 flex-1 overflow-y-auto pb-[env(safe-area-inset-bottom)]" data-tour="pins">
           {pins.length === 0 ? (
             <div className="flex flex-col items-center px-8 py-12 text-center">
               <span className="grid size-14 place-items-center rounded-2xl bg-(--c-accent)/10 text-(--c-accent)">
@@ -318,3 +414,4 @@ export function MapEditorPage() {
     </div>
   )
 }
+

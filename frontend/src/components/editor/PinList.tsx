@@ -63,7 +63,7 @@ export function PinList({ pins, legs, selectedPinId, onSelect, onMove, onLegChan
               {/* 끄는 동안에는 구간 입력을 숨겨서 순서 바꾸기 쉽게 */}
               {!dragging && legs[i] && (
                 <li className="relative list-none">
-                  <LegEditor leg={legs[i]} onChange={(patch) => onLegChange(legs[i].fromPinId, legs[i].toPinId, patch)} />
+                  <LegEditor leg={legs[i]} from={pin.place} to={pins[i + 1]?.place} onChange={(patch) => onLegChange(legs[i].fromPinId, legs[i].toPinId, patch)} />
                 </li>
               )}
             </Fragment>
@@ -101,11 +101,11 @@ function PinRow({ pin, index, selected, onSelect }: { pin: Pin; index: number; s
         </button>
         <button type="button" onClick={onSelect} className="flex min-w-0 flex-1 items-center gap-3 py-2 text-left">
           <span
-            className="relative grid size-10 shrink-0 place-items-center rounded-full text-lg shadow-sm ring-2 ring-white"
+            className="relative grid size-10 shrink-0 place-items-center rounded-full text-lg shadow-sm ring-2 ring-(--c-surface)"
             style={{ background: pin.color }}
           >
             {pin.icon}
-            <span className="absolute -right-1 -top-1 grid h-[18px] min-w-[18px] place-items-center rounded-full bg-gray-900 px-1 text-[10px] font-bold text-white ring-2 ring-white">
+            <span className="absolute -right-1 -top-1 grid h-[18px] min-w-[18px] place-items-center rounded-full bg-gray-900 px-1 text-[10px] font-bold text-white ring-2 ring-(--c-surface)">
               {index + 1}
             </span>
           </span>

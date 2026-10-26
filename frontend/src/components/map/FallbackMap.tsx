@@ -1,13 +1,16 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { legLabel } from '../legModes'
+import { legLabel, modeMeta } from '../legModes'
 import { MapControls } from './MapControls'
 import { PickPopup } from './PickPopup'
+import { pathMidpoint } from './routing'
+import { DEFAULT_LOOK, LINE_WIDTH, partLine, styledLine, type Segment } from './segments'
 import { DEFAULT_CENTER, NO_INSETS, type MapViewProps, type PickedPoint } from './types'
 import { useLongPress } from './useLongPress'
 
 interface Props extends MapViewProps {
+  segments: Segment[]
   notice: string
 }
 
@@ -15,7 +18,7 @@ interface Props extends MapViewProps {
  * 카카오 키가 없거나 불러오기 실패했을 때 보여주는 미리보기 지도.
  * 실제 지도 타일 없이 핀 위치·순서·경로만 비율대로 그린다.
  */
-export function FallbackMap({ pins, legs, theme, selectedPinId, onSelectPin, insets = NO_INSETS, onAddPlace, notice }: Props) {
+export function FallbackMap({ pins, segments, theme, look = DEFAULT_LOOK, selectedPinId, onSelectPin, insets = NO_INSETS, onAddPlace, notice }: Props) {
   const ref = useRef<HTMLDivElement>(null)
   const [size, setSize] = useState({ w: 0, h: 0 })
   const [picked, setPicked] = useState<PickedPoint | null>(null)
@@ -83,32 +86,41 @@ export function FallbackMap({ pins, legs, theme, selectedPinId, onSelectPin, ins
         backgroundSize: '48px 48px',
       }}
     >
-      {size.w > 0 && pins.length > 1 && (
+      {size.w > 0 && segments.length > 0 && (
         <svg className="pointer-events-none absolute inset-0" width={size.w} height={size.h}>
-          <polyline
-            points={pins.map((p) => `${pos.get(p.id)!.x},${pos.get(p.id)!.y}`).join(' ')}
-            fill="none"
-            stroke={theme.route}
-            strokeWidth={5}
-            strokeOpacity={0.85}
-            strokeLinejoin="round"
-            strokeLinecap="round"
-          />
+          {segments.map((seg) => {
+            const lines = seg.parts?.length
+              ? seg.parts.map((p) => ({ path: p.path, color: p.color ?? theme.route, dash: styledLine(partLine(p.kind), look.lineStyle, p.kind).svg }))
+              : [{ path: seg.path, color: theme.route, dash: styledLine(modeMeta(seg.mode).line, look.lineStyle).svg }]
+            const [outer, inner] = LINE_WIDTH[look.lineWidth]
+            return (
+              <g key={seg.key} fill="none" strokeLinejoin="round" strokeLinecap="round" opacity={seg.loading ? 0.4 : 1}>
+                {lines.map((l, i) => {
+                  const points = l.path.map((p) => project(p.lat, p.lng)).map((p) => `${p.x},${p.y}`).join(' ')
+                  return (
+                    <g key={i}>
+                      <polyline points={points} stroke="#fff" strokeWidth={outer} strokeOpacity={0.9} />
+                      <polyline points={points} stroke={l.color} strokeWidth={inner} strokeOpacity={0.95} strokeDasharray={l.dash} />
+                    </g>
+                  )
+                })}
+              </g>
+            )
+          })}
         </svg>
       )}
 
       {size.w > 0 &&
-        legs.map((leg) => {
-          const a = pos.get(leg.fromPinId)
-          const b = pos.get(leg.toPinId)
-          if (!a || !b) return null
+        segments.map((seg) => {
+          const mid = pathMidpoint(seg.path)
+          const p = project(mid.lat, mid.lng)
           return (
             <div
-              key={`${leg.fromPinId}>${leg.toPinId}`}
+              key={seg.key}
               className="tm-leg-label absolute -translate-x-1/2 -translate-y-1/2"
-              style={{ left: (a.x + b.x) / 2, top: (a.y + b.y) / 2, ['--route' as string]: theme.route }}
+              style={{ left: p.x, top: p.y, ['--route' as string]: theme.route }}
             >
-              {legLabel(leg.mode, leg.durationMin)}
+              {legLabel(seg.mode, seg.durationMin, seg.icon)}
             </div>
           )
         })}
@@ -123,6 +135,7 @@ export function FallbackMap({ pins, legs, theme, selectedPinId, onSelectPin, ins
                 type="button"
                 className="tm-marker"
                 data-selected={selected}
+                data-shape={look.markerShape}
                 style={{ ['--pin' as string]: pin.color }}
                 onClick={() => onSelectPin(pin.id)}
                 aria-label={`${i + 1}번 ${pin.place.name}`}
@@ -150,7 +163,7 @@ export function FallbackMap({ pins, legs, theme, selectedPinId, onSelectPin, ins
       )}
 
       <div
-        className="tm-float absolute left-1/2 z-10 max-w-[90%] -translate-x-1/2 rounded-full bg-white/95 px-3.5 py-1.5 text-center text-xs font-medium text-gray-600 backdrop-blur"
+        className="tm-float absolute left-1/2 z-10 max-w-[90%] -translate-x-1/2 rounded-full bg-(--c-surface) px-3.5 py-1.5 text-center text-xs font-medium text-(--c-muted)"
         style={{ top: insets.top + 12, marginLeft: (insets.left - insets.right) / 2 }}
       >
         {notice}

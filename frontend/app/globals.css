@@ -1,20 +1,52 @@
 @import "tailwindcss";
 
-/* 기본 색 (테마가 없는 화면용). 지도 편집 화면은 themeVars() 로 이 값들을 덮어쓴다. */
+/*
+ * 컨셉지도 디자인 — '트래블 진(zine)': 크림색 종이 + 먹색 글자 + 모노 라벨 + 단단한 그림자.
+ * 라이트/다크는 <html data-mode> 로 바뀐다 (components/appearance.ts — 기본은 일출·일몰 자동).
+ * 지도 화면은 themeVars() 로 강조색(--c-accent)과 배경 틴트(--c-bg)를 덮어쓴다.
+ */
 :root {
-  --c-bg: #f5f6f8;
-  --c-surface: #ffffff;
-  --c-text: #111827;
-  --c-muted: #6b7280;
-  --c-border: #e7e9ee;
-  --c-accent: #f97316;
+  --c-base-bg: #f2eee4;
+  --c-base-map-bg: #ebe6da;
+  --c-bg: var(--c-base-bg);
+  --c-surface: #faf8f3;
+  --c-text: #171614;
+  --c-muted: #6e695f;
+  --c-border: rgb(23 22 20 / 0.13);
+  /* 사이트 대표색 (지도 테마가 없을 때) · 형광펜 · 팝 컬러(스티커·태그) */
+  --c-accent: #ff5a2b;
   --c-accent-text: #ffffff;
-  --c-map-bg: #eef1f5;
-  --c-map-grid: #e0e5ec;
+  --c-lime: #d4ff3f;
+  --c-pink: #ff9ec7;
+  --c-sky: #8fd9ff;
+  --c-sun: #ffd84a;
+  --c-ink: #171614;
+  --c-map-bg: var(--c-base-map-bg);
+  --c-map-grid: #ddd6c6;
+  color-scheme: light;
+}
+:root[data-mode="dark"] {
+  --c-base-bg: #0e0e0d;
+  --c-base-map-bg: #141413;
+  --c-surface: #171716;
+  --c-text: #f1ece1;
+  --c-muted: #8f897d;
+  --c-border: rgb(241 236 225 / 0.13);
+  --c-ink: #f1ece1;
+  --c-map-grid: #22211f;
+  color-scheme: dark;
 }
 
 @theme inline {
   --font-sans: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, system-ui, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+  /* 영문 포인트 제목 (기울인 세리프) · 라벨 · 숫자 */
+  --font-display: "Instrument Serif", "Noto Serif KR", serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, var(--font-sans);
+  /* 덜 둥글게: 진(zine) 느낌 */
+  --radius-lg: 6px;
+  --radius-xl: 8px;
+  --radius-2xl: 10px;
+  --radius-3xl: 14px;
 }
 
 html,
@@ -27,19 +59,163 @@ body {
   color: var(--c-text);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.015em;
   -webkit-tap-highlight-color: transparent;
 }
 
-/* 떠 있는 패널 그림자 */
+/* 종이 질감: 아주 옅은 노이즈 (지도 화면은 덮지 않게 body 배경에만) */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  /* 맨 뒤 (화면 요소의 position 을 건드리지 않게 z-index 만으로) */
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0.35;
+  mix-blend-mode: multiply;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.09 0 0 0 0 0.08 0 0 0 0 0.07 0 0 0 0.09 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+:root[data-mode="dark"] body::before {
+  mix-blend-mode: screen;
+  opacity: 0.18;
+}
+::selection {
+  background: var(--c-lime);
+  color: #171614;
+}
+
+/* 아래 tm-* 클래스는 components 레이어: 같은 요소에 붙인 Tailwind 클래스(utilities)가 항상 이긴다 */
+@layer components {
+/* 떠 있는 패널: 얇은 테두리 + 또렷한 그림자 */
 .tm-float {
-  box-shadow: 0 1px 2px rgb(15 23 42 / 0.06), 0 6px 24px rgb(15 23 42 / 0.10);
+  box-shadow: 0 0 0 1px var(--c-border), 0 10px 30px -8px rgb(23 22 20 / 0.22);
 }
 
 .tm-scroll {
   overscroll-behavior: contain;
   scrollbar-width: thin;
   scrollbar-color: color-mix(in srgb, var(--c-muted) 35%, transparent) transparent;
+}
+
+/* ● 라벨: 모노 대문자 작은 글씨 (섹션 이름 · 메타 정보) */
+.tm-label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--c-muted);
+}
+.tm-label.dot::before {
+  content: "●";
+  margin-right: 0.6em;
+  color: var(--c-accent);
+}
+
+/* 큰 제목: 한글은 굵고 촘촘하게. 강조(<em>)는 같은 글꼴에 포인트 색만
+   (기울인 세리프 Instrument Serif 에는 한글이 없어서 한글에 쓰면 기본 명조로 기울어져 촌스러워진다) */
+.tm-headline {
+  font-weight: 800;
+  letter-spacing: -0.045em;
+  line-height: 1.04;
+}
+.tm-headline em {
+  font-style: normal;
+  color: var(--c-accent);
+}
+/* 영문 포인트 전용 (Pin · Route 같은 짧은 영어 단어) */
+.tm-serif {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-weight: 400;
+  letter-spacing: -0.01em;
+}
+
+/* 단단한 그림자 버튼 · 카드 (눌리는 느낌) */
+.tm-btn {
+  border: 1.5px solid var(--c-ink);
+  box-shadow: 3px 3px 0 var(--c-ink);
+  transition: transform 0.12s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.12s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.tm-btn:hover:not(:disabled) {
+  transform: translate(-1px, -1px);
+  box-shadow: 4px 4px 0 var(--c-ink);
+}
+.tm-btn:active:not(:disabled) {
+  transform: translate(2px, 2px);
+  box-shadow: 1px 1px 0 var(--c-ink);
+}
+.tm-card {
+  border: 1px solid var(--c-border);
+  background: var(--c-surface);
+  transition: transform 0.18s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.18s cubic-bezier(0.2, 0.8, 0.2, 1), border-color 0.18s;
+}
+.tm-card:hover {
+  transform: translate(-3px, -3px);
+  border-color: var(--c-ink);
+  box-shadow: 5px 5px 0 var(--c-ink);
+}
+
+/* 형광펜 밑줄 */
+.tm-mark {
+  background: linear-gradient(transparent 58%, var(--c-lime) 58%, var(--c-lime) 92%, transparent 92%);
+  color: inherit;
+}
+:root[data-mode="dark"] .tm-mark {
+  background: none;
+  color: var(--c-lime);
+  text-shadow: 0 0 18px rgb(212 255 63 / 0.45);
+}
+
+/* 흐르는 띠 (랜딩 · 순위) */
+@keyframes tm-marquee {
+  to {
+    transform: translateX(-50%);
+  }
+}
+.tm-marquee {
+  display: flex;
+  width: max-content;
+  animation: tm-marquee 28s linear infinite;
+}
+
+/* 스크롤하면 툭 나타나기. 숨기는 건 useReveal 이 준비됐을 때(<html data-reveal>)만 →
+   자바스크립트가 늦거나 실패해도 내용은 항상 보인다 */
+.tm-reveal {
+  /* 제자리에서 천천히 페이드인 */
+  transition: opacity 0.9s ease-in-out;
+  transition-delay: var(--delay, 0s);
+}
+:root[data-reveal] .tm-reveal:not([data-shown="true"]) {
+  opacity: 0;
+}
+
+/* 첫 화면용: 자바스크립트 없이 CSS 만으로 페이드인 (페이지가 뜨자마자). 스크롤 등장(.tm-reveal)과 같은 속도 */
+@keyframes tm-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.tm-intro {
+  animation: tm-fade 0.9s ease-in-out var(--delay, 0s) both;
+}
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tm-intro {
+    animation: none;
+  }
+  :root[data-reveal] .tm-reveal:not([data-shown="true"]),
+  .tm-reveal {
+    opacity: 1;
+    transition: none;
+  }
+  .tm-marquee {
+    animation: none;
+  }
 }
 
 /* ---------------------------------------------------------------------------
@@ -124,6 +300,38 @@ body {
   color: #fff;
 }
 
+/* 마커 모양 (지도 꾸미기). 기본 pin 은 위의 물방울. 나머지는 머리 + 아래 작은 꼬리 */
+.tm-marker[data-shape="circle"] .tm-marker-head,
+.tm-marker[data-shape="square"] .tm-marker-head {
+  transform: none;
+  border-radius: 9999px;
+}
+.tm-marker[data-shape="square"] .tm-marker-head {
+  border-radius: 12px;
+}
+.tm-marker[data-shape="circle"]::after,
+.tm-marker[data-shape="square"]::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: 1px;
+  width: 0;
+  height: 0;
+  transform: translateX(-50%);
+  border: 6px solid transparent;
+  border-top: 8px solid var(--pin, #f97316);
+  border-bottom: 0;
+}
+/* 이모지만: 배경 없이 이모지를 크게, 흰 테두리 그림자로 지도 위에서도 보이게 */
+.tm-marker[data-shape="emoji"] .tm-marker-head {
+  display: none;
+}
+.tm-marker[data-shape="emoji"] .tm-marker-emoji {
+  height: 50px;
+  font-size: 34px;
+  filter: drop-shadow(0 0 1.5px #fff) drop-shadow(0 0 1.5px #fff) drop-shadow(0 3px 4px rgb(15 23 42 / 0.3));
+}
+
 .tm-leg-label {
   padding: 3px 8px;
   border-radius: 9999px;
@@ -160,16 +368,56 @@ body {
   to { transform: scale(3.2); opacity: 0; }
 }
 
-/* 테마별 카카오 지도 톤. 마커·라벨은 반대 필터로 원래 색을 유지한다. */
-.tm-map-dark {
+/* 확대·축소 중에는 경로선(SVG)을 숨겨서 버벅임을 줄인다 (KakaoMap.tsx 8번) */
+.tm-zooming svg {
+  visibility: hidden;
+}
+
+/* 다크 모드의 카카오 지도: 타일을 반전해 어둡게. 마커·라벨은 반대 필터로 원래 색을 유지한다. */
+:root[data-mode="dark"] .tm-map-tiles {
   filter: invert(1) hue-rotate(180deg) brightness(0.95) contrast(0.9);
 }
-.tm-map-dark .tm-overlay {
+:root[data-mode="dark"] .tm-map-tiles .tm-overlay,
+:root[data-mode="dark"] .tm-map-tiles svg {
+  /* 경로선(SVG)도 노선 색이 뒤집히지 않게 */
   filter: invert(1) hue-rotate(180deg);
 }
-.tm-map-vintage {
-  filter: sepia(0.35) saturate(0.85);
+
+/* 랜딩 그림 움직임 */
+@keyframes tm-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
 }
-.tm-map-pastel {
-  filter: saturate(0.75) brightness(1.04);
+@keyframes tm-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.2) translateY(-30px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes tm-float {
+  0%,
+  100% {
+    translate: 0 0;
+  }
+  50% {
+    translate: 0 -8px;
+  }
+}
+@keyframes tm-fade-in {
+  to {
+    opacity: 1;
+  }
+}
+@keyframes tm-step {
+  0% {
+    transform: scale(0.96) rotate(-1deg);
+  }
+  100% {
+    transform: none;
+  }
 }

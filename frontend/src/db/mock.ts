@@ -20,6 +20,9 @@ import type {
   Pin,
   PinInput,
   Place,
+  ProfileDeco,
+  ProfileDecoInput,
+  ProfilePage,
   PublicMapSummary,
   User,
 } from '../types'
@@ -48,11 +51,12 @@ interface Db {
   meetups: Meetup[]
   members: MemberRow[]
   uses: UseRow[]
+  decos: ProfileDeco[]
   seeded?: boolean
 }
 
 function emptyDb(): Db {
-  return { maps: [], places: [], pins: [], legs: [], meetups: [], members: [], uses: [] }
+  return { maps: [], places: [], pins: [], legs: [], meetups: [], members: [], uses: [], decos: [] }
 }
 
 function load(): Db {
@@ -565,6 +569,83 @@ export async function getUser(userId: string): Promise<User> {
   return mockUserById(userId)
 }
 
+// ===========================================================================
+// 프로필 꾸미기
+// ===========================================================================
+
+const PAPERS = ['plain', 'lined', 'grid', 'dot', 'kraft', 'cream']
+const FONTS = ['basic', 'hand', 'round', 'serif', 'pen']
+
+function defaultDeco(userId: string): ProfileDeco {
+  return {
+    userId,
+    paper: 'plain',
+    color: '#ffffff',
+    font: 'basic',
+    bio: '',
+    mood: '',
+    stickers: [],
+    pinnedMapIds: [],
+    mapStyle: 'polaroid',
+    sections: { intro: true, stickers: true, maps: true },
+    updatedAt: now(),
+  }
+}
+
+/**
+ * 공개 프로필: 꾸미기 + 공개 지도 (대표로 고른 지도가 고른 순서대로 먼저). 꾸민 적 없으면 기본값.
+ *
+ * @example
+ * const { user, deco, maps } = await getProfile(userId)
+ */
+export async function getProfile(userId: string): Promise<ProfilePage> {
+  await tick()
+  const db = load()
+  const deco = db.decos.find((d) => d.userId === userId) ?? defaultDeco(userId)
+  const publicMaps = db.maps.filter((m) => m.ownerId === userId && m.isPublic)
+  const pinned = deco.pinnedMapIds.map((id) => publicMaps.find((m) => m.id === id)).filter((m): m is ConceptMap => !!m)
+  const rest = publicMaps.filter((m) => !deco.pinnedMapIds.includes(m.id)).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+  // 비공개로 바꾼 지도는 대표 지도에서 빠진다
+  const visible = { ...deco, pinnedMapIds: pinned.map((m) => m.id) }
+  return { user: mockUserById(userId), deco: visible, maps: [...pinned, ...rest].map((m) => toPublicSummary(db, m)) }
+}
+
+/**
+ * 내 프로필 꾸미기 저장. 범위를 벗어난 값은 잘라서 저장한다 (DB 제약과 같게).
+ *
+ * @example
+ * await saveProfileDeco({ ...deco, paper: 'lined', stickers: [...deco.stickers, sticker] })
+ */
+export async function saveProfileDeco(input: ProfileDecoInput): Promise<ProfileDeco> {
+  await tick()
+  const db = load()
+  const me = requireUser()
+  const isColor = /^#[0-9a-fA-F]{6}$/.test(input.color)
+  const myPublic = new Set(db.maps.filter((m) => m.ownerId === me.id && m.isPublic).map((m) => m.id))
+  const deco: ProfileDeco = {
+    userId: me.id,
+    paper: PAPERS.includes(input.paper) ? input.paper : 'plain',
+    color: isColor ? input.color : '#ffffff',
+    font: FONTS.includes(input.font) ? input.font : 'basic',
+    bio: input.bio.trim().slice(0, 150),
+    mood: input.mood.trim().slice(0, 40),
+    stickers: input.stickers.slice(0, 30).map((s) => ({
+      ...s,
+      x: Math.min(100, Math.max(0, s.x)),
+      y: Math.min(100, Math.max(0, s.y)),
+      size: Math.min(160, Math.max(20, Math.round(s.size))),
+      rotate: Math.round(s.rotate) % 360,
+    })),
+    pinnedMapIds: input.pinnedMapIds.filter((id) => myPublic.has(id)).slice(0, 6),
+    mapStyle: input.mapStyle === 'tape' ? 'tape' : 'polaroid',
+    sections: { intro: !!input.sections.intro, stickers: !!input.sections.stickers, maps: !!input.sections.maps },
+    updatedAt: now(),
+  }
+  db.decos = [...db.decos.filter((d) => d.userId !== me.id), deco]
+  persist(db)
+  return deco
+}
+
 /**
  * 남의 공개 지도를 내 지도로 복사 ('사용'으로 기록되어 순위에 반영). 새 지도를 돌려준다.
  *
@@ -818,5 +899,6 @@ export async function adminDeleteUser(userId: string): Promise<void> {
   db.meetups = db.meetups.filter((m) => !meetupIds.has(m.id))
   db.members = db.members.filter((r) => r.userId !== userId && !meetupIds.has(r.meetupId))
   db.uses = db.uses.filter((u) => u.userId !== userId && !mapIds.has(u.mapId))
+  db.decos = db.decos.filter((d) => d.userId !== userId)
   persist(db)
 }

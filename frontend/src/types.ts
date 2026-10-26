@@ -178,3 +178,53 @@ export interface AdminStats {
   meetupsOpen: number
   usesThisMonth: number
 }
+
+// ---- 프로필 꾸미기 (다이어리처럼) ----
+
+/** 속지: 무지 · 줄노트 · 모눈 · 도트 · 크라프트지 · 미색 */
+export type PaperId = 'plain' | 'lined' | 'grid' | 'dot' | 'kraft' | 'cream'
+/** 글꼴: 기본 · 손글씨 · 동글동글 · 명조 · 펜글씨 */
+export type ProfileFont = 'basic' | 'hand' | 'round' | 'serif' | 'pen'
+/** 대표 지도 카드 모양: 폴라로이드 · 마스킹테이프 */
+export type MapCardStyle = 'polaroid' | 'tape'
+
+/** 프로필에 붙인 스티커 1개. x · y 는 꾸미기 판 안에서의 위치(%), size 는 px, rotate 는 도 */
+export interface Sticker {
+  id: string
+  emoji: string
+  x: number
+  y: number
+  size: number
+  rotate: number
+}
+
+/** 꾸미기 요소별로 보일지 말지 (원하는 것만 골라 쓰기) */
+export interface ProfileSections {
+  intro: boolean // 소개글 · 오늘의 한마디
+  stickers: boolean
+  maps: boolean // 대표 지도
+}
+
+export interface ProfileDeco {
+  userId: string
+  paper: PaperId
+  /** 속지 색 '#rrggbb' */
+  color: string
+  font: ProfileFont
+  bio: string // 150자까지
+  mood: string // 오늘의 한마디, 40자까지
+  stickers: Sticker[] // 30개까지
+  pinnedMapIds: string[] // 내 공개 지도 중 6개까지, 고른 순서대로
+  mapStyle: MapCardStyle
+  sections: ProfileSections
+  updatedAt: string
+}
+
+export type ProfileDecoInput = Omit<ProfileDeco, 'userId' | 'updatedAt'>
+
+/** getProfile() 결과: 사람 + 꾸미기 + 공개 지도(대표 지도 먼저) */
+export interface ProfilePage {
+  user: User
+  deco: ProfileDeco
+  maps: PublicMapSummary[]
+}

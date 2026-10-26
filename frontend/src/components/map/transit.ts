@@ -8,7 +8,7 @@ export const hasTransitKey = KEY.length > 0
 
 /**
  * 단계 종류. walk: 걷기 / bus · subway: 시내 / train: 기차 / intercityBus: 고속·시외버스 / air: 비행기
- * access: 장거리일 때 출발지 → 역·공항, 역·공항 → 도착지 이동 (ODsay 가 안 알려줘서 예상치)
+ * access: 장거리일 때 역·공항까지 시내 길찾기를 못 해서 넣는 예상치 한 칸 (찾으면 그 버스·지하철 단계를 그대로 넣는다)
  */
 export type TransitStepKind = 'walk' | 'bus' | 'subway' | 'train' | 'intercityBus' | 'air' | 'access'
 

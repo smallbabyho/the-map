@@ -4,16 +4,19 @@ import { formatMinutes } from './legModes'
 import { STEP_ICON, type TransitInfo, type TransitStep } from './map'
 
 const isRide = (s: TransitStep) => s.kind !== 'walk' && s.kind !== 'access'
+const isIntercity = (s: TransitStep) => s.kind === 'train' || s.kind === 'intercityBus' || s.kind === 'air'
 
 /**
  * 대중교통 구간 요약: [🚶 4분] › [2호선] › [🚌 2412] › [🚶 3분] + 승하차 · 환승 · 요금.
- * 장거리면 [🚕 약 15분] › [🚄 KTX] › [🚕 약 20분] 처럼 역·공항까지 이동(예상)이 붙는다.
+ * 장거리면 [🚶 3분] › [2호선] › [🚄 KTX] › [🚌 1003] 처럼 역·공항까지 시내 대중교통이 붙는다 (못 찾으면 [🚕 약 20분] 예상).
  * '자세히'를 누르면 단계별(어디서 타고 어디서 내리는지)로 펼친다.
  */
 export function TransitSteps({ info, className = '' }: { info: TransitInfo; className?: string }) {
   const rides = info.steps.filter(isRide)
-  const first = rides[0]
-  const last = rides[rides.length - 1]
+  // 장거리면 역·공항까지 시내 구간 말고 기차·버스·비행기 구간 기준으로 "서울 → 부산"
+  const main = info.intercity ? rides.filter(isIntercity) : rides
+  const first = main[0]
+  const last = main[main.length - 1]
   // 1분 미만 걷기는 요약에서 뺀다
   const shown = info.steps.filter((s) => s.kind !== 'walk' || s.minutes > 0)
   const hasEstimate = info.steps.some((s) => s.estimated)

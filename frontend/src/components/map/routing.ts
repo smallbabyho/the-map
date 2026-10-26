@@ -83,29 +83,31 @@ async function fetchTransit(from: LatLngLike, to: LatLngLike): Promise<Route> {
   const r = await searchTransit(from, to)
   if (!r) return estimate(from, to, 'transit')
   let base = r.info.steps
+  let info = r.info
   let extraMin = 0
-  // 장거리(기차·비행기 등)는 ODsay 가 출발지 → 역·공항, 역·공항 → 도착지 이동을 안 알려줘서 시내 이동 시간으로 예상해 붙인다
+  let extraM = 0
+  // 장거리(기차·비행기 등)는 ODsay 가 출발지 → 역·공항, 역·공항 → 도착지 이동을 안 알려줘서 따로 붙인다
   if (r.info.intercity && base.length > 0) {
     const first = base[0].path[0]
     const last = base[base.length - 1].path[base[base.length - 1].path.length - 1]
-    // 역·공항까지도 시내 대중교통 길찾기로 시간을 구한다. 실패하거나 가까우면 예상치.
-    const access = async (a: LatLngLike, b: LatLngLike): Promise<TransitStep | null> => {
-      if (straightDistance(a, b) < 100) return null
+    // 역·공항까지도 시내 대중교통 길찾기로 버스·지하철 단계를 그대로 끼워 넣는다. 실패하면 예상치 한 칸.
+    const access = async (a: LatLngLike, b: LatLngLike): Promise<{ steps: TransitStep[]; minutes: number; distanceM: number; fare: number | null }> => {
+      if (straightDistance(a, b) < 100) return { steps: [], minutes: 0, distanceM: 0, fare: 0 }
       const e = estimate(a, b, 'transit')
-      if (e.distanceM < 800) return { kind: 'walk', minutes: e.durationMin, distanceM: Math.round(e.distanceM), path: [a, b] }
+      const distanceM = Math.round(e.distanceM)
+      if (e.distanceM < 800) return { steps: [{ kind: 'walk', minutes: e.durationMin, distanceM, path: [a, b] }], minutes: e.durationMin, distanceM, fare: 0 }
       const city = await searchTransit(a, b).catch(() => null)
-      const real = city && !city.info.intercity ? city : null
-      return {
-        kind: 'access',
-        minutes: real ? real.durationMin : e.durationMin,
-        distanceM: Math.round(real ? real.distanceM : e.distanceM),
-        path: [a, b],
-        estimated: !real,
-      }
+      if (city && !city.info.intercity) return { steps: city.info.steps, minutes: city.durationMin, distanceM: city.distanceM, fare: city.info.fare }
+      return { steps: [{ kind: 'access', minutes: e.durationMin, distanceM, path: [a, b], estimated: true }], minutes: e.durationMin, distanceM, fare: null }
     }
     const [head, tail] = await Promise.all([access(from, first), access(last, to)])
-    extraMin = (head?.minutes ?? 0) + (tail?.minutes ?? 0)
-    base = [head, ...base, tail].filter((x): x is TransitStep => x != null)
+    extraMin = head.minutes + tail.minutes
+    extraM = head.distanceM + tail.distanceM
+    base = [...head.steps, ...base, ...tail.steps]
+    // 요금은 시내 구간 요금까지 다 알 때만 합친다. 환승은 탄 횟수로 다시 센다.
+    const fare = r.info.fare != null && head.fare != null && tail.fare != null ? r.info.fare + head.fare + tail.fare : null
+    const rides = base.filter((s) => s.kind !== 'walk' && s.kind !== 'access').length
+    info = { ...r.info, fare, transfers: Math.max(0, rides - 1) }
   }
   // 걷는 부분(정류장·역까지)도 실제 길을 따라가게. 실패하면 직선 그대로.
   const steps = await Promise.all(
@@ -117,10 +119,10 @@ async function fetchTransit(from: LatLngLike, to: LatLngLike): Promise<Route> {
   )
   return {
     path: [from, ...steps.flatMap((s) => s.path), to],
-    distanceM: r.distanceM,
+    distanceM: r.distanceM + extraM,
     durationMin: Math.max(1, r.durationMin + extraMin),
     estimated: false,
-    transit: { ...r.info, steps },
+    transit: { ...info, steps },
   }
 }
 
@@ -150,7 +152,11 @@ function loadStore() {
   if (storeLoaded || typeof window === 'undefined') return
   storeLoaded = true
   const now = Date.now()
-  for (const [key, v] of Object.entries(readStore())) if (now - v.at < STORE_TTL && !done.has(key)) done.set(key, v.route)
+  for (const [key, v] of Object.entries(readStore())) {
+    // 예전엔 역·공항까지 시내 경로를 '🚕 약 n분' 한 칸으로 저장했다 (예상치 아닌 access). 다시 받아 단계별로.
+    const old = v.route.transit?.steps.some((s) => s.kind === 'access' && !s.estimated)
+    if (now - v.at < STORE_TTL && !old && !done.has(key)) done.set(key, v.route)
+  }
 }
 
 function saveToStore(key: string, route: Route) {

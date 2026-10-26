@@ -185,6 +185,16 @@ export function useMapDraft(mapId: string) {
     touch()
   }
 
+  /** 핀 순서를 통째로 바꾸기 (코스 최적화 · 되돌리기). 없는 id 는 무시하고, 빠진 핀은 뒤에 그대로 */
+  const reorderPins = (pinIds: string[]) => {
+    setPins((ps) => {
+      const byId = new Map(ps.map((p) => [p.id, p]))
+      const picked = pinIds.map((id) => byId.get(id)).filter((p): p is Pin => p != null)
+      return [...picked, ...ps.filter((p) => !pinIds.includes(p.id))]
+    })
+    touch()
+  }
+
   /**
    * 이동수단을 바꾸면 시간은 다시 자동(길찾기)으로.
    * 시간을 적으면 직접 입력, 비우면 다시 자동.
@@ -288,6 +298,7 @@ export function useMapDraft(mapId: string) {
     renamePlace,
     removePin,
     movePin,
+    reorderPins,
     updateLeg,
     save,
   }

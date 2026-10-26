@@ -7,6 +7,7 @@ import { useCurrentUser } from '../auth'
 import { HeaderActions } from '../components/AppRail'
 import { PinEditPanel } from '../components/editor/PinEditPanel'
 import { PinList } from '../components/editor/PinList'
+import { OptimizeCourseButton } from '../components/editor/OptimizeCourseButton'
 import { PlaceSearchBox } from '../components/editor/PlaceSearchBox'
 import { CollabButton } from '../components/editor/CollabButton'
 import { MapLookPicker } from '../components/editor/MapLookPicker'
@@ -355,11 +356,12 @@ export function MapEditorPage() {
           </div>
         </div>
 
-        <div className="flex shrink-0 items-center justify-between border-t border-(--c-border) px-5 py-2.5 text-[13px]">
-          <span className="font-semibold">
+        <div className="flex shrink-0 items-center justify-between gap-3 border-t border-(--c-border) px-5 py-2.5 text-[13px]">
+          <span className="shrink-0 font-semibold">
             장소 <span className="text-(--c-accent)">{pins.length}</span>곳
+            {totalMin > 0 && <span className="ml-2 font-normal text-(--c-muted)">이동 총 {totalMin >= 60 ? `${Math.floor(totalMin / 60)}시간 ${totalMin % 60}분` : `${totalMin}분`}</span>}
           </span>
-          {totalMin > 0 && <span className="text-(--c-muted)">이동 총 {totalMin >= 60 ? `${Math.floor(totalMin / 60)}시간 ${totalMin % 60}분` : `${totalMin}분`}</span>}
+          <OptimizeCourseButton pins={pins} onReorder={draft.reorderPins} />
         </div>
 
         <div className="tm-scroll min-h-0 flex-1 overflow-y-auto pb-[env(safe-area-inset-bottom)]" data-tour="pins">

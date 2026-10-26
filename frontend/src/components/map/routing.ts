@@ -9,6 +9,7 @@ import { searchTransit, type TransitInfo, type TransitStep } from './transit'
 // - 자동차: 카카오모빌리티 길찾기 (/api/route/car, 서버에 KAKAO_REST_KEY 가 있을 때). 한국 도로·교통 사정이 반영된다.
 //   키가 없거나 실패하면 아래 OSRM 으로 대신한다.
 // - 도보 · 자전거 (+ 자동차 대신): OpenStreetMap 길찾기(OSRM, routing.openstreetmap.de). 키 없이 쓸 수 있는 공개 서버.
+//   도보 · 자전거는 후보 경로 중 가장 짧은 길. 자전거는 걷는 길이 확실히 짧으면 그 길로.
 // - 대중교통: ODsay 키(NEXT_PUBLIC_ODSAY_KEY)가 있으면 버스 번호·지하철 노선·환승·요금까지 (transit.ts).
 //   키가 없으면 직선거리로 시간을 '예상'한다 (선도 직선).
 // - 길찾기에 실패하면(오프라인 등) 직선거리 예상치로 대신한다. 화면이 멈추지 않게.
@@ -75,14 +76,42 @@ async function fetchRoad(from: LatLngLike, to: LatLngLike, mode: Exclude<TravelM
     const kakao = await fetchKakaoCar(from, to)
     if (kakao) return kakao
   }
+  if (mode === 'car') {
+    const r = (await fetchOsrm(from, to, 'car', false))[0]
+    return toRoute(from, to, r, r.duration * CAR_CITY_FACTOR)
+  }
+  // 도보 · 자전거: OSRM 은 '가장 빠른 길'을 주는데 후보 중에 더 짧은 길이 있곤 해서, 후보를 받아 가장 짧은 길을 고른다
+  const shortest = (rs: OsrmRoute[]) => rs.reduce((a, b) => (b.distance < a.distance ? b : a))
+  if (mode === 'walk') {
+    const r = shortest(await fetchOsrm(from, to, 'walk', true))
+    return toRoute(from, to, r, r.duration)
+  }
+  // 자전거 길은 보도 · 일방통행을 피하느라 크게 돌아가곤 한다. 걷는 길이 15% 넘게 짧으면 그 길로 (시간은 자전거 속도로)
+  const [bikes, feet] = await Promise.all([fetchOsrm(from, to, 'bike', true), fetchOsrm(from, to, 'walk', true).catch(() => [])])
+  const bike = shortest(bikes)
+  const foot = feet.length ? shortest(feet) : null
+  if (foot && foot.distance < bike.distance * 0.85) return toRoute(from, to, foot, (foot.distance / 1000 / ESTIMATE.bike.kmh) * 3600)
+  return toRoute(from, to, bike, bike.duration)
+}
+
+interface OsrmRoute {
+  distance: number
+  duration: number
+  geometry: { coordinates: [number, number][] }
+}
+
+/** OpenStreetMap 길찾기(OSRM). alternatives 면 후보 경로를 최대 3개까지 */
+async function fetchOsrm(from: LatLngLike, to: LatLngLike, mode: Exclude<TravelMode, 'transit'>, alternatives: boolean): Promise<OsrmRoute[]> {
   const coords = `${from.lng},${from.lat};${to.lng},${to.lat}`
-  const url = `https://routing.openstreetmap.de/${OSRM_PROFILE[mode]}/route/v1/driving/${coords}?overview=full&geometries=geojson`
+  const url = `https://routing.openstreetmap.de/${OSRM_PROFILE[mode]}/route/v1/driving/${coords}?overview=full&geometries=geojson${alternatives ? '&alternatives=3' : ''}`
   const res = await fetch(url)
   if (!res.ok) throw new Error(`길찾기 실패 (${res.status})`)
-  const data = (await res.json()) as { code: string; routes?: { distance: number; duration: number; geometry: { coordinates: [number, number][] } }[] }
-  const r = data.routes?.[0]
-  if (data.code !== 'Ok' || !r) throw new Error('길을 찾지 못했어요')
-  const seconds = mode === 'car' ? r.duration * CAR_CITY_FACTOR : r.duration
+  const data = (await res.json()) as { code: string; routes?: OsrmRoute[] }
+  if (data.code !== 'Ok' || !data.routes?.length) throw new Error('길을 찾지 못했어요')
+  return data.routes
+}
+
+function toRoute(from: LatLngLike, to: LatLngLike, r: OsrmRoute, seconds: number): Route {
   return {
     // 경로 양 끝을 핀 위치에 붙여서 선이 핀에서 시작·끝나게
     path: [from, ...r.geometry.coordinates.map(([lng, lat]) => ({ lat, lng })), to],

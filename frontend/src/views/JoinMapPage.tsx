@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
-import { useEffect, useState } from 'react'
+import { useEffect, useLayoutEffect, useState } from 'react'
 import { useCurrentUser } from '../auth'
 import { AppRail } from '../components/AppRail'
 import { Avatar } from '../components/Avatar'
@@ -17,6 +17,8 @@ export function JoinMapPage() {
   const user = useCurrentUser()
   const [preview, setPreview] = useState<MapInvitePreview | null | undefined>(undefined)
   const [busy, setBusy] = useState(false)
+  // 성공하면 다음 화면으로 넘어가며 busy 를 안 푼다. 뒤로 오면 Next 가 이 화면을 상태째 다시 보여 주므로, 떠날 때 푼다
+  useLayoutEffect(() => () => setBusy(false), [])
   const [error, setError] = useState('')
 
   useEffect(() => {

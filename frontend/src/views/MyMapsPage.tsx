@@ -1,7 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { useEffect, useState } from 'react'
+import { useEffect, useLayoutEffect, useState } from 'react'
 import { AppRail, MobileTabBar } from '../components/AppRail'
 import { MapCard } from '../components/MapCard'
 import { PlusIcon } from '../components/icons'
@@ -26,6 +26,8 @@ export function MyMapsPage() {
   const [maps, setMaps] = useState<ConceptMap[] | null>(null)
   const [error, setError] = useState('')
   const [creating, setCreating] = useState(false)
+  // 성공하면 다음 화면으로 넘어가며 creating 를 안 푼다. 뒤로 오면 Next 가 이 화면을 상태째 다시 보여 주므로, 떠날 때 푼다
+  useLayoutEffect(() => () => setCreating(false), [])
 
   // 로그인한 사람이 바뀌면 다시 불러온다
   const userId = user?.id

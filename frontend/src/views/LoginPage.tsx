@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { useState, type FormEvent } from 'react'
+import { useState, useSyncExternalStore, type FormEvent } from 'react'
 import { CaptchaWidget, DEMO_ACCOUNT, signIn, signOut, signUp, useCurrentUser } from '../auth'
 import { AppearanceOptions } from '../components/AppearanceButton'
 import { AppRail, MobileTabBar } from '../components/AppRail'
@@ -11,6 +11,25 @@ import { ChevronLeftIcon } from '../components/icons'
 import { SafetySection } from '../components/report/BlockedList'
 
 type Mode = 'signin' | 'signup'
+
+// 이메일 저장: 체크하고 로그인하면 이 브라우저에 이메일만 기억한다 (비밀번호는 저장하지 않음)
+const REMEMBER_KEY = 'the-map:remember-email'
+function readRemembered(): string {
+  try {
+    return localStorage.getItem(REMEMBER_KEY) ?? ''
+  } catch {
+    return ''
+  }
+}
+function writeRemembered(email: string | null) {
+  try {
+    if (email) localStorage.setItem(REMEMBER_KEY, email)
+    else localStorage.removeItem(REMEMBER_KEY)
+  } catch {
+    // 저장 못 하면 다음에 다시 적으면 된다
+  }
+}
+const noSubscribe = () => () => {}
 
 /** 로그인 / 회원가입. 이미 로그인했으면 '내 계정' 화면. ?next=/경로 가 있으면 로그인 후 그리로 이동. */
 export function LoginPage() {
@@ -22,7 +41,12 @@ export function LoginPage() {
   const user = useCurrentUser()
 
   const [mode, setMode] = useState<Mode>('signin')
-  const [email, setEmail] = useState('')
+  // 저장해 둔 이메일을 처음 값으로 (직접 고치기 전까지). 서버에서 그릴 땐 빈 값
+  const remembered = useSyncExternalStore(noSubscribe, readRemembered, () => '')
+  const [typedEmail, setEmail] = useState<string | null>(null)
+  const email = typedEmail ?? remembered
+  const [rememberChoice, setRemember] = useState<boolean | null>(null)
+  const remember = rememberChoice ?? remembered !== ''
   const [password, setPassword] = useState('')
   const [nickname, setNickname] = useState('')
   const [captcha, setCaptcha] = useState('')
@@ -39,6 +63,7 @@ export function LoginPage() {
     try {
       if (mode === 'signin') await signIn(email, password, captcha)
       else await signUp(email, password, nickname, captcha)
+      writeRemembered(remember ? email.trim() : null)
       router.push(next)
     } catch (err) {
       setError(err instanceof Error ? err.message : '잠시 후 다시 시도해 주세요.')
@@ -146,6 +171,11 @@ export function LoginPage() {
                     className={field}
                     aria-label="비밀번호"
                   />
+
+                  <label className="flex w-fit cursor-pointer items-center gap-2 px-1 text-sm text-(--c-muted)">
+                    <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} className="size-4 accent-(--c-accent)" />
+                    이메일 저장
+                  </label>
 
                   <CaptchaWidget onVerify={setCaptcha} resetKey={captchaReset} />
 

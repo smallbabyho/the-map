@@ -275,6 +275,7 @@ export function KakaoMap({ pins, segments, theme, look = DEFAULT_LOOK, selectedP
         popupHost &&
         createPortal(
           <PickPopup
+            key={`${picked.lat},${picked.lng}`}
             point={picked}
             onAdd={(place) => {
               onAddRef.current?.(place)

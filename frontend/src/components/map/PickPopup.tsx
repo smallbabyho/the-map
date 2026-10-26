@@ -19,9 +19,8 @@ export function PickPopup({ point, onAdd, onClose }: Props) {
   const [nearby, setNearby] = useState<Nearby[] | null>(null) // null = 찾는 중
 
   useEffect(() => {
+    // 다른 지점을 찍으면 key 가 바뀌어 새로 뜨므로 여기서 비우지 않는다
     let cancelled = false
-    setPlace(null)
-    setNearby(null)
     describePoint(point.lat, point.lng).then((p) => {
       if (cancelled) return
       setPlace(p)

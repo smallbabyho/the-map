@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useEffect, useState } from 'react'
+import { useEffect, useLayoutEffect, useState } from 'react'
 import { useCurrentUser } from '../auth'
 import { HeaderActions } from '../components/AppRail'
 import { Avatar } from '../components/Avatar'
@@ -33,6 +33,8 @@ export function MapViewer({ detail }: { detail: MapDetail }) {
   const [owner, setOwner] = useState<User | null>(null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  // 성공하면 다음 화면으로 넘어가며 busy 를 안 푼다. 뒤로 오면 Next 가 이 화면을 상태째 다시 보여 주므로, 떠날 때 푼다
+  useLayoutEffect(() => () => setBusy(false), [])
   const [error, setError] = useState('')
   const [desktop, setDesktop] = useState(false)
   // 이동수단을 바꿔서 코스 보기 (화면에서만, 지도는 그대로)
@@ -62,6 +64,8 @@ export function MapViewer({ detail }: { detail: MapDetail }) {
       setBusy(false)
     }
   }
+  // 카톡 · 공유 링크로 바로 들어오면 돌아갈 페이지가 없다 → 그때는 둘러보기로
+  const goBack = () => (window.history.length > 1 ? router.back() : router.push('/explore'))
   const meetupHref = me ? `/meetups/new?mapId=${map.id}` : `/login?next=${encodeURIComponent(`/meetups/new?mapId=${map.id}`)}`
   const insets: MapInsets = desktop ? { top: 0, right: 0, bottom: 0, left: RAIL_W + PANEL_W } : { top: 0, right: 0, bottom: 0, left: 0 }
 
@@ -74,7 +78,7 @@ export function MapViewer({ detail }: { detail: MapDetail }) {
       {/* 지도: 모바일은 위쪽, 데스크톱은 전체 */}
       <div className="relative h-[42dvh] shrink-0 md:absolute md:inset-0 md:h-auto">
         <MapView pins={pins} legs={view.legs} theme={theme} look={map} selectedPinId={selectedId} onSelectPin={(id) => setSelectedId((c) => (c === id ? null : id))} insets={insets} />
-        <button type="button" onClick={() => router.back()} className="tm-float absolute left-3 top-3 z-20 grid size-10 place-items-center rounded-full bg-(--c-surface) text-(--c-text) md:hidden" aria-label="뒤로">
+        <button type="button" onClick={goBack} className="tm-float absolute left-3 top-3 z-20 grid size-10 place-items-center rounded-full bg-(--c-surface) text-(--c-text) md:hidden" aria-label="뒤로">
           <ChevronLeftIcon size={20} />
         </button>
       </div>
@@ -89,7 +93,7 @@ export function MapViewer({ detail }: { detail: MapDetail }) {
           <img src={map.coverUrl} alt="" className="h-40 w-full object-cover" />
         )}
         <div className="px-5 pb-6 pt-5">
-          <button type="button" onClick={() => router.back()} className="-ml-1.5 hidden items-center gap-0.5 rounded-lg py-1 pl-1 pr-2 text-sm text-(--c-muted) hover:bg-black/5 md:flex">
+          <button type="button" onClick={goBack} className="-ml-1.5 hidden items-center gap-0.5 rounded-lg py-1 pl-1 pr-2 text-sm text-(--c-muted) hover:bg-black/5 md:flex">
             <ChevronLeftIcon size={16} />
             뒤로
           </button>

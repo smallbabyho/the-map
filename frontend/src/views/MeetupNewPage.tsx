@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useLayoutEffect, useState, type FormEvent } from 'react'
 import { useCurrentUser } from '../auth'
 import { AppRail } from '../components/AppRail'
 import { ChevronLeftIcon } from '../components/icons'
@@ -36,6 +36,8 @@ export function MeetupNewPage() {
   const [visibility, setVisibility] = useState<MeetupVisibility>('public')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+  // 성공하면 다음 화면으로 넘어가며 busy 를 안 푼다. 뒤로 오면 Next 가 이 화면을 상태째 다시 보여 주므로, 떠날 때 푼다
+  useLayoutEffect(() => () => setBusy(false), [])
 
   // 로그인 필요
   useEffect(() => {

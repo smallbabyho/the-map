@@ -8,9 +8,10 @@ import { HeaderActions } from '../components/AppRail'
 import { Avatar } from '../components/Avatar'
 import { ChevronLeftIcon, CopyIcon, UsersIcon } from '../components/icons'
 import { legLabel } from '../components/legModes'
-import { MapView, useRoutes, type MapInsets } from '../components/map'
+import { isCustomPlace, MapView, useRoutes, type MapInsets } from '../components/map'
 import { getTheme, themeVars } from '../components/themes'
 import { KakaoDirectionsLink } from '../components/map/KakaoDirections'
+import { placeHref } from '../components/place/PlaceStats'
 import { KakaoShareButton } from '../components/share/KakaoShareButton'
 import { StoryCardButton } from '../components/share/StoryCardButton'
 import { ReportButton } from '../components/report/ReportDialog'
@@ -167,6 +168,16 @@ export function MapViewer({ detail }: { detail: MapDetail }) {
                       <img src={p.photoUrl} alt="" className="size-10 shrink-0 rounded-lg object-cover" />
                     )}
                   </button>
+                  {!isCustomPlace(p.place.externalId) && (
+                    <Link
+                      href={placeHref(p.place.externalId)}
+                      title={`${p.place.name} 리뷰 · 담긴 횟수`}
+                      className="flex shrink-0 flex-col items-center gap-0.5 rounded-xl px-2 py-1.5 text-[11px] font-semibold text-(--c-muted) transition hover:bg-amber-400/20 hover:text-(--c-text)"
+                    >
+                      <span className="text-[17px] leading-[18px] text-amber-400" aria-hidden>★</span>
+                      리뷰
+                    </Link>
+                  )}
                   <KakaoDirectionsLink to={p.place} from={pins[i - 1]?.place} mode={i > 0 ? legAfter(pins[i - 1].id)?.mode : undefined} />
                 </div>
                 {leg && i < pins.length - 1 && (

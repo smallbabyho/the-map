@@ -349,3 +349,37 @@ export interface ProfilePage {
   deco: ProfileDeco
   maps: PublicMapSummary[]
 }
+
+// ---- 장소 리뷰 · 인기 장소 ----
+
+/** 장소 통계: 담긴 지도 수(비공개 지도 포함) · 리뷰 수 · 평균 별점(리뷰 없으면 null) */
+export interface PlaceStats {
+  mapCount: number
+  reviewCount: number
+  avgRating: number | null
+}
+
+export interface PlaceReview {
+  id: string
+  placeId: string
+  author: User
+  rating: number // 1~5
+  body: string // 한 줄 후기 (100자까지, 비워도 됨)
+  createdAt: string
+  updatedAt: string
+}
+
+export interface PlaceReviewInput {
+  rating: number
+  body: string
+}
+
+/** getPlaceDetail() 결과: 장소 + 통계 + 리뷰(최신 순) + 이 장소를 담은 공개 지도 */
+export interface PlaceDetail {
+  place: Place
+  stats: PlaceStats
+  reviews: PlaceReview[]
+  maps: PublicMapSummary[]
+  /** 내가 리뷰를 쓸 수 있나 (내 지도에 담은 장소일 때만) */
+  canReview: boolean
+}

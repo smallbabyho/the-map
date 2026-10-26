@@ -28,6 +28,10 @@ import type {
   MeetupSummary,
   Pin,
   PinInput,
+  PlaceDetail,
+  PlaceReview,
+  PlaceReviewInput,
+  PlaceStats,
   ProfileDeco,
   ProfileDecoInput,
   ProfilePage,
@@ -840,6 +844,111 @@ export async function getMonthlyRanking(month?: string, limit = 30): Promise<Map
     const r = rows.find((x) => x.map_id === s.map.id)!
     return { ...s, rank: Number(r.rank), users: Number(r.users) }
   })
+}
+
+// ===========================================================================
+// 장소 리뷰 · 인기 장소
+// ===========================================================================
+
+const REVIEW_MAX = 100
+
+interface PlaceStatsRow {
+  external_id: string
+  place_id: string
+  map_count: number
+  review_count: number
+  avg_rating: number | string | null
+}
+const toPlaceStats = (r: PlaceStatsRow | undefined): PlaceStats => ({
+  mapCount: Number(r?.map_count ?? 0),
+  reviewCount: Number(r?.review_count ?? 0),
+  avgRating: r?.avg_rating == null ? null : Number(r.avg_rating),
+})
+
+const REVIEW_COLS = 'id, place_id, user_id, rating, body, created_at, updated_at'
+interface PlaceReviewRow {
+  id: string
+  place_id: string
+  user_id: string
+  rating: number
+  body: string
+  created_at: string
+  updated_at: string
+}
+const toPlaceReview = (r: PlaceReviewRow, people: Map<string, User>): PlaceReview => ({
+  id: r.id,
+  placeId: r.place_id,
+  author: people.get(r.user_id) ?? toUser(null, r.user_id),
+  rating: r.rating,
+  body: r.body,
+  createdAt: r.created_at,
+  updatedAt: r.updated_at,
+})
+
+export async function getPlaceStats(externalIds: string[]): Promise<Record<string, PlaceStats>> {
+  const ids = [...new Set(externalIds)].slice(0, 100)
+  if (!ids.length) return {}
+  const { data, error } = await supabase.rpc('place_stats', { p_external_ids: ids })
+  if (error) fail(error)
+  return Object.fromEntries((data as PlaceStatsRow[]).map((r) => [r.external_id, toPlaceStats(r)]))
+}
+
+export async function getPlaceDetail(externalId: string): Promise<PlaceDetail | null> {
+  const { data: place, error } = await supabase
+    .from('places')
+    .select('id, external_id, name, lat, lng')
+    .eq('external_id', externalId)
+    .maybeSingle<{ id: string; external_id: string; name: string; lat: number; lng: number }>()
+  if (error) fail(error)
+  if (!place) return null
+  const me = await myId()
+  const [stats, reviews, pins, blocked, can] = await Promise.all([
+    supabase.rpc('place_stats', { p_external_ids: [externalId] }),
+    supabase.from('place_reviews').select(REVIEW_COLS).eq('place_id', place.id).order('created_at', { ascending: false }).limit(200),
+    // 핀 읽기 권한(RLS) 때문에 공개 지도 + 내가 볼 수 있는 지도만 온다. 아래에서 공개 지도만 남긴다.
+    supabase.from('pins').select('map_id').eq('place_id', place.id),
+    blockedIds(),
+    me ? supabase.rpc('has_pinned_place', { p_place_id: place.id }) : Promise.resolve({ data: false, error: null }),
+  ])
+  if (stats.error) fail(stats.error)
+  if (reviews.error) fail(reviews.error)
+  const reviewRows = (reviews.data as PlaceReviewRow[]).filter((r) => !blocked.has(r.user_id))
+  const mapIds = [...new Set(((pins.data ?? []) as { map_id: string }[]).map((r) => r.map_id))]
+  const mapRows = (await mapsInOrder(mapIds))
+    .filter((m) => m.is_public && !blocked.has(m.owner_id))
+    .sort((a, b) => b.updated_at.localeCompare(a.updated_at))
+  const [people, maps] = await Promise.all([usersById(reviewRows.map((r) => r.user_id)), toPublicSummaries(mapRows)])
+  return {
+    place: { id: place.id, externalId: place.external_id, name: place.name, lat: place.lat, lng: place.lng },
+    stats: toPlaceStats((stats.data as PlaceStatsRow[])[0]),
+    reviews: reviewRows.map((r) => toPlaceReview(r, people)),
+    maps,
+    canReview: can.data === true,
+  }
+}
+
+export async function savePlaceReview(placeId: string, input: PlaceReviewInput): Promise<PlaceReview> {
+  const me = await requireMe()
+  const rating = Math.round(input.rating)
+  if (!(rating >= 1 && rating <= 5)) throw new Error('별점을 골라 주세요.')
+  const body = input.body.trim()
+  if (body.length > REVIEW_MAX) throw new Error(`후기는 ${REVIEW_MAX}자까지 쓸 수 있어요.`)
+  const { data, error } = await supabase
+    .from('place_reviews')
+    .upsert({ place_id: placeId, user_id: me, rating, body }, { onConflict: 'place_id,user_id' })
+    .select(REVIEW_COLS)
+    .single<PlaceReviewRow>()
+  if (error) {
+    if (/row-level security|42501/i.test(error.message) || error.code === '42501') throw new Error('내 지도에 담은 장소만 리뷰를 남길 수 있어요.')
+    fail(error)
+  }
+  return toPlaceReview(data, await usersById([me]))
+}
+
+export async function deletePlaceReview(reviewId: string): Promise<void> {
+  await requireMe()
+  const { error } = await supabase.from('place_reviews').delete().eq('id', reviewId)
+  if (error) fail(error)
 }
 
 // ===========================================================================

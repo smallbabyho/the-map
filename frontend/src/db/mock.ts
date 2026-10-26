@@ -28,6 +28,10 @@ import type {
   Pin,
   PinInput,
   Place,
+  PlaceDetail,
+  PlaceReview,
+  PlaceReviewInput,
+  PlaceStats,
   ProfileDeco,
   Report,
   ReportInput,
@@ -56,6 +60,7 @@ interface UseRow {
 
 type CommentRow = Omit<MeetupComment, 'author'> & { userId: string }
 type ReportRow = Omit<Report, 'reporter'> & { reporterId: string | null }
+type PlaceReviewRow = Omit<PlaceReview, 'author'> & { userId: string }
 
 interface Db {
   maps: ConceptMap[]
@@ -73,7 +78,10 @@ interface Db {
   /** 함께 꾸미기: 공동 편집자 · 초대 코드 */
   mapMembers: { mapId: string; userId: string; joinedAt: string }[]
   mapInvites: { mapId: string; code: string }[]
+  /** 장소 리뷰: 한 사람당 장소 하나에 1개 */
+  placeReviews: PlaceReviewRow[]
   seeded?: boolean
+  reviewsSeeded?: boolean
 }
 
 /** 지도 꾸미기 기본값 (예전에 저장된 지도에도 채운다) */
@@ -92,7 +100,7 @@ function guessCategory(title: string): MapCategory {
 }
 
 function emptyDb(): Db {
-  return { maps: [], places: [], pins: [], legs: [], meetups: [], members: [], uses: [], decos: [], comments: [], reports: [], blocks: [], mapMembers: [], mapInvites: [] }
+  return { maps: [], places: [], pins: [], legs: [], meetups: [], members: [], uses: [], decos: [], comments: [], reports: [], blocks: [], mapMembers: [], mapInvites: [], placeReviews: [] }
 }
 
 function load(): Db {
@@ -109,8 +117,10 @@ function load(): Db {
   db.meetups = db.meetups.map((m) => ({ ...m, visibility: m.visibility ?? 'public', inviteCode: m.inviteCode ?? null }))
   // 예전 이동수단(버스·지하철)은 대중교통으로
   for (const leg of db.legs) if ((leg.mode as string) === 'bus' || (leg.mode as string) === 'subway') leg.mode = 'transit'
-  if (!db.seeded) {
-    seed(db)
+  if (!db.seeded || !db.reviewsSeeded) {
+    if (!db.seeded) seed(db)
+    // 장소 리뷰는 나중에 생긴 기능이라, 예전에 만들어진 체험 데이터에도 한 번 채운다
+    if (!db.reviewsSeeded) seedReviews(db)
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(db))
     } catch {
@@ -1159,6 +1169,138 @@ export async function getMonthlyRanking(month?: string, limit = 30): Promise<Map
 function sameMonth(iso: string, ym: string) {
   const d = new Date(iso)
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` === ym
+}
+
+// ===========================================================================
+// 장소 리뷰 · 인기 장소
+// ===========================================================================
+
+const REVIEW_MAX = 100
+
+function placeStatsOf(db: Db, placeId: string): PlaceStats {
+  const mapCount = new Set(db.pins.filter((p) => p.placeId === placeId).map((p) => p.mapId)).size
+  const reviews = db.placeReviews.filter((r) => r.placeId === placeId)
+  const avgRating = reviews.length ? Math.round((reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length) * 10) / 10 : null
+  return { mapCount, reviewCount: reviews.length, avgRating }
+}
+
+/** 내가 고칠 수 있는 지도(주인 · 공동 편집자)에 이 장소가 핀으로 있나 */
+function hasPinnedPlace(db: Db, placeId: string, userId: string | undefined) {
+  if (!userId) return false
+  return db.pins.some((p) => {
+    if (p.placeId !== placeId) return false
+    const map = db.maps.find((m) => m.id === p.mapId)
+    return !!map && (map.ownerId === userId || isEditor(db, map.id, userId))
+  })
+}
+
+const toPlaceReview = ({ userId, ...rest }: PlaceReviewRow): PlaceReview => ({ ...rest, author: mockUserById(userId) })
+
+/**
+ * 장소별 통계 (검색 결과에 '지도 N개에 담김' 표시용). 비공개 지도도 센다. 아직 아무도 담지 않은 장소는 결과에 없다.
+ *
+ * @example
+ * const stats = await getPlaceStats(results.map((r) => r.externalId))
+ * stats['8134820'] // { mapCount: 12, reviewCount: 3, avgRating: 4.3 }
+ */
+export async function getPlaceStats(externalIds: string[]): Promise<Record<string, PlaceStats>> {
+  await tick()
+  const db = load()
+  const out: Record<string, PlaceStats> = {}
+  for (const id of externalIds.slice(0, 100)) {
+    const place = db.places.find((p) => p.externalId === id)
+    if (place) out[id] = placeStatsOf(db, place.id)
+  }
+  return out
+}
+
+/**
+ * 장소 상세: 통계 + 리뷰(최신 순, 차단한 사람 제외) + 이 장소를 담은 공개 지도. 아무도 담지 않은 장소면 null.
+ *
+ * @example
+ * const detail = await getPlaceDetail('8134820')
+ * detail.stats.mapCount; detail.reviews[0].rating; detail.canReview
+ */
+export async function getPlaceDetail(externalId: string): Promise<PlaceDetail | null> {
+  await tick()
+  const db = load()
+  const place = db.places.find((p) => p.externalId === externalId)
+  if (!place) return null
+  const meId = mockCurrentUser()?.id
+  const blocked = blockedSet(db, meId)
+  const reviews = db.placeReviews
+    .filter((r) => r.placeId === place.id && !blocked.has(r.userId))
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    .map(toPlaceReview)
+  const mapIds = new Set(db.pins.filter((p) => p.placeId === place.id).map((p) => p.mapId))
+  const maps = db.maps
+    .filter((m) => mapIds.has(m.id) && m.isPublic && !blocked.has(m.ownerId))
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+    .map((m) => toPublicSummary(db, m))
+  return { place, stats: placeStatsOf(db, place.id), reviews, maps, canReview: hasPinnedPlace(db, place.id, meId) }
+}
+
+/**
+ * 내 리뷰 쓰기 · 고치기 (장소 하나에 한 사람당 1개라 이미 있으면 덮어쓴다). 내 지도에 담은 장소만.
+ *
+ * @example
+ * await savePlaceReview(detail.place.id, { rating: 5, body: '소금빵이 진짜 맛있어요' })
+ */
+export async function savePlaceReview(placeId: string, input: PlaceReviewInput): Promise<PlaceReview> {
+  await tick()
+  const me = requireUser()
+  const db = load()
+  if (!db.places.some((p) => p.id === placeId)) throw new Error('장소를 찾을 수 없어요.')
+  if (!hasPinnedPlace(db, placeId, me.id)) throw new Error('내 지도에 담은 장소만 리뷰를 남길 수 있어요.')
+  const rating = Math.round(input.rating)
+  if (!(rating >= 1 && rating <= 5)) throw new Error('별점을 골라 주세요.')
+  const body = input.body.trim()
+  if (body.length > REVIEW_MAX) throw new Error(`후기는 ${REVIEW_MAX}자까지 쓸 수 있어요.`)
+  let row = db.placeReviews.find((r) => r.placeId === placeId && r.userId === me.id)
+  if (row) Object.assign(row, { rating, body, updatedAt: now() })
+  else {
+    row = { id: newId(), placeId, userId: me.id, rating, body, createdAt: now(), updatedAt: now() }
+    db.placeReviews.push(row)
+  }
+  persist(db)
+  return toPlaceReview(row)
+}
+
+/**
+ * 리뷰 지우기 (본인 또는 관리자).
+ *
+ * @example
+ * await deletePlaceReview(review.id)
+ */
+export async function deletePlaceReview(reviewId: string): Promise<void> {
+  await tick()
+  const me = requireUser()
+  const db = load()
+  const row = db.placeReviews.find((r) => r.id === reviewId)
+  if (!row) return
+  if (row.userId !== me.id && me.role !== 'admin') throw new Error('내 리뷰만 지울 수 있어요.')
+  db.placeReviews = db.placeReviews.filter((r) => r.id !== reviewId)
+  persist(db)
+}
+
+/** 체험용 장소 리뷰 (샘플 지도를 만든 사람들이 자기 지도에 담은 장소에 남긴 것) */
+function seedReviews(db: Db) {
+  db.reviewsSeeded = true
+  const day = 864e5
+  const review = (externalId: string, userId: string, rating: number, body: string, daysAgo: number) => {
+    const place = db.places.find((p) => p.externalId === externalId)
+    if (!place || db.placeReviews.some((r) => r.placeId === place.id && r.userId === userId)) return
+    const at = new Date(Date.now() - daysAgo * day).toISOString()
+    db.placeReviews.push({ id: newId(), placeId: place.id, userId, rating, body, createdAt: at, updatedAt: at })
+  }
+  review('sample-16', 'u-bread', 5, '소금빵 나오는 11시에 맞춰 가세요. 줄 서도 아깝지 않아요', 6)
+  review('sample-1', 'u-bread', 4, '골목마다 카페가 있어서 쉬어 가기 좋아요', 5)
+  review('sample-2', 'u-bread', 5, '빵 사 들고 피크닉하기 딱', 4)
+  review('sample-6', 'u-drama', 5, '한복 입으면 입장료 무료!', 9)
+  review('sample-7', 'u-drama', 4, '사람이 많아서 아침 일찍 가는 걸 추천해요', 8)
+  review('sample-5', 'u-drama', 4, '', 7)
+  review('sample-12', 'u-cafe', 4, '조용한 카페가 많아요', 3)
+  review('sample-4', 'u-cafe', 5, '닭강정이랑 고로케는 필수', 2)
 }
 
 // ===========================================================================

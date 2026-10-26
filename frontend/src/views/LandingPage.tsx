@@ -135,28 +135,28 @@ export function LandingPage({ embedded = false }: { embedded?: boolean }) {
         </div>
       </div>
 
-      {/* ---- 2. 스크롤하면 바뀌는 단계 ---- */}
+      {/* ---- 2. 스크롤하면 바뀌는 단계 (모바일은 그림을 줄이고 지금 단계만 보여 한 화면에 들어가게) ---- */}
       <section ref={stepsRef} className="relative" style={{ height: `${STEPS.length * 50 + 100}vh` }}>
-        <div className="sticky top-14 mx-auto grid h-[calc(100dvh-56px)] max-w-6xl items-center gap-8 px-4 md:grid-cols-2 md:px-10">
+        <div className="sticky top-14 mx-auto grid h-[calc(100dvh-56px-64px)] max-w-6xl content-center items-center gap-5 px-4 md:h-[calc(100dvh-56px)] md:content-normal md:gap-8 md:grid-cols-2 md:px-10">
           <div className="order-2 md:order-1">
             <p className="tm-label dot">how it works</p>
-            <ol className="mt-6 space-y-2">
+            <ol className="mt-3 space-y-2 md:mt-6">
               {STEPS.map((s, i) => (
                 <li
                   key={s.no}
                   onClick={() => goStep(i)}
-                  className={`cursor-pointer border-l-2 pl-5 transition-all duration-500 ${i === step ? 'border-(--c-accent) py-3 opacity-100' : 'border-(--c-border) py-1 opacity-35 hover:opacity-70'}`}
+                  className={`cursor-pointer border-l-2 pl-5 transition-all duration-500 ${i === step ? 'border-(--c-accent) py-2 opacity-100 md:py-3' : 'hidden border-(--c-border) py-1 opacity-35 hover:opacity-70 md:block'}`}
                 >
                   <p className="font-mono text-xs text-(--c-muted)">
                     {s.no} / <span className="tm-serif text-base normal-case">{s.en}</span>
                   </p>
-                  <h3 className={`tm-headline transition-all duration-500 ${i === step ? 'text-4xl md:text-5xl' : 'text-xl'}`}>{s.title}</h3>
+                  <h3 className={`tm-headline transition-all duration-500 ${i === step ? 'text-3xl md:text-5xl' : 'text-xl'}`}>{s.title}</h3>
                   <p className={`overflow-hidden text-[15px] leading-relaxed text-(--c-muted) transition-all duration-500 ${i === step ? 'mt-2 max-h-40' : 'max-h-0'}`}>{s.body}</p>
                 </li>
               ))}
             </ol>
             {/* 단계 막대: 단계마다 한 칸. 지난 단계는 꽉 차고, 지금 단계 칸만 스크롤에 맞춰 차오른다 */}
-            <div className="mt-8 flex items-center gap-3">
+            <div className="mt-4 flex items-center gap-3 md:mt-8">
               <div className="flex gap-1.5">
                 {STEPS.map((s, i) => {
                   const fill = i < step ? 1 : i > step ? 0 : Math.min(1, Math.max(0.15, progress * STEPS.length - i))
@@ -174,7 +174,7 @@ export function LandingPage({ embedded = false }: { embedded?: boolean }) {
               </span>
             </div>
           </div>
-          <div className="order-1 md:order-2">
+          <div className="order-1 mx-auto w-full max-w-[36dvh] md:order-2 md:max-w-none">
             <div className="relative">
               {/* 단계가 바뀌면 그림이 톡 튀고 STEP 표시가 뜬다 (key 가 바뀌면 애니메이션이 다시 돈다) */}
               <span key={`label-${step}`} className="tm-intro absolute -top-4 right-2 z-20 rounded-full bg-(--c-ink) px-3 py-1 font-mono text-xs font-bold text-(--c-bg) md:-right-4">

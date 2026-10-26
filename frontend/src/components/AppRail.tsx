@@ -40,7 +40,7 @@ export function Wordmark({ className = '' }: { className?: string }) {
         📍
       </span>
       {/* 고전 세리프 (Playfair Display 900): 오래된 지도책 표지 느낌 */}
-      <span className="whitespace-nowrap text-[24px] italic leading-none tracking-[-0.01em]" style={{ fontFamily: '"Playfair Display", "Noto Serif KR", serif', fontWeight: 900 }}>
+      <span className="whitespace-nowrap text-[20px] italic sm:text-[24px] leading-none tracking-[-0.01em]" style={{ fontFamily: '"Playfair Display", "Noto Serif KR", serif', fontWeight: 900 }}>
         My <span className="text-(--c-accent)">Concept</span> Map
         <sup className="ml-0.5 align-super font-mono text-[10px] font-bold">®</sup>
       </span>
@@ -102,7 +102,7 @@ export function HeaderActions({ user: given, active, floating = false }: { user?
           <span className="hidden max-w-[120px] truncate text-sm font-semibold sm:block">{user.nickname}</span>
         </Link>
       ) : (
-        <Link href="/login" className="tm-btn rounded-full bg-(--c-surface) px-4 py-1.5 text-sm font-bold">
+        <Link href="/login" className="tm-btn shrink-0 whitespace-nowrap rounded-full bg-(--c-surface) px-4 py-1.5 text-sm font-bold">
           로그인
         </Link>
       )}

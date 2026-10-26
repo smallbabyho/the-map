@@ -42,8 +42,9 @@ export function MapControls({ insets, onZoomIn, onZoomOut, onFit, onLocate, loca
           <FitIcon size={18} />
         </button>
       )}
+      {/* 확대·축소: 모바일은 두 손가락으로 하니 데스크톱에서만 (모바일 지도 높이에 다 안 들어감) */}
       {(onZoomIn || onZoomOut) && (
-        <div className="tm-float flex flex-col overflow-hidden rounded-xl bg-(--c-surface)">
+        <div className="tm-float hidden flex-col overflow-hidden rounded-xl bg-(--c-surface) md:flex">
           <button type="button" onClick={onZoomIn} className={btn} aria-label="확대">
             <PlusIcon size={18} />
           </button>

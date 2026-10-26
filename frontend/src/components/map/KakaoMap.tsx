@@ -8,7 +8,7 @@ import { createLegLabelElement, createMarkerElement, createMyLocationElement } f
 import { MapControls } from './MapControls'
 import { PickPopup } from './PickPopup'
 import { pathMidpoint } from './routing'
-import { partLine, type Segment } from './segments'
+import { DEFAULT_LOOK, LINE_WIDTH, partLine, styledLine, type Segment } from './segments'
 import { useLongPress } from './useLongPress'
 import { DEFAULT_CENTER, NO_INSETS, type MapViewProps, type PickedPoint } from './types'
 import { useMyLocation, type MyPosition } from './useMyLocation'
@@ -18,7 +18,7 @@ interface Props extends MapViewProps {
   onLoadError: (message: string) => void
 }
 
-export function KakaoMap({ pins, segments, theme, selectedPinId, onSelectPin, insets = NO_INSETS, onAddPlace, onLoadError }: Props) {
+export function KakaoMap({ pins, segments, theme, look = DEFAULT_LOOK, selectedPinId, onSelectPin, insets = NO_INSETS, onAddPlace, onLoadError }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<kakao.maps.Map | null>(null)
   const [ready, setReady] = useState(false)
@@ -82,13 +82,14 @@ export function KakaoMap({ pins, segments, theme, selectedPinId, onSelectPin, in
     // 대중교통 상세가 있으면 단계별로: 걷기는 점선, 버스·지하철은 노선 색 실선
     for (const seg of segments) {
       const lines = seg.parts?.length
-        ? seg.parts.map((p) => ({ path: p.path, color: p.color ?? theme.route, style: partLine(p.kind).kakao }))
-        : [{ path: seg.path, color: theme.route, style: modeMeta(seg.mode).line.kakao }]
+        ? seg.parts.map((p) => ({ path: p.path, color: p.color ?? theme.route, style: styledLine(partLine(p.kind), look.lineStyle, p.kind).kakao }))
+        : [{ path: seg.path, color: theme.route, style: styledLine(modeMeta(seg.mode).line, look.lineStyle).kakao }]
+      const [outer, inner] = LINE_WIDTH[look.lineWidth]
       for (const l of lines) {
         const path = l.path.map((p) => new k.maps.LatLng(p.lat, p.lng))
         drawn.push(
-          new k.maps.Polyline({ path, strokeWeight: 9, strokeColor: '#ffffff', strokeOpacity: seg.loading ? 0.4 : 0.9, strokeStyle: 'solid' }),
-          new k.maps.Polyline({ path, strokeWeight: 5, strokeColor: l.color, strokeOpacity: seg.loading ? 0.35 : 0.95, strokeStyle: l.style }),
+          new k.maps.Polyline({ path, strokeWeight: outer, strokeColor: '#ffffff', strokeOpacity: seg.loading ? 0.4 : 0.9, strokeStyle: 'solid' }),
+          new k.maps.Polyline({ path, strokeWeight: inner, strokeColor: l.color, strokeOpacity: seg.loading ? 0.35 : 0.95, strokeStyle: l.style }),
         )
       }
 
@@ -97,7 +98,7 @@ export function KakaoMap({ pins, segments, theme, selectedPinId, onSelectPin, in
     }
     drawn.forEach((o) => o.setMap(map))
     return () => drawn.forEach((o) => o.setMap(null))
-  }, [ready, segments, theme.route])
+  }, [ready, segments, theme.route, look.lineStyle, look.lineWidth])
 
   // 3) 핀 마커 (선택이 바뀌어도 경로선은 다시 그리지 않는다)
   useEffect(() => {
@@ -111,7 +112,7 @@ export function KakaoMap({ pins, segments, theme, selectedPinId, onSelectPin, in
       const selected = pin.id === selectedPinId
       const overlay = new k.maps.CustomOverlay({
         position: pos.get(pin.id)!,
-        content: createMarkerElement(pin, i, selected, () => onSelectRef.current(pin.id)),
+        content: createMarkerElement(pin, i, selected, () => onSelectRef.current(pin.id), look.markerShape),
         yAnchor: 1,
         zIndex: selected ? 10 : 2,
         clickable: true,
@@ -121,7 +122,7 @@ export function KakaoMap({ pins, segments, theme, selectedPinId, onSelectPin, in
     })
 
     return () => drawn.forEach((o) => o.setMap(null))
-  }, [ready, pins, selectedPinId])
+  }, [ready, pins, selectedPinId, look.markerShape])
 
   // 4) 핀 개수가 바뀌면 전체가 보이게 맞춤
   const fitAll = () => {

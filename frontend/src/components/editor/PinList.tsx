@@ -63,7 +63,7 @@ export function PinList({ pins, legs, selectedPinId, onSelect, onMove, onLegChan
               {/* 끄는 동안에는 구간 입력을 숨겨서 순서 바꾸기 쉽게 */}
               {!dragging && legs[i] && (
                 <li className="relative list-none">
-                  <LegEditor leg={legs[i]} onChange={(patch) => onLegChange(legs[i].fromPinId, legs[i].toPinId, patch)} />
+                  <LegEditor leg={legs[i]} from={pin.place} to={pins[i + 1]?.place} onChange={(patch) => onLegChange(legs[i].fromPinId, legs[i].toPinId, patch)} />
                 </li>
               )}
             </Fragment>

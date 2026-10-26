@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { useCurrentUser } from '../auth'
 import { AppRail } from '../components/AppRail'
@@ -9,6 +9,10 @@ import { Avatar } from '../components/Avatar'
 import { CalendarIcon, ChevronLeftIcon, LinkIcon, PinIcon, UsersIcon } from '../components/icons'
 import { MapView } from '../components/map'
 import { dday, formatMeetAt, meetupState, STATE_BADGE } from '../components/meetup/format'
+import { MeetupComments } from '../components/meetup/MeetupComments'
+import { ReportButton } from '../components/report/ReportDialog'
+import { KakaoDirectionsLink } from '../components/map/KakaoDirections'
+import { KakaoShareButton } from '../components/share/KakaoShareButton'
 import { getTheme, themeVars } from '../components/themes'
 import { getMeetup, joinMeetup, leaveMeetup, setMeetupStatus } from '../db/api'
 import type { MapDetail, MeetupStatus, MeetupSummary } from '../types'
@@ -20,6 +24,8 @@ export function MeetupLoading() {
 /** 성지순례 모임 상세 */
 export function MeetupDetailPage() {
   const { meetupId } = useParams<{ meetupId: string }>()
+  // 비공개 모임 초대 링크: /meetups/{id}?invite=코드
+  const invite = useSearchParams().get('invite') ?? undefined
   const router = useRouter()
   const user = useCurrentUser()
   const [meetup, setMeetup] = useState<MeetupSummary | null | undefined>(undefined)
@@ -31,7 +37,7 @@ export function MeetupDetailPage() {
 
   useEffect(() => {
     let cancelled = false
-    getMeetup(meetupId)
+    getMeetup(meetupId, invite)
       .then((res) => {
         if (cancelled) return
         setMeetup(res?.meetup ?? null)
@@ -41,7 +47,7 @@ export function MeetupDetailPage() {
     return () => {
       cancelled = true
     }
-  }, [meetupId])
+  }, [meetupId, invite])
 
   if (meetup === undefined) return <MeetupLoading />
   if (meetup === null) {
@@ -50,6 +56,7 @@ export function MeetupDetailPage() {
         <div>
           <div className="text-5xl" aria-hidden>🧭</div>
           <h1 className="mt-4 text-lg font-bold">모임을 찾을 수 없어요</h1>
+          <p className="mt-1 text-sm text-(--c-muted)">없어졌거나, 초대 링크를 받은 사람만 볼 수 있는 비공개 모임이에요.</p>
           <Link href="/meetups" className="mt-6 inline-block rounded-full bg-(--c-text) px-5 py-2.5 text-sm font-semibold text-(--c-surface)">성지순례 목록</Link>
         </div>
       </div>
@@ -77,12 +84,14 @@ export function MeetupDetailPage() {
       setBusy(false)
     }
   }
-  const join = () => (user ? run(() => joinMeetup(meetup.id)) : router.push(`/login?next=${encodeURIComponent(`/meetups/${meetup.id}`)}`))
+  const join = () => (user ? run(() => joinMeetup(meetup.id, invite)) : router.push(`/login?next=${encodeURIComponent(`/meetups/${meetup.id}`)}`))
   const leave = () => window.confirm('참여를 취소할까요?') && run(() => leaveMeetup(meetup.id))
   const changeStatus = (s: MeetupStatus, msg: string) => window.confirm(msg) && run(() => setMeetupStatus(meetup.id, s))
+  // 비공개 모임은 초대 코드를 붙여서 공유 (코드는 참여자에게만 내려온다)
+  const sharePath = `/meetups/${meetup.id}${meetup.visibility === 'private' && meetup.inviteCode ? `?invite=${meetup.inviteCode}` : ''}`
   const copyLink = async () => {
     try {
-      await navigator.clipboard.writeText(window.location.href)
+      await navigator.clipboard.writeText(`${window.location.origin}${sharePath}`)
       setCopied(true)
       setTimeout(() => setCopied(false), 1800)
     } catch {
@@ -99,14 +108,14 @@ export function MeetupDetailPage() {
       type="button"
       onClick={join}
       disabled={busy || !canJoin}
-      className="h-12 w-full rounded-xl bg-(--c-accent) text-[15px] font-bold text-(--c-accent-text) transition hover:opacity-90 disabled:bg-(--c-border) disabled:text-(--c-muted)"
+      className="tm-btn h-12 w-full rounded-xl bg-(--c-accent) text-[15px] font-bold text-(--c-accent-text) disabled:border-(--c-border) disabled:bg-(--c-border) disabled:text-(--c-muted) disabled:shadow-none"
     >
       {canJoin ? (user ? `참여하기 · ${left}자리 남음` : '로그인하고 참여하기') : badge.label}
     </button>
   )
 
   return (
-    <div className="relative min-h-dvh pb-28 md:pb-0 md:pl-[72px]" style={themeVars(theme)}>
+    <div className="relative min-h-dvh pb-28 md:pb-0 pt-14" style={themeVars(theme)}>
       <AppRail active="meetups" />
 
       <div className="mx-auto max-w-6xl px-4 pt-4 md:px-10 md:pt-8">
@@ -124,6 +133,7 @@ export function MeetupDetailPage() {
                   pins={mapDetail.pins}
                   legs={legs}
                   theme={theme}
+                  look={mapDetail.map}
                   selectedPinId={selectedPinId}
                   onSelectPin={(id) => setSelectedPinId((c) => (c === id ? null : id))}
                 />
@@ -135,10 +145,11 @@ export function MeetupDetailPage() {
             <div className="mt-5 flex flex-wrap items-center gap-2">
               <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${badge.className}`}>{badge.label}</span>
               <span className="rounded-full bg-black/[0.05] px-2.5 py-1 text-xs font-bold">{dday(meetup.meetAt)}</span>
+              {meetup.visibility === 'private' && <span className="rounded-full bg-(--c-ink) px-2.5 py-1 text-xs font-bold text-(--c-bg)">🔒 친구끼리</span>}
             </div>
-            <h1 className="mt-2 text-2xl font-bold leading-snug tracking-tight md:text-[28px]">{meetup.title}</h1>
+            <h1 className="tm-headline mt-3 text-4xl md:text-5xl">{meetup.title}</h1>
             <div className="mt-3 flex items-center gap-2 text-sm text-(--c-muted)">
-              <Avatar id={meetup.host.id} nickname={meetup.host.nickname} size={24} />
+              <Avatar id={meetup.host.id} nickname={meetup.host.nickname} src={meetup.host.avatarUrl} size={24} />
               <span>
                 <b className="font-semibold text-(--c-text)">{meetup.host.nickname}</b> 님이 열었어요
               </span>
@@ -154,11 +165,11 @@ export function MeetupDetailPage() {
                 </div>
                 <ol className="mt-3 space-y-2">
                   {mapDetail.pins.map((p, i) => (
-                    <li key={p.id}>
+                    <li key={p.id} className={`flex items-center rounded-xl border pr-1 transition ${selectedPinId === p.id ? 'border-(--c-accent) bg-(--c-accent)/5' : 'border-(--c-border) bg-(--c-surface)'}`}>
                       <button
                         type="button"
                         onClick={() => setSelectedPinId(p.id)}
-                        className={`flex w-full items-center gap-3 rounded-xl border px-3 py-2.5 text-left transition ${selectedPinId === p.id ? 'border-(--c-accent) bg-(--c-accent)/5' : 'border-(--c-border) bg-(--c-surface) hover:bg-black/[0.02]'}`}
+                        className="flex min-w-0 flex-1 items-center gap-3 rounded-xl px-3 py-2.5 text-left"
                       >
                         <span className="grid size-9 shrink-0 place-items-center rounded-full text-lg" style={{ background: p.color }}>{p.icon}</span>
                         <span className="min-w-0 flex-1">
@@ -166,11 +177,14 @@ export function MeetupDetailPage() {
                           {p.memo && <span className="block truncate text-[13px] text-(--c-muted)">{p.memo}</span>}
                         </span>
                       </button>
+                      <KakaoDirectionsLink to={p.place} from={mapDetail.pins[i - 1]?.place} mode={i > 0 ? legs.find((l) => l.fromPinId === mapDetail.pins[i - 1].id && l.toPinId === p.id)?.mode : undefined} />
                     </li>
                   ))}
                 </ol>
               </section>
             )}
+
+            <MeetupComments meetup={meetup} me={user} joined={joined} />
 
             {/* 참여자 */}
             <section className="mt-8">
@@ -181,7 +195,7 @@ export function MeetupDetailPage() {
               <ul className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
                 {meetup.members.map((m) => (
                   <li key={m.userId} className="flex items-center gap-2.5 rounded-xl border border-(--c-border) bg-(--c-surface) px-3 py-2.5">
-                    <Avatar id={m.userId} nickname={m.nickname} size={32} />
+                    <Avatar id={m.userId} nickname={m.nickname} src={m.avatarUrl} size={32} />
                     <span className="min-w-0">
                       <span className="block truncate text-sm font-semibold">{m.nickname}{m.userId === user?.id && ' (나)'}</span>
                       <span className="text-xs text-(--c-muted)">{m.userId === meetup.hostId ? '주최자' : '참여자'}</span>
@@ -234,10 +248,25 @@ export function MeetupDetailPage() {
                 </div>
               )}
 
-              <button type="button" onClick={copyLink} className="mt-3 flex h-11 w-full items-center justify-center gap-1.5 rounded-xl text-sm font-semibold text-(--c-muted) hover:bg-black/[0.03]">
+              <KakaoShareButton
+                className="mt-3"
+                title={meetup.title}
+                description={`${formatMeetAt(meetup.meetAt)} · ${meetup.meetPoint} · ${meetup.members.length}/${meetup.capacity}명`}
+                path={sharePath}
+                theme={meetup.map.theme}
+                course={(mapDetail?.pins ?? []).map((p) => p.place)}
+                buttonTitle="모임 보러 가기"
+                onError={setError}
+              />
+              <button type="button" onClick={copyLink} className="mt-1 flex h-11 w-full items-center justify-center gap-1.5 rounded-xl text-sm font-semibold text-(--c-muted) hover:bg-black/[0.03]">
                 <LinkIcon size={16} />
-                {copied ? '링크를 복사했어요' : '모임 링크 복사'}
+                {copied ? '링크를 복사했어요' : meetup.visibility === 'private' ? '초대 링크 복사' : '모임 링크 복사'}
               </button>
+              {!isHost && (
+                <div className="mt-2 text-center">
+                  <ReportButton subject={{ target: 'meetup', targetId: meetup.id, targetLabel: meetup.title, targetUserId: meetup.hostId }} label="이 모임 신고하기" />
+                </div>
+              )}
             </div>
           </aside>
         </div>

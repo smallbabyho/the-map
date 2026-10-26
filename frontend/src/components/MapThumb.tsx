@@ -11,7 +11,7 @@ function seededDots(seed: string, count: number) {
 }
 
 /** 테마 색으로 그린 지도 썸네일 (카드용). children 은 위에 겹쳐 그린다. */
-export function MapThumb({ id, theme: themeId, dots = 4, className = 'h-36', children }: { id: string; theme: ThemeId; dots?: number; className?: string; children?: ReactNode }) {
+export function MapThumb({ id, theme: themeId, dots = 4, cover, className = 'h-36', children }: { id: string; theme: ThemeId; dots?: number; cover?: string | null; className?: string; children?: ReactNode }) {
   const theme = getTheme(themeId)
   const pts = seededDots(id, Math.max(2, Math.min(dots, 6)))
   return (
@@ -42,6 +42,11 @@ export function MapThumb({ id, theme: themeId, dots = 4, className = 'h-36', chi
           style={{ left: `${d.x}%`, top: `${d.y}%`, background: theme.palette[i % theme.palette.length] }}
         />
       ))}
+      {/* 커버 이미지가 있으면 테마 그림 위에 덮는다 */}
+      {cover && (
+        // eslint-disable-next-line @next/next/no-img-element -- data URL/스토리지 URL
+        <img src={cover} alt="" className="absolute inset-0 size-full object-cover" />
+      )}
       {children}
     </div>
   )

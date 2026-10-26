@@ -8,12 +8,15 @@ import { AppearanceOptions } from '../components/AppearanceButton'
 import { AppRail, MobileTabBar } from '../components/AppRail'
 import { Avatar } from '../components/Avatar'
 import { ChevronLeftIcon } from '../components/icons'
+import { SafetySection } from '../components/report/BlockedList'
 
 type Mode = 'signin' | 'signup'
 
 /** 로그인 / 회원가입. 이미 로그인했으면 '내 계정' 화면. ?next=/경로 가 있으면 로그인 후 그리로 이동. */
 export function LoginPage() {
   const router = useRouter()
+  /** 체험 계정 (가짜 데이터 모드에서만 있음) */
+  const demo = DEMO_ACCOUNT
   const params = useSearchParams()
   const next = safeNext(params.get('next'))
   const user = useCurrentUser()
@@ -55,11 +58,11 @@ export function LoginPage() {
     'h-12 w-full rounded-xl border border-(--c-border) bg-(--c-surface) px-4 text-[15px] outline-none transition placeholder:text-(--c-muted)/70 focus:border-(--c-accent) focus:shadow-[0_0_0_4px_color-mix(in_srgb,var(--c-accent)_15%,transparent)]'
 
   return (
-    <div className="relative min-h-dvh pb-16 md:pb-0 md:pl-[72px]">
+    <div className="relative min-h-dvh pb-16 pt-14 md:pb-0">
       <AppRail active="login" />
       <MobileTabBar active="login" />
 
-      <div className="grid min-h-dvh lg:grid-cols-[1.1fr_1fr]">
+      <div className="grid min-h-[calc(100dvh-56px)] lg:grid-cols-[1.1fr_1fr]">
         <Illustration />
 
         <main className="flex flex-col px-5 py-6 sm:px-10">
@@ -68,19 +71,18 @@ export function LoginPage() {
           </Link>
 
           <div className="mx-auto flex w-full max-w-sm flex-1 flex-col justify-center py-10">
-            <div className="mb-8 flex items-center gap-2.5">
-              <span className="grid size-10 place-items-center rounded-xl bg-(--c-accent) text-lg shadow-sm">📍</span>
-              <span className="text-xl font-bold">컨셉지도</span>
-            </div>
+            <p className="tm-label dot mb-6">{user ? 'account' : 'welcome'}</p>
 
             {user === undefined ? (
               <div className="h-80 animate-pulse rounded-2xl bg-black/5" />
             ) : user ? (
               // 이미 로그인한 경우: 내 계정
               <div>
-                <h1 className="text-2xl font-bold tracking-tight">내 계정</h1>
+                <h1 className="tm-headline text-5xl">
+                  내 <em>계정</em>
+                </h1>
                 <div className="mt-6 flex items-center gap-3 rounded-2xl border border-(--c-border) bg-(--c-surface) p-4">
-                  <Avatar id={user.id} nickname={user.nickname} size={48} />
+                  <Avatar id={user.id} nickname={user.nickname} src={user.avatarUrl} size={48} />
                   <div className="min-w-0 flex-1">
                     <p className="truncate font-semibold">{user.nickname}</p>
                     <p className="text-sm text-(--c-muted)">{user.role === 'admin' ? '관리자' : '회원'}</p>
@@ -90,8 +92,12 @@ export function LoginPage() {
                   <p className="px-3 pb-1 pt-2 text-xs font-semibold text-(--c-muted)">화면</p>
                   <AppearanceOptions />
                 </section>
+                <SafetySection />
                 <div className="mt-4 grid gap-2">
-                  <Link href={next} className="grid h-12 place-items-center rounded-xl bg-(--c-text) text-[15px] font-bold text-(--c-surface)">
+                  <Link href={`/u/${user.id}`} className="grid h-12 place-items-center rounded-xl border border-(--c-border) text-[15px] font-semibold">
+                    내 프로필 꾸미기
+                  </Link>
+                  <Link href={next} className="tm-btn grid h-12 place-items-center rounded-xl bg-(--c-accent) text-[15px] font-bold text-(--c-accent-text)">
                     {next === '/' ? '내 지도로' : '계속하기'}
                   </Link>
                   {user.role === 'admin' && (
@@ -99,14 +105,14 @@ export function LoginPage() {
                       관리자 모드
                     </Link>
                   )}
-                  <button type="button" onClick={() => signOut()} className="h-12 rounded-xl text-[15px] font-semibold text-red-500 hover:bg-red-500/10">
+                  <button type="button" onClick={async () => (await signOut(), router.push('/'))} className="h-12 rounded-xl text-[15px] font-semibold text-red-500 hover:bg-red-500/10">
                     로그아웃
                   </button>
                 </div>
               </div>
             ) : (
               <>
-                <h1 className="text-2xl font-bold tracking-tight">{mode === 'signin' ? '다시 만나서 반가워요' : '컨셉지도 시작하기'}</h1>
+                <h1 className="tm-headline text-5xl">{mode === 'signin' ? <>다시 <em>만나서</em> 반가워요</> : <>지도를 <em>시작</em>해요</>}</h1>
                 <p className="mt-1.5 text-sm text-(--c-muted)">
                   {next !== '/' ? '로그인이 필요한 기능이에요.' : mode === 'signin' ? '로그인하고 내 지도를 이어서 꾸며 보세요.' : '이메일로 가입하고 첫 지도를 만들어 보세요.'}
                 </p>
@@ -152,7 +158,7 @@ export function LoginPage() {
                   <button
                     type="submit"
                     disabled={busy}
-                    className="mt-2 h-12 w-full rounded-xl bg-(--c-text) text-[15px] font-bold text-(--c-surface) transition hover:opacity-90 disabled:opacity-60"
+                    className="tm-btn mt-2 h-12 w-full rounded-xl bg-(--c-accent) text-[15px] font-bold text-(--c-accent-text) disabled:opacity-60"
                   >
                     {busy ? '잠시만요…' : mode === 'signin' ? '로그인' : '가입하기'}
                   </button>
@@ -165,20 +171,22 @@ export function LoginPage() {
                   </button>
                 </p>
 
-                {/* 백엔드 연결 전 체험용 안내 */}
+                {/* 체험 계정 (가짜 데이터 모드에서만) */}
+                {demo && (
                 <button
                   type="button"
                   onClick={() => {
                     switchMode('signin')
-                    setEmail(DEMO_ACCOUNT.email)
-                    setPassword(DEMO_ACCOUNT.password)
+                    setEmail(demo.email)
+                    setPassword(demo.password)
                   }}
                   className="mt-6 w-full rounded-xl border border-dashed border-(--c-border) px-4 py-3 text-left text-xs text-(--c-muted) hover:border-(--c-accent)"
                 >
-                  <b className="text-(--c-text)">체험 계정으로 채우기</b> · {DEMO_ACCOUNT.email} / {DEMO_ACCOUNT.password}
+                  <b className="text-(--c-text)">체험 계정으로 채우기</b> · {demo.email} / {demo.password}
                   <br />
                   다른 체험 계정: bread@ · drama@ · cafe@ · admin@example.com (비밀번호 동일)
                 </button>
+                )}
               </>
             )}
           </div>
@@ -196,15 +204,14 @@ function safeNext(next: string | null): string {
 function Illustration() {
   return (
     <aside
-      className="relative hidden overflow-hidden lg:block"
+      className="relative hidden overflow-hidden border-r border-(--c-ink) bg-(--c-ink) text-(--c-bg) lg:block"
       style={{
-        backgroundColor: '#fff4ec',
-        backgroundImage: 'linear-gradient(#fde3d0 1px, transparent 1px), linear-gradient(90deg, #fde3d0 1px, transparent 1px)',
+        backgroundImage: 'linear-gradient(rgb(255 255 255 / 0.06) 1px, transparent 1px), linear-gradient(90deg, rgb(255 255 255 / 0.06) 1px, transparent 1px)',
         backgroundSize: '56px 56px',
       }}
     >
       <svg className="absolute inset-0 size-full" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden>
-        <polyline points="18,70 36,48 58,58 78,30" fill="none" stroke="#f97316" strokeWidth={3} strokeOpacity={0.75} vectorEffect="non-scaling-stroke" strokeLinejoin="round" strokeDasharray="10 8" />
+        <polyline points="18,70 36,48 58,58 78,30" fill="none" stroke="#d4ff3f" strokeWidth={3} strokeOpacity={0.9} vectorEffect="non-scaling-stroke" strokeLinejoin="round" strokeDasharray="10 8" />
       </svg>
       {[
         { x: 18, y: 70, e: '☕', c: '#f97316', n: '카페 투어' },
@@ -222,11 +229,13 @@ function Illustration() {
         </div>
       ))}
       <div className="absolute bottom-12 left-12 right-12">
-        <p className="text-sm font-semibold text-orange-600">컨셉지도</p>
-        <h2 className="mt-2 text-3xl font-bold leading-snug tracking-tight text-(--c-text)">
+        <p className="tm-label dot !text-white/60">concept map ® vol.01</p>
+        <h2 className="tm-headline mt-4 text-6xl">
           나만의 테마로
           <br />
-          지도를 꾸미고, 함께 걸어요
+          <em className="text-(--c-lime)">지도</em>를 꾸미고,
+          <br />
+          함께 걸어요
         </h2>
       </div>
     </aside>

@@ -44,19 +44,21 @@ export function MeetupsPage() {
   const needLogin = tab !== 'all' && user === null
 
   return (
-    <div className="relative min-h-dvh pb-16 md:pb-0 md:pl-[72px]">
+    <div className="relative min-h-dvh pb-16 md:pb-0 pt-14">
       <AppRail active="meetups" />
       <MobileTabBar active="meetups" />
 
       <main className="mx-auto max-w-6xl px-4 pb-16 pt-6 md:px-10 md:pt-12">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
-            <p className="text-sm font-medium text-(--c-muted)">함께 걷는 컨셉지도</p>
-            <h1 className="mt-1 text-2xl font-bold tracking-tight md:text-3xl">성지순례</h1>
+            <p className="tm-label dot">walk together · 함께 걷는 컨셉지도</p>
+            <h1 className="tm-headline mt-3 text-5xl md:text-7xl">
+              성지<em>순례</em>
+            </h1>
           </div>
           <Link
             href={user ? '/meetups/new' : '/login?next=/meetups/new'}
-            className="inline-flex items-center gap-1.5 rounded-full bg-(--c-text) px-5 py-2.5 text-sm font-semibold text-(--c-surface) shadow-sm transition hover:opacity-90"
+            className="inline-flex items-center gap-1.5 tm-btn rounded-full bg-(--c-accent) px-5 py-3 text-sm font-bold text-(--c-accent-text)"
           >
             <PlusIcon size={18} />
             모임 만들기
@@ -84,11 +86,11 @@ export function MeetupsPage() {
           </label>
         </div>
 
-        {error && <p role="alert" className="mt-6 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-600">{error}</p>}
+        {error && <p role="alert" className="mt-6 rounded-xl bg-red-500/10 px-4 py-3 text-sm text-red-600">{error}</p>}
 
         <section className="mt-6">
           {needLogin ? (
-            <Empty emoji="🔑" title="로그인하면 내 모임을 볼 수 있어요" action={<Link href="/login?next=/meetups" className="mt-6 rounded-full bg-(--c-text) px-5 py-2.5 text-sm font-bold text-(--c-surface)">로그인</Link>} />
+            <Empty emoji="🔑" title="로그인하면 내 모임을 볼 수 있어요" action={<Link href="/login?next=/meetups" className="mt-6 tm-btn rounded-full bg-(--c-surface) px-5 py-2.5 text-sm font-bold">로그인</Link>} />
           ) : shown === undefined ? (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {[0, 1, 2].map((i) => (
@@ -101,7 +103,7 @@ export function MeetupsPage() {
               title={tab === 'hosting' ? '아직 연 모임이 없어요' : tab === 'joined' ? '참여한 모임이 없어요' : '열린 모임이 없어요'}
               desc="내 지도나 인기 지도로 성지순례를 열고 같이 걸을 사람을 모아 보세요."
               action={
-                <Link href={user ? '/meetups/new' : '/login?next=/meetups/new'} className="mt-6 rounded-full bg-(--c-accent) px-5 py-2.5 text-sm font-bold text-(--c-accent-text)">
+                <Link href={user ? '/meetups/new' : '/login?next=/meetups/new'} className="mt-6 tm-btn rounded-full bg-(--c-accent) px-5 py-2.5 text-sm font-bold text-(--c-accent-text)">
                   모임 만들기
                 </Link>
               }
@@ -121,7 +123,7 @@ export function MeetupsPage() {
 
 function Empty({ emoji, title, desc, action }: { emoji: string; title: string; desc?: string; action?: React.ReactNode }) {
   return (
-    <div className="flex flex-col items-center rounded-3xl border border-dashed border-(--c-border) bg-(--c-surface) px-6 py-16 text-center">
+    <div className="flex flex-col items-center rounded-3xl border-[1.5px] border-dashed border-(--c-ink)/25 px-6 py-16 text-center">
       <div className="text-5xl" aria-hidden>{emoji}</div>
       <h2 className="mt-4 text-lg font-semibold">{title}</h2>
       {desc && <p className="mt-1.5 text-sm text-(--c-muted)">{desc}</p>}

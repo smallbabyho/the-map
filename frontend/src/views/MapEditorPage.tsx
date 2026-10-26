@@ -2,20 +2,27 @@
 
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
-import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
+import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import { useCurrentUser } from '../auth'
-import { AppRail } from '../components/AppRail'
+import { HeaderActions } from '../components/AppRail'
 import { PinEditPanel } from '../components/editor/PinEditPanel'
 import { PinList } from '../components/editor/PinList'
 import { PlaceSearchBox } from '../components/editor/PlaceSearchBox'
+import { CollabButton } from '../components/editor/CollabButton'
+import { MapLookPicker } from '../components/editor/MapLookPicker'
+import { StoryCardButton } from '../components/share/StoryCardButton'
+import { MAP_CATEGORIES } from '../components/mapCategories'
 import { ThemePicker } from '../components/editor/ThemePicker'
 import { useMapDraft } from '../components/editor/useMapDraft'
 import { CheckIcon, ChevronLeftIcon, ChevronRightIcon, GlobeIcon, LockIcon, PinIcon } from '../components/icons'
 import { MapView, type MapInsets } from '../components/map'
 import { getTheme, themeVars } from '../components/themes'
+import { getMapCollab } from '../db/api'
+import type { MapCollab } from '../types'
 import { MapViewer } from './MapViewer'
 
-const RAIL_W = 72
+/** 왼쪽 세로 메뉴를 없앴다 (오른쪽 위 HeaderActions 로) */
+const RAIL_W = 0
 const PANEL_W = 380
 const DETAIL_W = 360
 const DESKTOP_MIN = 768
@@ -88,6 +95,17 @@ export function MapEditorPage() {
   const { map, pins, legs } = draft
   const user = useCurrentUser()
   const isOwner = !!user && !!map && map.ownerId === user.id
+  // 함께 꾸미기: 주인이 아니어도 공동 편집자면 편집 화면
+  const [collab, setCollab] = useState<MapCollab | null>(null)
+  const loadCollab = useCallback(() => {
+    getMapCollab(mapId).then(setCollab).catch(() => setCollab(null))
+  }, [mapId])
+  const userId = user?.id
+  const mapReady = !!map
+  useEffect(() => {
+    if (userId && mapReady) loadCollab()
+  }, [userId, mapReady, loadCollab])
+  const canEdit = isOwner || collab?.myRole === 'editor'
 
   // 로그인 안 한 상태에서 지도를 못 찾으면 (내 비공개 지도일 수 있으니) 로그인으로
   const needLogin = user === null && draft.status === 'notfound'
@@ -153,7 +171,9 @@ export function MapEditorPage() {
     )
   }
 
-  if (!isOwner) {
+  // 로그인했는데 권한 확인 중이면 잠깐 기다린다 (편집자인데 읽기 화면이 깜빡이지 않게)
+  if (!isOwner && user && !collab) return <EditorLoading />
+  if (!canEdit) {
     // 남의 공개 지도 → 읽기 전용
     return <MapViewer detail={{ map, pins, legs: draft.serverLegs }} />
   }
@@ -187,6 +207,7 @@ export function MapEditorPage() {
           pins={pins}
           legs={legs}
           theme={theme}
+          look={map}
           selectedPinId={selectedId}
           onSelectPin={(id) => setSelectedId((cur) => (cur === id ? null : id))}
           insets={insets}
@@ -194,7 +215,6 @@ export function MapEditorPage() {
         />
       </div>
 
-      <AppRail active="maps" />
 
       {/* 상단 떠 있는 바 */}
       <div className="pointer-events-none absolute inset-x-3 top-3 z-20 flex items-start justify-between gap-2 md:left-auto md:right-4 md:top-4">
@@ -210,7 +230,16 @@ export function MapEditorPage() {
           <div className="hidden md:block">
             <ThemePicker value={map.theme} onChange={draft.setTheme} />
           </div>
+          <div className="hidden md:block">
+            <MapLookPicker look={map} coverUrl={map.coverUrl} onChange={draft.updateMap} />
+          </div>
+          {collab && user && (
+            <div className="hidden md:block">
+              <CollabButton mapId={map.id} myId={user.id} collab={collab} onChange={loadCollab} />
+            </div>
+          )}
           {saveButton}
+          <HeaderActions user={user} active="maps" floating />
         </div>
       </div>
 
@@ -250,16 +279,33 @@ export function MapEditorPage() {
             />
             <button
               type="button"
-              onClick={() => draft.updateMap({ isPublic: !map.isPublic })}
+              onClick={() => isOwner && draft.updateMap({ isPublic: !map.isPublic })}
+              disabled={!isOwner}
               className={`inline-flex h-8 shrink-0 items-center gap-1 rounded-full border px-3 text-xs font-semibold transition ${
                 map.isPublic ? 'border-(--c-accent) bg-(--c-accent)/10 text-(--c-accent)' : 'border-(--c-border) text-(--c-muted)'
               }`}
               aria-pressed={map.isPublic}
-              title={map.isPublic ? '누구나 볼 수 있어요' : '나만 볼 수 있어요'}
+              title={!isOwner ? '공개 여부는 지도 주인만 바꿀 수 있어요' : map.isPublic ? '누구나 볼 수 있어요' : '나와 함께 꾸미는 사람만 볼 수 있어요'}
             >
               {map.isPublic ? <GlobeIcon size={14} /> : <LockIcon size={14} />}
               {map.isPublic ? '공개' : '비공개'}
             </button>
+          </div>
+
+          {/* 카테고리 (둘러보기에서 이 칸으로 보여요) */}
+          <div className="tm-scroll -mx-4 flex gap-1.5 overflow-x-auto px-4 md:-mx-5 md:px-5" role="radiogroup" aria-label="지도 카테고리">
+            {MAP_CATEGORIES.map((c) => (
+              <button
+                key={c.id}
+                type="button"
+                role="radio"
+                aria-checked={map.category === c.id}
+                onClick={() => draft.updateMap({ category: c.id })}
+                className={`shrink-0 rounded-full border px-3 py-1.5 text-xs font-semibold transition ${map.category === c.id ? 'border-(--c-ink) bg-(--c-ink) text-(--c-bg)' : 'border-(--c-border) text-(--c-muted) hover:text-(--c-text)'}`}
+              >
+                {c.emoji} {c.label}
+              </button>
+            ))}
           </div>
 
           <Link
@@ -273,12 +319,17 @@ export function MapEditorPage() {
             이 지도로 성지순례 모집하기
             <ChevronRightIcon size={14} className="ml-auto" />
           </Link>
+          <StoryCardButton className="h-9 text-[13px]" data={{ map, pins, legs, theme, ownerName: user?.nickname }} />
 
-          {/* 모바일에서는 테마를 패널 안에 */}
+          {/* 모바일에서는 테마 · 꾸미기를 패널 안에 */}
           <div className="tm-scroll -mx-4 overflow-x-auto px-4 md:hidden">
             <div className="w-max">
               <ThemePicker value={map.theme} onChange={draft.setTheme} />
             </div>
+          </div>
+          <div className="flex flex-wrap gap-2 md:hidden">
+            <MapLookPicker look={map} coverUrl={map.coverUrl} onChange={draft.updateMap} variant="inline" />
+            {collab && user && <CollabButton mapId={map.id} myId={user.id} collab={collab} onChange={loadCollab} variant="inline" />}
           </div>
 
           <PlaceSearchBox

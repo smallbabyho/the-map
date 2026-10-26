@@ -1,15 +1,16 @@
-import type { Pin } from '../../types'
+import type { MarkerShape, Pin } from '../../types'
 import { legLabel } from '../legModes'
 import type { Segment } from './segments'
 
 // 카카오 CustomOverlay 에 넣을 DOM 요소. 모양은 app/globals.css 의 .tm-marker 참고.
 // 이름 등 사용자 입력은 textContent 로만 넣는다 (HTML 주입 방지).
 
-export function createMarkerElement(pin: Pin, index: number, selected: boolean, onClick: () => void): HTMLElement {
+export function createMarkerElement(pin: Pin, index: number, selected: boolean, onClick: () => void, shape: MarkerShape = 'pin'): HTMLElement {
   const el = document.createElement('button')
   el.type = 'button'
   el.className = 'tm-marker tm-overlay'
   el.dataset.selected = String(selected)
+  el.dataset.shape = shape
   el.style.setProperty('--pin', pin.color)
   el.setAttribute('aria-label', `${index + 1}번 ${pin.place.name}`)
 

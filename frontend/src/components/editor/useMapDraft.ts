@@ -98,7 +98,9 @@ export function useMapDraft(mapId: string) {
           fromPinId: from.id,
           toPinId: to.id,
           ...draft,
-          durationMin: draft.isManual ? draft.durationMin : (route?.durationMin ?? draft.durationMin),
+          // 시간은 길찾기 결과로만 (직접 적기는 없앴다. 예전에 적어 둔 값도 길찾기가 오면 덮는다)
+          isManual: false,
+          durationMin: route?.durationMin ?? draft.durationMin,
           route,
         }
       }),
@@ -113,7 +115,7 @@ export function useMapDraft(mapId: string) {
     setSaveError('')
   }
 
-  const updateMap = (patch: Partial<Pick<ConceptMap, 'title' | 'isPublic'>>) => {
+  const updateMap = (patch: Partial<Pick<ConceptMap, 'title' | 'isPublic' | 'category' | 'markerShape' | 'lineStyle' | 'lineWidth' | 'coverUrl'>>) => {
     setMap((m) => (m ? { ...m, ...patch } : m))
     touch()
   }
@@ -211,7 +213,17 @@ export function useMapDraft(mapId: string) {
     setSaving(true)
     setSaveError('')
     try {
-      await saveMap({ id: map.id, title: map.title.trim(), theme: map.theme, isPublic: map.isPublic })
+      await saveMap({
+        id: map.id,
+        title: map.title.trim(),
+        theme: map.theme,
+        isPublic: map.isPublic,
+        category: map.category,
+        markerShape: map.markerShape,
+        lineStyle: map.lineStyle,
+        lineWidth: map.lineWidth,
+        coverUrl: map.coverUrl,
+      })
 
       for (const id of removedPinIds) await deletePin(id)
 

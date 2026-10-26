@@ -6,8 +6,9 @@ import { searchTransit, type TransitInfo, type TransitStep } from './transit'
 
 // 핀과 핀 사이의 실제 길(경로선 · 거리 · 시간)을 구한다.
 //
-// - 도보 · 자전거 · 자동차: OpenStreetMap 길찾기(OSRM, routing.openstreetmap.de). 키 없이 쓸 수 있는 공개 서버.
-//   공개 서버는 개발용이라, 서비스 오픈 전에 카카오모빌리티 등으로 바꿀 땐 fetchRoad() 만 고치면 된다.
+// - 자동차: 카카오모빌리티 길찾기 (/api/route/car, 서버에 KAKAO_REST_KEY 가 있을 때). 한국 도로·교통 사정이 반영된다.
+//   키가 없거나 실패하면 아래 OSRM 으로 대신한다.
+// - 도보 · 자전거 (+ 자동차 대신): OpenStreetMap 길찾기(OSRM, routing.openstreetmap.de). 키 없이 쓸 수 있는 공개 서버.
 // - 대중교통: ODsay 키(NEXT_PUBLIC_ODSAY_KEY)가 있으면 버스 번호·지하철 노선·환승·요금까지 (transit.ts).
 //   키가 없으면 직선거리로 시간을 '예상'한다 (선도 직선).
 // - 길찾기에 실패하면(오프라인 등) 직선거리 예상치로 대신한다. 화면이 멈추지 않게.
@@ -33,7 +34,7 @@ const OSRM_PROFILE: Record<Exclude<TravelMode, 'transit'>, string> = {
   bike: 'routed-bike',
   car: 'routed-car',
 }
-/** OSRM 자동차 시간은 신호·정체가 없는 값이라 도심 기준으로 늘려 잡는다 */
+/** OSRM 자동차 시간은 신호·정체가 없는 값이라 도심 기준으로 늘려 잡는다 (카카오 길찾기에는 안 곱함) */
 const CAR_CITY_FACTOR = 1.6
 /** 직선 예상: km/h, 직선 대비 실제 길 비율, 기본으로 더하는 분(대기·환승·주차) */
 const ESTIMATE: Record<TravelMode, { kmh: number; detour: number; extraMin: number }> = {
@@ -61,7 +62,19 @@ function estimate(from: LatLngLike, to: LatLngLike, mode: TravelMode): Route {
   return { path: [from, to], distanceM, durationMin: Math.max(1, Math.round(minutes)), estimated: true }
 }
 
+/** 카카오모빌리티 자동차 길찾기 (우리 서버 /api/route/car 를 거친다). 키가 없거나 실패하면 null */
+async function fetchKakaoCar(from: LatLngLike, to: LatLngLike): Promise<Route | null> {
+  const res = await fetch(`/api/route/car?from=${from.lng},${from.lat}&to=${to.lng},${to.lat}`).catch(() => null)
+  if (!res?.ok) return null
+  const r = (await res.json()) as { distanceM: number; durationMin: number; path: [number, number][] }
+  return { path: [from, ...r.path.map(([lng, lat]) => ({ lat, lng })), to], distanceM: r.distanceM, durationMin: r.durationMin, estimated: false }
+}
+
 async function fetchRoad(from: LatLngLike, to: LatLngLike, mode: Exclude<TravelMode, 'transit'>): Promise<Route> {
+  if (mode === 'car') {
+    const kakao = await fetchKakaoCar(from, to)
+    if (kakao) return kakao
+  }
   const coords = `${from.lng},${from.lat};${to.lng},${to.lat}`
   const url = `https://routing.openstreetmap.de/${OSRM_PROFILE[mode]}/route/v1/driving/${coords}?overview=full&geometries=geojson`
   const res = await fetch(url)

@@ -5,7 +5,7 @@ import { legLabel, modeMeta } from '../legModes'
 import { MapControls } from './MapControls'
 import { PickPopup } from './PickPopup'
 import { pathMidpoint } from './routing'
-import { partLine, type Segment } from './segments'
+import { DEFAULT_LOOK, LINE_WIDTH, partLine, styledLine, type Segment } from './segments'
 import { DEFAULT_CENTER, NO_INSETS, type MapViewProps, type PickedPoint } from './types'
 import { useLongPress } from './useLongPress'
 
@@ -18,7 +18,7 @@ interface Props extends MapViewProps {
  * 카카오 키가 없거나 불러오기 실패했을 때 보여주는 미리보기 지도.
  * 실제 지도 타일 없이 핀 위치·순서·경로만 비율대로 그린다.
  */
-export function FallbackMap({ pins, segments, theme, selectedPinId, onSelectPin, insets = NO_INSETS, onAddPlace, notice }: Props) {
+export function FallbackMap({ pins, segments, theme, look = DEFAULT_LOOK, selectedPinId, onSelectPin, insets = NO_INSETS, onAddPlace, notice }: Props) {
   const ref = useRef<HTMLDivElement>(null)
   const [size, setSize] = useState({ w: 0, h: 0 })
   const [picked, setPicked] = useState<PickedPoint | null>(null)
@@ -90,16 +90,17 @@ export function FallbackMap({ pins, segments, theme, selectedPinId, onSelectPin,
         <svg className="pointer-events-none absolute inset-0" width={size.w} height={size.h}>
           {segments.map((seg) => {
             const lines = seg.parts?.length
-              ? seg.parts.map((p) => ({ path: p.path, color: p.color ?? theme.route, dash: partLine(p.kind).svg }))
-              : [{ path: seg.path, color: theme.route, dash: modeMeta(seg.mode).line.svg }]
+              ? seg.parts.map((p) => ({ path: p.path, color: p.color ?? theme.route, dash: styledLine(partLine(p.kind), look.lineStyle, p.kind).svg }))
+              : [{ path: seg.path, color: theme.route, dash: styledLine(modeMeta(seg.mode).line, look.lineStyle).svg }]
+            const [outer, inner] = LINE_WIDTH[look.lineWidth]
             return (
               <g key={seg.key} fill="none" strokeLinejoin="round" strokeLinecap="round" opacity={seg.loading ? 0.4 : 1}>
                 {lines.map((l, i) => {
                   const points = l.path.map((p) => project(p.lat, p.lng)).map((p) => `${p.x},${p.y}`).join(' ')
                   return (
                     <g key={i}>
-                      <polyline points={points} stroke="#fff" strokeWidth={9} strokeOpacity={0.9} />
-                      <polyline points={points} stroke={l.color} strokeWidth={5} strokeOpacity={0.95} strokeDasharray={l.dash} />
+                      <polyline points={points} stroke="#fff" strokeWidth={outer} strokeOpacity={0.9} />
+                      <polyline points={points} stroke={l.color} strokeWidth={inner} strokeOpacity={0.95} strokeDasharray={l.dash} />
                     </g>
                   )
                 })}
@@ -134,6 +135,7 @@ export function FallbackMap({ pins, segments, theme, selectedPinId, onSelectPin,
                 type="button"
                 className="tm-marker"
                 data-selected={selected}
+                data-shape={look.markerShape}
                 style={{ ['--pin' as string]: pin.color }}
                 onClick={() => onSelectPin(pin.id)}
                 aria-label={`${i + 1}번 ${pin.place.name}`}

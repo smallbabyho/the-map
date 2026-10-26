@@ -21,6 +21,11 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <head>
         {/* 밤에 흰 화면이 번쩍이지 않게 첫 그리기 전에 라이트/다크 결정 */}
         <script dangerouslySetInnerHTML={{ __html: EARLY_APPEARANCE_SCRIPT }} />
+        {/* 영문 포인트 제목(기울인 세리프) · 모노 라벨 */}
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
+        {/* eslint-disable-next-line @next/next/no-page-custom-font -- 루트 레이아웃이라 모든 화면에 적용됨 (pages/_document 규칙 오탐) */}
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500;700&family=Playfair+Display:ital,wght@0,900;1,900&display=swap" />
         {/* 한글 폰트: Pretendard (필요한 글자만 내려받는 dynamic subset) */}
         <link
           rel="stylesheet"

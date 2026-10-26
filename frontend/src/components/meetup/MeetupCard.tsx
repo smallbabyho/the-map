@@ -13,7 +13,7 @@ export function MemberStack({ members, max = 5, size = 26 }: { members: MeetupSu
   return (
     <span className="flex items-center -space-x-1.5">
       {shown.map((m) => (
-        <Avatar key={m.userId} id={m.userId} nickname={m.nickname} size={size} ring />
+        <Avatar key={m.userId} id={m.userId} nickname={m.nickname} src={m.avatarUrl} size={size} ring />
       ))}
       {members.length > max && (
         <span className="grid place-items-center rounded-full bg-(--c-border) text-[11px] font-bold text-(--c-muted) ring-2 ring-(--c-surface)" style={{ width: size, height: size }}>
@@ -33,11 +33,14 @@ export function MeetupCard({ meetup, myId }: { meetup: MeetupSummary; myId?: str
   return (
     <Link
       href={`/meetups/${meetup.id}`}
-      className={`group block overflow-hidden rounded-2xl border border-(--c-border) bg-(--c-surface) transition hover:-translate-y-0.5 hover:shadow-lg ${dim ? 'opacity-60' : ''}`}
+      className={`group block overflow-hidden tm-card rounded-2xl ${dim ? 'opacity-60' : ''}`}
     >
-      <MapThumb id={meetup.map.id} theme={meetup.map.theme} dots={meetup.map.pinCount} className="h-32">
+      <MapThumb id={meetup.map.id} theme={meetup.map.theme} cover={meetup.map.coverUrl} dots={meetup.map.pinCount} className="h-32">
         <span className={`absolute left-3 top-3 rounded-full px-2.5 py-1 text-[11px] font-bold shadow-sm ${badge.className}`}>{badge.label}</span>
-        <span className="absolute right-3 top-3 rounded-full bg-white/95 px-2.5 py-1 text-[11px] font-bold text-gray-800 shadow-sm">{dday(meetup.meetAt)}</span>
+        <span className="absolute right-3 top-3 flex gap-1">
+          {meetup.visibility === 'private' && <span className="rounded-full bg-gray-900 px-2.5 py-1 text-[11px] font-bold text-white shadow-sm">🔒 친구끼리</span>}
+          <span className="rounded-full bg-white/95 px-2.5 py-1 text-[11px] font-bold text-gray-800 shadow-sm">{dday(meetup.meetAt)}</span>
+        </span>
         {joined && (
           <span className="absolute bottom-3 left-3 rounded-full bg-(--c-accent) px-2.5 py-1 text-[11px] font-bold text-(--c-accent-text) shadow-sm">
             {meetup.hostId === myId ? '내가 연 모임' : '참여 중'}

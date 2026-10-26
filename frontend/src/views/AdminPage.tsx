@@ -6,6 +6,7 @@ import { useCurrentUser } from '../auth'
 import { AppRail, MobileTabBar } from '../components/AppRail'
 import { Avatar } from '../components/Avatar'
 import { SearchIcon } from '../components/icons'
+import { AdminReports } from '../components/report/AdminReports'
 import { adminDeleteUser, adminGetStats, adminListUsers, adminUpdateUser } from '../db/api'
 import type { AdminStats, AdminUser } from '../types'
 
@@ -21,6 +22,7 @@ export function AdminPage() {
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [busyId, setBusyId] = useState<string | null>(null)
+  const [section, setSection] = useState<'users' | 'reports'>('users')
 
   const isAdmin = me?.role === 'admin'
 
@@ -72,7 +74,7 @@ export function AdminPage() {
   if (me === undefined) return <div className="h-dvh" />
   if (!isAdmin) {
     return (
-      <div className="relative min-h-dvh md:pl-[72px]">
+      <div className="relative min-h-dvh pt-14">
         <AppRail active="admin" />
         <div className="grid min-h-dvh place-items-center px-6 text-center">
           <div>
@@ -94,15 +96,15 @@ export function AdminPage() {
     .filter((u) => !q || u.nickname.toLowerCase().includes(q) || u.email.toLowerCase().includes(q))
 
   return (
-    <div className="relative min-h-dvh pb-16 md:pb-0 md:pl-[72px]">
+    <div className="relative min-h-dvh pb-16 md:pb-0 pt-14">
       <AppRail active="admin" />
       <MobileTabBar active="admin" />
 
       <main className="mx-auto max-w-6xl px-4 pb-16 pt-6 md:px-10 md:pt-12">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
-            <p className="text-sm font-medium text-(--c-muted)">관리자 모드</p>
-            <h1 className="mt-1 text-2xl font-bold tracking-tight md:text-3xl">회원 관리</h1>
+            <p className="tm-label dot">admin · control room</p>
+            <h1 className="tm-headline mt-3 text-4xl md:text-6xl">{section === 'users' ? <>회원 <em>관리</em></> : <>신고 <em>처리</em></>}</h1>
           </div>
           <Link href="/dev/api" className="rounded-full border border-(--c-border) bg-(--c-surface) px-4 py-2 text-sm font-semibold hover:bg-black/[0.03]">
             API 테스트 →
@@ -110,8 +112,9 @@ export function AdminPage() {
         </div>
 
         {/* 현황 */}
-        <section className="mt-6 grid grid-cols-2 gap-3 md:grid-cols-6">
+        <section className="mt-6 grid grid-cols-2 gap-3 md:grid-cols-7">
           {[
+            { label: '처리 전 신고', value: stats?.reportsOpen, warn: true },
             { label: '전체 회원', value: stats?.users },
             { label: '정지 회원', value: stats?.suspended, warn: true },
             { label: '전체 지도', value: stats?.maps },
@@ -126,8 +129,34 @@ export function AdminPage() {
           ))}
         </section>
 
+        {/* 회원 · 신고 */}
+        <div className="mt-8 flex gap-6 border-b border-(--c-border)" role="tablist">
+          {(
+            [
+              ['users', '회원'],
+              ['reports', '신고 · 문제 제보'],
+            ] as const
+          ).map(([id, label]) => (
+            <button
+              key={id}
+              type="button"
+              role="tab"
+              aria-selected={section === id}
+              onClick={() => setSection(id)}
+              className={`-mb-px border-b-2 pb-2.5 text-[15px] font-bold ${section === id ? 'border-(--c-text)' : 'border-transparent text-(--c-muted)'}`}
+            >
+              {label}
+              {id === 'reports' && !!stats?.reportsOpen && <span className="ml-1.5 rounded-full bg-red-500 px-1.5 py-0.5 text-[11px] text-white">{stats.reportsOpen}</span>}
+            </button>
+          ))}
+        </div>
+
+        {section === 'reports' ? (
+          <AdminReports onChange={() => adminGetStats().then(setStats)} />
+        ) : (
+        <>
         {/* 검색 · 필터 */}
-        <div className="mt-8 flex flex-wrap items-center gap-3">
+        <div className="mt-6 flex flex-wrap items-center gap-3">
           <label className="flex h-10 min-w-0 flex-1 items-center gap-2 rounded-xl border border-(--c-border) bg-(--c-surface) px-3 focus-within:border-(--c-accent) sm:max-w-xs">
             <SearchIcon size={16} className="text-(--c-muted)" />
             <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="닉네임·이메일 검색" className="min-w-0 flex-1 bg-transparent text-sm outline-none" aria-label="회원 검색" />
@@ -175,7 +204,7 @@ export function AdminPage() {
                 return (
                   <li key={u.id} className={`grid gap-3 px-4 py-3 md:grid-cols-[1.6fr_1fr_0.7fr_0.7fr_1.6fr] md:items-center ${u.suspended ? 'bg-red-500/[0.04]' : ''}`}>
                     <div className="flex min-w-0 items-center gap-3">
-                      <Avatar id={u.id} nickname={u.nickname} size={36} />
+                      <Avatar id={u.id} nickname={u.nickname} src={u.avatarUrl} size={36} />
                       <div className="min-w-0">
                         <p className="flex flex-wrap items-center gap-1.5 text-sm font-semibold">
                           <span className="truncate">{u.nickname}</span>
@@ -239,6 +268,8 @@ export function AdminPage() {
             </ul>
           )}
         </section>
+        </>
+        )}
       </main>
     </div>
   )

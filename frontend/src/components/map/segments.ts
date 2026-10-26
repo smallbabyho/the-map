@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import type { Pin, TravelMode } from '../../types'
+import type { LineStyle, LineWidth, MapLook, Pin, TravelMode } from '../../types'
 import { useRoutes, type LatLngLike } from './routing'
 import { STEP_ICON, type TransitStepKind } from './transit'
 import type { MapLegView } from './types'
@@ -24,6 +24,28 @@ export function partLine(kind: TransitStepKind): { kakao: string; svg?: string }
   if (kind === 'walk' || kind === 'access') return { kakao: 'shortdot', svg: '0.1 9' }
   if (kind === 'air') return { kakao: 'dash', svg: '16 7' }
   return { kakao: 'solid' }
+}
+
+/** 기본 지도 꾸미기 (look 을 안 넘기면) */
+export const DEFAULT_LOOK: MapLook = { markerShape: 'pin', lineStyle: 'auto', lineWidth: 'normal' }
+
+const FIXED_LINE: Record<Exclude<LineStyle, 'auto'>, { kakao: string; svg?: string }> = {
+  solid: { kakao: 'solid' },
+  dash: { kakao: 'dash', svg: '16 7' },
+  dot: { kakao: 'shortdot', svg: '0.1 9' },
+}
+/** 선 굵기(px): [흰 테두리, 색 선] */
+export const LINE_WIDTH: Record<LineWidth, [number, number]> = { thin: [6, 3], normal: [9, 5], bold: [13, 8] }
+
+const RIDES: TransitStepKind[] = ['bus', 'subway', 'train', 'intercityBus', 'air']
+
+/**
+ * 지도 꾸미기의 선 모양을 반영한 선. auto 면 원래 모양(이동수단별) 그대로.
+ * 버스 · 지하철 같은 실제 노선 구간은 노선 느낌을 지키려고 바꾸지 않는다.
+ */
+export function styledLine(base: { kakao: string; svg?: string }, style: LineStyle, kind?: TransitStepKind) {
+  if (style === 'auto' || (kind && RIDES.includes(kind))) return base
+  return FIXED_LINE[style]
 }
 
 const at = (p: Pin): LatLngLike => ({ lat: p.place.lat, lng: p.place.lng })

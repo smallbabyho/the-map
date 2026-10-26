@@ -4,6 +4,12 @@
 
 import type {
   AdminStats,
+  ExploreMapEntry,
+  ExploreSort,
+  MapCategory,
+  MapCollab,
+  MapInvitePreview,
+  MapLook,
   AdminUser,
   AdminUserRow,
   ConceptMap,
@@ -13,6 +19,8 @@ import type {
   MapInput,
   MapRankingEntry,
   Meetup,
+  MeetupComment,
+  MeetupCommentInput,
   MeetupFilter,
   MeetupInput,
   MeetupStatus,
@@ -21,12 +29,15 @@ import type {
   PinInput,
   Place,
   ProfileDeco,
+  Report,
+  ReportInput,
+  ReportStatus,
   ProfileDecoInput,
   ProfilePage,
   PublicMapSummary,
   User,
 } from '../types'
-import { mockCurrentUser, mockDeleteUser, mockListUsers, mockUpdateUser, mockUserById } from '../auth/mock'
+import { mockCurrentUser, mockDeleteUser, mockListUsers, mockUpdateMe, mockUpdateUser, mockUserById } from '../auth/mock'
 
 const STORAGE_KEY = 'the-map:mock-db:v1'
 
@@ -43,6 +54,9 @@ interface UseRow {
   kind: 'copy' | 'meetup'
 }
 
+type CommentRow = Omit<MeetupComment, 'author'> & { userId: string }
+type ReportRow = Omit<Report, 'reporter'> & { reporterId: string | null }
+
 interface Db {
   maps: ConceptMap[]
   places: Place[]
@@ -52,11 +66,33 @@ interface Db {
   members: MemberRow[]
   uses: UseRow[]
   decos: ProfileDeco[]
+  comments: CommentRow[]
+  reports: ReportRow[]
+  /** 차단: userId 가 blockedId 를 차단 */
+  blocks: { userId: string; blockedId: string; createdAt: string }[]
+  /** 함께 꾸미기: 공동 편집자 · 초대 코드 */
+  mapMembers: { mapId: string; userId: string; joinedAt: string }[]
+  mapInvites: { mapId: string; code: string }[]
   seeded?: boolean
 }
 
+/** 지도 꾸미기 기본값 (예전에 저장된 지도에도 채운다) */
+const DEFAULT_LOOK: MapLook & { coverUrl: string | null } = { markerShape: 'pin', lineStyle: 'auto', lineWidth: 'normal', coverUrl: null }
+const CATEGORIES: MapCategory[] = ['food', 'cafe', 'date', 'trip', 'daytrip', 'walk', 'culture', 'fandom', 'etc']
+
+/** 카테고리가 없던 예전 지도는 제목으로 짐작한다 (체험 데이터용) */
+function guessCategory(title: string): MapCategory {
+  if (/카페|커피|디저트/.test(title)) return 'cafe'
+  if (/맛집|먹방|빵|노포|식당/.test(title)) return 'food'
+  if (/촬영지|성지|드라마|영화|덕질/.test(title)) return 'fandom'
+  if (/데이트/.test(title)) return 'date'
+  if (/1박|2박|여행/.test(title)) return 'trip'
+  if (/산책|공원|숲/.test(title)) return 'walk'
+  return 'etc'
+}
+
 function emptyDb(): Db {
-  return { maps: [], places: [], pins: [], legs: [], meetups: [], members: [], uses: [], decos: [] }
+  return { maps: [], places: [], pins: [], legs: [], meetups: [], members: [], uses: [], decos: [], comments: [], reports: [], blocks: [], mapMembers: [], mapInvites: [] }
 }
 
 function load(): Db {
@@ -69,6 +105,8 @@ function load(): Db {
   }
   // 예전 '다크' 테마는 색만 남겨 네온으로 (배경 라이트/다크는 이제 보는 사람 설정)
   for (const m of db.maps) if ((m.theme as string) === 'dark') m.theme = 'neon'
+  db.maps = db.maps.map((m) => ({ ...DEFAULT_LOOK, ...m, category: m.category ?? guessCategory(m.title) }))
+  db.meetups = db.meetups.map((m) => ({ ...m, visibility: m.visibility ?? 'public', inviteCode: m.inviteCode ?? null }))
   // 예전 이동수단(버스·지하철)은 대중교통으로
   for (const leg of db.legs) if ((leg.mode as string) === 'bus' || (leg.mode as string) === 'subway') leg.mode = 'transit'
   if (!db.seeded) {
@@ -97,6 +135,14 @@ const newId = () =>
 
 const now = () => new Date().toISOString()
 
+/** 비공개 모임 초대 코드: 헷갈리는 글자(0 O 1 l I)를 뺀 8자리 */
+function newInviteCode() {
+  const chars = 'abcdefghjkmnpqrstuvwxyz23456789'
+  const bytes = new Uint8Array(8)
+  crypto.getRandomValues(bytes)
+  return [...bytes].map((b) => chars[b % chars.length]).join('')
+}
+
 // 실제 네트워크처럼 아주 짧게 기다려서, 로딩 상태 처리를 미리 확인할 수 있게 한다.
 const tick = () => new Promise((r) => setTimeout(r, 80))
 
@@ -116,7 +162,18 @@ function toPin(db: Db, row: Db['pins'][number]): Pin {
 function ownMapOrThrow(db: Db, mapId: string): ConceptMap {
   const map = db.maps.find((m) => m.id === mapId)
   if (!map) throw new Error('지도를 찾을 수 없어요.')
-  if (map.ownerId !== requireUser().id) throw new Error('내 지도만 수정할 수 있어요.')
+  if (map.ownerId !== requireUser().id) throw new Error('지도 주인만 할 수 있어요.')
+  return map
+}
+
+const isEditor = (db: Db, mapId: string, userId: string | undefined) => !!userId && db.mapMembers.some((m) => m.mapId === mapId && m.userId === userId)
+
+/** 주인 또는 공동 편집자만 (핀 · 구간 · 제목 · 꾸미기 고치기) */
+function editableMapOrThrow(db: Db, mapId: string): ConceptMap {
+  const map = db.maps.find((m) => m.id === mapId)
+  if (!map) throw new Error('지도를 찾을 수 없어요.')
+  const me = requireUser().id
+  if (map.ownerId !== me && !isEditor(db, mapId, me)) throw new Error('이 지도를 고칠 권한이 없어요.')
   return map
 }
 
@@ -141,9 +198,8 @@ export async function getCurrentUser(): Promise<User | null> {
 export async function getMyMaps(): Promise<ConceptMap[]> {
   await tick()
   const user = requireUser()
-  return load()
-    .maps.filter((m) => m.ownerId === user.id)
-    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+  const db = load()
+  return db.maps.filter((m) => m.ownerId === user.id || isEditor(db, m.id, user.id)).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
 }
 
 /**
@@ -159,7 +215,8 @@ export async function getMap(mapId: string): Promise<MapDetail | null> {
   const db = load()
   const map = db.maps.find((m) => m.id === mapId)
   if (!map) return null
-  if (!map.isPublic && map.ownerId !== mockCurrentUser()?.id) return null
+  const meId = mockCurrentUser()?.id
+  if (!map.isPublic && map.ownerId !== meId && !isEditor(db, mapId, meId)) return null
   const pins = db.pins
     .filter((p) => p.mapId === mapId)
     .sort((a, b) => a.order - b.order)
@@ -180,11 +237,17 @@ export async function saveMap(mapData: MapInput): Promise<ConceptMap> {
   const db = load()
   const user = requireUser()
   if (mapData.id) {
-    const map = ownMapOrThrow(db, mapData.id)
+    const map = editableMapOrThrow(db, mapData.id)
     Object.assign(map, {
       title: mapData.title,
       theme: mapData.theme,
-      isPublic: mapData.isPublic,
+      // 공개 여부는 주인만 바꾼다 (편집자가 보낸 값은 무시)
+      isPublic: map.ownerId === user.id ? mapData.isPublic : map.isPublic,
+      category: mapData.category && CATEGORIES.includes(mapData.category) ? mapData.category : map.category,
+      markerShape: mapData.markerShape ?? map.markerShape,
+      lineStyle: mapData.lineStyle ?? map.lineStyle,
+      lineWidth: mapData.lineWidth ?? map.lineWidth,
+      coverUrl: mapData.coverUrl !== undefined ? mapData.coverUrl : map.coverUrl,
       updatedAt: now(),
     })
     persist(db)
@@ -196,6 +259,11 @@ export async function saveMap(mapData: MapInput): Promise<ConceptMap> {
     title: mapData.title,
     theme: mapData.theme,
     isPublic: mapData.isPublic,
+    category: mapData.category && CATEGORIES.includes(mapData.category) ? mapData.category : 'etc',
+    markerShape: mapData.markerShape ?? DEFAULT_LOOK.markerShape,
+    lineStyle: mapData.lineStyle ?? DEFAULT_LOOK.lineStyle,
+    lineWidth: mapData.lineWidth ?? DEFAULT_LOOK.lineWidth,
+    coverUrl: mapData.coverUrl ?? null,
     createdAt: now(),
     updatedAt: now(),
   }
@@ -217,6 +285,8 @@ export async function deleteMap(mapId: string): Promise<void> {
   db.maps = db.maps.filter((m) => m.id !== mapId)
   db.pins = db.pins.filter((p) => p.mapId !== mapId)
   db.legs = db.legs.filter((l) => l.mapId !== mapId)
+  db.mapMembers = db.mapMembers.filter((m) => m.mapId !== mapId)
+  db.mapInvites = db.mapInvites.filter((m) => m.mapId !== mapId)
   persist(db)
 }
 
@@ -233,7 +303,7 @@ export async function deleteMap(mapId: string): Promise<void> {
 export async function savePin(mapId: string, pinData: PinInput): Promise<Pin> {
   await tick()
   const db = load()
-  const map = ownMapOrThrow(db, mapId)
+  const map = editableMapOrThrow(db, mapId)
 
   let place = db.places.find((p) => p.externalId === pinData.place.externalId)
   if (!place) {
@@ -274,7 +344,7 @@ export async function deletePin(pinId: string): Promise<void> {
   const db = load()
   const row = db.pins.find((p) => p.id === pinId)
   if (!row) return
-  ownMapOrThrow(db, row.mapId)
+  editableMapOrThrow(db, row.mapId)
   db.pins = db.pins.filter((p) => p.id !== pinId)
   db.legs = db.legs.filter((l) => l.fromPinId !== pinId && l.toPinId !== pinId)
   persist(db)
@@ -289,7 +359,7 @@ export async function deletePin(pinId: string): Promise<void> {
 export async function saveLeg(mapId: string, legData: LegInput): Promise<Leg> {
   await tick()
   const db = load()
-  ownMapOrThrow(db, mapId)
+  editableMapOrThrow(db, mapId)
   const inMap = (id: string) => db.pins.some((p) => p.id === id && p.mapId === mapId)
   if (!inMap(legData.fromPinId) || !inMap(legData.toPinId)) {
     throw new Error('같은 지도의 핀끼리만 이을 수 있어요.')
@@ -326,7 +396,7 @@ export async function deleteLeg(legId: string): Promise<void> {
   const db = load()
   const leg = db.legs.find((l) => l.id === legId)
   if (!leg) return
-  ownMapOrThrow(db, leg.mapId)
+  editableMapOrThrow(db, leg.mapId)
   db.legs = db.legs.filter((l) => l.id !== legId)
   persist(db)
 }
@@ -343,6 +413,30 @@ export async function uploadPinPhoto(file: File): Promise<string> {
   if (!file.type.startsWith('image/')) throw new Error('이미지 파일만 올릴 수 있어요.')
   if (file.size > 15 * 1024 * 1024) throw new Error('사진이 너무 커요. 15MB 이하로 올려 주세요.')
   return resizeToDataUrl(file, 1024, 0.8)
+}
+
+/**
+ * 프로필 사진 업로드 후 URL 반환. mock 은 긴 변 400px JPEG data URL.
+ *
+ * @example
+ * const url = await uploadAvatar(file)
+ * await updateMyProfile({ avatarUrl: url })
+ */
+export async function uploadAvatar(file: File): Promise<string> {
+  if (!file.type.startsWith('image/')) throw new Error('이미지 파일만 올릴 수 있어요.')
+  if (file.size > 15 * 1024 * 1024) throw new Error('사진이 너무 커요. 15MB 이하로 올려 주세요.')
+  return resizeToDataUrl(file, 400, 0.85)
+}
+
+/**
+ * 내 닉네임 · 프로필 사진 바꾸기. avatarUrl: null 이면 사진을 지우고 첫 글자로.
+ *
+ * @example
+ * const me = await updateMyProfile({ nickname: '빵지순례자', avatarUrl: url })
+ */
+export async function updateMyProfile(patch: { nickname?: string; avatarUrl?: string | null }): Promise<User> {
+  await tick()
+  return mockUpdateMe(patch)
 }
 
 function resizeToDataUrl(file: File, maxSide: number, quality: number): Promise<string> {
@@ -367,6 +461,104 @@ function resizeToDataUrl(file: File, maxSide: number, quality: number): Promise<
 }
 
 // ===========================================================================
+// 함께 꾸미기 (공동 편집)
+// ===========================================================================
+
+/**
+ * 지도 함께 꾸미기 정보: 주인 · 공동 편집자 · 초대 코드(주인 · 편집자에게만) · 내 권한.
+ *
+ * @example
+ * const { editors, inviteCode, myRole } = await getMapCollab(mapId)
+ */
+export async function getMapCollab(mapId: string): Promise<MapCollab> {
+  await tick()
+  const db = load()
+  const map = db.maps.find((m) => m.id === mapId)
+  if (!map) throw new Error('지도를 찾을 수 없어요.')
+  const meId = mockCurrentUser()?.id
+  const myRole = map.ownerId === meId ? 'owner' : isEditor(db, mapId, meId) ? 'editor' : 'viewer'
+  return {
+    owner: mockUserById(map.ownerId),
+    editors: db.mapMembers.filter((m) => m.mapId === mapId).map((m) => ({ ...mockUserById(m.userId), joinedAt: m.joinedAt })),
+    inviteCode: myRole === 'viewer' ? null : (db.mapInvites.find((i) => i.mapId === mapId)?.code ?? null),
+    myRole,
+  }
+}
+
+/**
+ * (주인) 초대 링크 코드 만들기. reset 이면 새 코드로 바꿔 예전 링크를 막는다.
+ *
+ * @example
+ * const code = await createMapInvite(mapId) // 링크: /maps/{mapId}/join?code={code}
+ */
+export async function createMapInvite(mapId: string, reset = false): Promise<string> {
+  await tick()
+  const db = load()
+  ownMapOrThrow(db, mapId)
+  const cur = db.mapInvites.find((i) => i.mapId === mapId)
+  if (cur && !reset) return cur.code
+  const code = newInviteCode()
+  db.mapInvites = [...db.mapInvites.filter((i) => i.mapId !== mapId), { mapId, code }]
+  persist(db)
+  return code
+}
+
+/**
+ * 초대 링크 미리보기 (참여 전, 비공개 지도여도 코드가 맞으면). 코드가 틀리면 null.
+ *
+ * @example
+ * const preview = await getMapInvitePreview(mapId, code)
+ */
+export async function getMapInvitePreview(mapId: string, code: string): Promise<MapInvitePreview | null> {
+  await tick()
+  const db = load()
+  const map = db.maps.find((m) => m.id === mapId)
+  if (!map || db.mapInvites.find((i) => i.mapId === mapId)?.code !== code) return null
+  return {
+    mapId,
+    title: map.title || '제목 없는 지도',
+    owner: mockUserById(map.ownerId),
+    pinCount: db.pins.filter((p) => p.mapId === mapId).length,
+    editorCount: db.mapMembers.filter((m) => m.mapId === mapId).length,
+  }
+}
+
+/**
+ * 초대 링크로 공동 편집자 되기 (최대 10명). 이미 주인 · 편집자면 그대로.
+ *
+ * @example
+ * await joinMapByInvite(mapId, code); router.push(`/maps/${mapId}`)
+ */
+export async function joinMapByInvite(mapId: string, code: string): Promise<void> {
+  await tick()
+  const db = load()
+  const me = requireUser()
+  const map = db.maps.find((m) => m.id === mapId)
+  if (!map || db.mapInvites.find((i) => i.mapId === mapId)?.code !== code) throw new Error('초대 링크가 바뀌었거나 없어졌어요. 다시 받아 주세요.')
+  if (map.ownerId === me.id || isEditor(db, mapId, me.id)) return
+  if (db.mapMembers.filter((m) => m.mapId === mapId).length >= 10) throw new Error('함께 꾸미는 사람은 10명까지예요.')
+  db.mapMembers.push({ mapId, userId: me.id, joinedAt: now() })
+  persist(db)
+}
+
+/**
+ * 공동 편집자 빼기: 주인은 누구든, 편집자는 자기 자신만 (나가기).
+ *
+ * @example
+ * await removeMapEditor(mapId, me.id) // 나가기
+ */
+export async function removeMapEditor(mapId: string, userId: string): Promise<void> {
+  await tick()
+  const db = load()
+  const me = requireUser()
+  const map = db.maps.find((m) => m.id === mapId)
+  if (!map) throw new Error('지도를 찾을 수 없어요.')
+  if (map.ownerId !== me.id && userId !== me.id) throw new Error('지도 주인만 다른 사람을 뺄 수 있어요.')
+  db.mapMembers = db.mapMembers.filter((m) => !(m.mapId === mapId && m.userId === userId))
+  persist(db)
+}
+
+// ===========================================================================
 // 성지순례 (모임)
 // ===========================================================================
 
@@ -375,15 +567,22 @@ function toMeetupSummary(db: Db, m: Meetup): MeetupSummary {
   const members = db.members
     .filter((r) => r.meetupId === m.id)
     .sort((a, b) => a.joinedAt.localeCompare(b.joinedAt))
-    .map((r) => ({ userId: r.userId, nickname: mockUserById(r.userId).nickname, joinedAt: r.joinedAt }))
+    .map((r) => {
+      const u = mockUserById(r.userId)
+      return { userId: r.userId, nickname: u.nickname, avatarUrl: u.avatarUrl ?? null, joinedAt: r.joinedAt }
+    })
+  const meId = mockCurrentUser()?.id
+  const isMember = !!meId && members.some((r) => r.userId === meId)
   return {
     ...m,
+    inviteCode: isMember ? m.inviteCode : null,
     host: mockUserById(m.hostId),
     members,
     map: {
       id: m.mapId,
       title: map?.title || '삭제된 지도',
       theme: map?.theme ?? 'default',
+      coverUrl: map?.coverUrl ?? null,
       pinCount: db.pins.filter((p) => p.mapId === m.mapId).length,
     },
   }
@@ -409,6 +608,8 @@ export async function getMeetups(filter: MeetupFilter = 'all'): Promise<MeetupSu
   if (filter !== 'all' && !me) return []
   return db.meetups
     .filter((m) => m.status !== 'canceled' || m.hostId === me?.id)
+    // 비공개 모임은 참여한 사람에게만 보인다
+    .filter((m) => m.visibility !== 'private' || (!!me && db.members.some((r) => r.meetupId === m.id && r.userId === me.id)))
     .filter((m) => {
       if (filter === 'hosting') return m.hostId === me!.id
       if (filter === 'joined') return db.members.some((r) => r.meetupId === m.id && r.userId === me!.id)
@@ -425,11 +626,15 @@ export async function getMeetups(filter: MeetupFilter = 'all'): Promise<MeetupSu
  * const res = await getMeetup(id)
  * res?.meetup.members; res?.mapDetail.pins
  */
-export async function getMeetup(meetupId: string): Promise<{ meetup: MeetupSummary; mapDetail: MapDetail | null } | null> {
+export async function getMeetup(meetupId: string, inviteCode?: string): Promise<{ meetup: MeetupSummary; mapDetail: MapDetail | null } | null> {
   await tick()
   const db = load()
   const m = db.meetups.find((x) => x.id === meetupId)
   if (!m) return null
+  // 비공개 모임: 참여자이거나 초대 코드가 맞아야 보인다 (아니면 없는 모임처럼)
+  const meId = mockCurrentUser()?.id
+  const isMember = !!meId && db.members.some((r) => r.meetupId === m.id && r.userId === meId)
+  if (m.visibility === 'private' && !isMember && inviteCode !== m.inviteCode) return null
   const map = db.maps.find((x) => x.id === m.mapId)
   // 모임 지도는 비공개여도 모임 화면에서는 보여준다
   const mapDetail: MapDetail | null = map
@@ -464,7 +669,9 @@ export async function saveMeetup(input: MeetupInput): Promise<MeetupSummary> {
   const map = db.maps.find((x) => x.id === input.mapId)
   if (!map || (!map.isPublic && map.ownerId !== me.id)) throw new Error('이 지도로는 모임을 열 수 없어요.')
 
+  const visibility: Meetup['visibility'] = input.visibility === 'private' ? 'private' : 'public'
   const fields = {
+    visibility,
     mapId: input.mapId,
     title,
     description: input.description.trim(),
@@ -480,9 +687,11 @@ export async function saveMeetup(input: MeetupInput): Promise<MeetupSummary> {
     const count = db.members.filter((r) => r.meetupId === found.id).length
     if (capacity < count) throw new Error(`이미 ${count}명이 참여했어요. 정원을 ${count}명 이상으로 정해 주세요.`)
     Object.assign(found, fields)
+    // 비공개로 바꾸면 초대 코드를 만들고, 공개로 바꾸면 없앤다
+    found.inviteCode = visibility === 'private' ? (found.inviteCode ?? newInviteCode()) : null
     meetup = found
   } else {
-    meetup = { id: newId(), hostId: me.id, status: 'open', createdAt: now(), ...fields }
+    meetup = { id: newId(), hostId: me.id, status: 'open', createdAt: now(), inviteCode: visibility === 'private' ? newInviteCode() : null, ...fields }
     db.meetups.push(meetup)
     db.members.push({ meetupId: meetup.id, userId: me.id, joinedAt: now() })
     recordUse(db, map.id, me.id, 'meetup')
@@ -497,12 +706,13 @@ export async function saveMeetup(input: MeetupInput): Promise<MeetupSummary> {
  * @example
  * await joinMeetup(id) // 실패 시 '정원이 다 찼어요.' 등
  */
-export async function joinMeetup(meetupId: string): Promise<MeetupSummary> {
+export async function joinMeetup(meetupId: string, inviteCode?: string): Promise<MeetupSummary> {
   await tick()
   const db = load()
   const me = requireUser()
   const m = db.meetups.find((x) => x.id === meetupId)
   if (!m) throw new Error('모임을 찾을 수 없어요.')
+  if (m.visibility === 'private' && inviteCode !== m.inviteCode) throw new Error('초대 링크로만 참여할 수 있는 모임이에요.')
   if (m.status === 'canceled') throw new Error('취소된 모임이에요.')
   if (m.status === 'closed' || Date.parse(m.meetAt) < Date.now()) throw new Error('모집이 끝난 모임이에요.')
   const members = db.members.filter((r) => r.meetupId === m.id)
@@ -570,6 +780,207 @@ export async function getUser(userId: string): Promise<User> {
 }
 
 // ===========================================================================
+// 모임 댓글 · 공지 · 후기
+// ===========================================================================
+
+const COMMENT_MAX = 500
+
+/**
+ * 모임 댓글 목록: 공지(최신 먼저)가 맨 위, 나머지는 오래된 순 (대화처럼 아래로 쌓인다).
+ * 누구나 읽을 수 있다 (모임 화면을 볼 수 있으면).
+ *
+ * @example
+ * const comments = await getMeetupComments(meetupId)
+ */
+export async function getMeetupComments(meetupId: string): Promise<MeetupComment[]> {
+  await tick()
+  const db = load()
+  const meetup = db.meetups.find((m) => m.id === meetupId)
+  const meId = mockCurrentUser()?.id
+  if (meetup?.visibility === 'private' && !db.members.some((r) => r.meetupId === meetupId && r.userId === meId)) return []
+  // 내가 차단한 사람의 댓글은 안 보인다
+  const blocked = blockedSet(db, meId)
+  const rows = db.comments.filter((c) => c.meetupId === meetupId && !blocked.has(c.userId))
+  const toComment = ({ userId, ...c }: CommentRow): MeetupComment => ({ ...c, author: mockUserById(userId) })
+  const notices = rows.filter((c) => c.kind === 'notice').sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+  const rest = rows.filter((c) => c.kind !== 'notice').sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+  return [...notices, ...rest].map(toComment)
+}
+
+/**
+ * 모임에 댓글 쓰기. 참여자(주최자 포함)만. 공지는 주최자만, 후기는 모임 시간이 지난 뒤에만.
+ *
+ * @example
+ * await addMeetupComment(meetupId, { kind: 'chat', body: '10분 늦어요 🙏', photoUrl: null })
+ */
+export async function addMeetupComment(meetupId: string, input: MeetupCommentInput): Promise<MeetupComment> {
+  await tick()
+  const db = load()
+  const me = requireUser()
+  const m = db.meetups.find((x) => x.id === meetupId)
+  if (!m) throw new Error('모임을 찾을 수 없어요.')
+  if (!db.members.some((r) => r.meetupId === m.id && r.userId === me.id)) throw new Error('참여한 사람만 댓글을 쓸 수 있어요.')
+  if (input.kind === 'notice' && m.hostId !== me.id) throw new Error('공지는 주최자만 올릴 수 있어요.')
+  if (input.kind === 'review' && Date.parse(m.meetAt) > Date.now()) throw new Error('후기는 모임이 끝난 뒤에 남길 수 있어요.')
+  const body = input.body.trim().slice(0, COMMENT_MAX)
+  if (!body && !input.photoUrl) throw new Error('내용을 입력해 주세요.')
+  const row: CommentRow = { id: newId(), meetupId, userId: me.id, kind: input.kind, body, photoUrl: input.photoUrl, createdAt: now() }
+  db.comments.push(row)
+  persist(db)
+  return { id: row.id, meetupId, kind: row.kind, body, photoUrl: row.photoUrl, createdAt: row.createdAt, author: me }
+}
+
+/**
+ * 댓글 지우기. 쓴 사람 또는 주최자만.
+ *
+ * @example
+ * await deleteMeetupComment(comment.id)
+ */
+export async function deleteMeetupComment(commentId: string): Promise<void> {
+  await tick()
+  const db = load()
+  const me = requireUser()
+  const c = db.comments.find((x) => x.id === commentId)
+  if (!c) return
+  const host = db.meetups.find((m) => m.id === c.meetupId)?.hostId
+  if (c.userId !== me.id && host !== me.id) throw new Error('내 댓글만 지울 수 있어요.')
+  db.comments = db.comments.filter((x) => x.id !== commentId)
+  persist(db)
+}
+
+// ===========================================================================
+// 신고 · 차단 · 문제 제보
+// ===========================================================================
+
+function blockedSet(db: Db, userId: string | undefined) {
+  return new Set(userId ? db.blocks.filter((b) => b.userId === userId).map((b) => b.blockedId) : [])
+}
+
+function toReport(r: ReportRow): Report {
+  const { reporterId, ...rest } = r
+  return { ...rest, reporter: reporterId ? mockUserById(reporterId) : null }
+}
+
+/**
+ * 신고 · 문제 제보 보내기. 사람·콘텐츠 신고는 로그인해야 하고, 문제 제보(bug)는 로그인 없이도 된다.
+ * 같은 사람이 같은 대상을 처리 전에 또 신고하면 내용만 덧붙인다 (중복 신고 방지).
+ *
+ * @example
+ * await submitReport({ target: 'comment', targetId: c.id, targetLabel: c.body.slice(0, 40), targetUserId: c.author.id, reason: 'abuse', detail: '', pageUrl: location.href })
+ */
+export async function submitReport(input: ReportInput): Promise<void> {
+  await tick()
+  const db = load()
+  const me = mockCurrentUser()
+  if (!me && input.target !== 'bug') throw new Error('로그인이 필요해요.')
+  if (me && input.target === 'user' && input.targetId === me.id) throw new Error('나는 신고할 수 없어요.')
+  const detail = input.detail.trim().slice(0, 1000)
+  if (input.target === 'bug' && !detail) throw new Error('어떤 문제인지 적어 주세요.')
+  const dup = me && input.targetId && db.reports.find((r) => r.status === 'open' && r.reporterId === me.id && r.target === input.target && r.targetId === input.targetId)
+  if (dup) {
+    dup.detail = [dup.detail, detail].filter(Boolean).join('\n---\n').slice(0, 1000)
+    dup.reason = input.reason
+  } else {
+    db.reports.push({
+      id: newId(),
+      reporterId: me?.id ?? null,
+      target: input.target,
+      targetId: input.targetId,
+      targetLabel: input.targetLabel.slice(0, 80),
+      targetUserId: input.targetUserId,
+      reason: input.reason,
+      detail,
+      pageUrl: input.pageUrl.slice(0, 300),
+      userAgent: input.target === 'bug' && typeof navigator !== 'undefined' ? navigator.userAgent.slice(0, 300) : '',
+      status: 'open',
+      adminNote: '',
+      createdAt: now(),
+      resolvedAt: null,
+    })
+  }
+  persist(db)
+}
+
+/**
+ * 사람 차단 / 차단 풀기. 차단하면 그 사람의 댓글이 안 보인다.
+ *
+ * @example
+ * await setBlocked(userId, true)
+ */
+export async function setBlocked(userId: string, blocked: boolean): Promise<void> {
+  await tick()
+  const db = load()
+  const me = requireUser()
+  if (userId === me.id) throw new Error('나는 차단할 수 없어요.')
+  db.blocks = db.blocks.filter((b) => !(b.userId === me.id && b.blockedId === userId))
+  if (blocked) db.blocks.push({ userId: me.id, blockedId: userId, createdAt: now() })
+  persist(db)
+}
+
+/**
+ * 내가 차단한 사람 목록 (최근 순). 로그인 안 했으면 빈 목록.
+ *
+ * @example
+ * const blocked = await getBlockedUsers()
+ */
+export async function getBlockedUsers(): Promise<User[]> {
+  await tick()
+  const db = load()
+  const me = mockCurrentUser()
+  if (!me) return []
+  return db.blocks
+    .filter((b) => b.userId === me.id)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    .map((b) => mockUserById(b.blockedId))
+}
+
+/**
+ * (관리자) 신고 목록. status 를 안 주면 전체, 처리 안 된 것 먼저 · 최근 순.
+ *
+ * @example
+ * const open = await adminListReports('open')
+ */
+export async function adminListReports(status?: ReportStatus): Promise<Report[]> {
+  await tick()
+  if (mockCurrentUser()?.role !== 'admin') throw new Error('관리자만 할 수 있어요.')
+  return load()
+    .reports.filter((r) => !status || r.status === status)
+    .sort((a, b) => (a.status === 'open') === (b.status === 'open') ? b.createdAt.localeCompare(a.createdAt) : a.status === 'open' ? -1 : 1)
+    .map(toReport)
+}
+
+/**
+ * (관리자) 신고 처리: 처리 완료(resolved) · 문제없음(dismissed) · 다시 열기(open). 메모를 남길 수 있다.
+ * removeContent 면 신고된 댓글을 지우거나 모임을 취소한다.
+ *
+ * @example
+ * await adminResolveReport(report.id, 'resolved', '댓글 삭제, 경고', { removeContent: true })
+ */
+export async function adminResolveReport(reportId: string, status: ReportStatus, note: string, opts: { removeContent?: boolean } = {}): Promise<Report> {
+  await tick()
+  if (mockCurrentUser()?.role !== 'admin') throw new Error('관리자만 할 수 있어요.')
+  const db = load()
+  const r = db.reports.find((x) => x.id === reportId)
+  if (!r) throw new Error('신고를 찾을 수 없어요.')
+  if (opts.removeContent && r.targetId) {
+    if (r.target === 'comment') db.comments = db.comments.filter((c) => c.id !== r.targetId)
+    if (r.target === 'meetup') {
+      const m = db.meetups.find((x) => x.id === r.targetId)
+      if (m) m.status = 'canceled'
+    }
+    if (r.target === 'map') {
+      const m = db.maps.find((x) => x.id === r.targetId)
+      if (m) m.isPublic = false
+    }
+  }
+  r.status = status
+  r.adminNote = note.trim().slice(0, 500)
+  r.resolvedAt = status === 'open' ? null : now()
+  persist(db)
+  return toReport(r)
+}
+
+// ===========================================================================
 // 프로필 꾸미기
 // ===========================================================================
 
@@ -588,6 +999,7 @@ function defaultDeco(userId: string): ProfileDeco {
     pinnedMapIds: [],
     mapStyle: 'polaroid',
     sections: { intro: true, stickers: true, maps: true },
+    bannerUrl: null,
     updatedAt: now(),
   }
 }
@@ -601,7 +1013,8 @@ function defaultDeco(userId: string): ProfileDeco {
 export async function getProfile(userId: string): Promise<ProfilePage> {
   await tick()
   const db = load()
-  const deco = db.decos.find((d) => d.userId === userId) ?? defaultDeco(userId)
+  const saved = db.decos.find((d) => d.userId === userId)
+  const deco = saved ? { ...defaultDeco(userId), ...saved } : defaultDeco(userId)
   const publicMaps = db.maps.filter((m) => m.ownerId === userId && m.isPublic)
   const pinned = deco.pinnedMapIds.map((id) => publicMaps.find((m) => m.id === id)).filter((m): m is ConceptMap => !!m)
   const rest = publicMaps.filter((m) => !deco.pinnedMapIds.includes(m.id)).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
@@ -639,6 +1052,7 @@ export async function saveProfileDeco(input: ProfileDecoInput): Promise<ProfileD
     pinnedMapIds: input.pinnedMapIds.filter((id) => myPublic.has(id)).slice(0, 6),
     mapStyle: input.mapStyle === 'tape' ? 'tape' : 'polaroid',
     sections: { intro: !!input.sections.intro, stickers: !!input.sections.stickers, maps: !!input.sections.maps },
+    bannerUrl: input.bannerUrl ?? null,
     updatedAt: now(),
   }
   db.decos = [...db.decos.filter((d) => d.userId !== me.id), deco]
@@ -664,6 +1078,11 @@ export async function copyMap(mapId: string): Promise<ConceptMap> {
     title: src.ownerId === me.id ? `${src.title} (복사본)` : src.title,
     theme: src.theme,
     isPublic: false,
+    category: src.category,
+    markerShape: src.markerShape,
+    lineStyle: src.lineStyle,
+    lineWidth: src.lineWidth,
+    coverUrl: src.coverUrl,
     createdAt: now(),
     updatedAt: now(),
   }
@@ -682,6 +1101,26 @@ export async function copyMap(mapId: string): Promise<ConceptMap> {
   recordUse(db, src.id, me.id, 'copy')
   persist(db)
   return copy
+}
+
+/**
+ * 둘러보기: 공개 지도를 카테고리별로. popular = 이번 달 사용한 사람 수 순(같으면 최근 수정 순), recent = 최근 수정 순.
+ * 차단한 사람의 지도는 빠진다.
+ *
+ * @example
+ * const dates = await getPublicMaps({ category: 'date', sort: 'popular' })
+ */
+export async function getPublicMaps(opts: { category?: MapCategory; sort?: ExploreSort } = {}): Promise<ExploreMapEntry[]> {
+  await tick()
+  const db = load()
+  const blocked = blockedSet(db, mockCurrentUser()?.id)
+  const ym = new Date().toISOString().slice(0, 7)
+  const usersOf = (mapId: string, ownerId: string) => new Set(db.uses.filter((u) => u.mapId === mapId && u.userId !== ownerId && sameMonth(u.usedAt, ym)).map((u) => u.userId)).size
+  const list = db.maps
+    .filter((m) => m.isPublic && !blocked.has(m.ownerId) && (!opts.category || m.category === opts.category))
+    .map((m) => ({ ...toPublicSummary(db, m), users: usersOf(m.id, m.ownerId) }))
+  const byRecent = (a: ExploreMapEntry, b: ExploreMapEntry) => b.map.updatedAt.localeCompare(a.map.updatedAt)
+  return list.sort(opts.sort === 'recent' ? byRecent : (a, b) => b.users - a.users || byRecent(a, b))
 }
 
 /**
@@ -749,7 +1188,7 @@ function seed(db: Db) {
     stops: { place: Place; icon: string; color: string; memo?: string }[],
     modes: Leg['mode'][],
   ) => {
-    const map: ConceptMap = { id: newId(), ownerId, title, theme, isPublic: true, createdAt: at(-30), updatedAt: at(-2) }
+    const map: ConceptMap = { id: newId(), ownerId, title, theme, isPublic: true, category: guessCategory(title), ...DEFAULT_LOOK, createdAt: at(-30), updatedAt: at(-2) }
     db.maps.push(map)
     const ids = stops.map((s, i) => {
       const id = newId()
@@ -793,7 +1232,7 @@ function seed(db: Db) {
   ], ['walk'])
 
   const meetup = (mapId: string, hostId: string, title: string, description: string, meetAt: string, meetPoint: string, capacity: number, memberIds: string[], status: MeetupStatus = 'open') => {
-    const m: Meetup = { id: newId(), mapId, hostId, title, description, meetAt, meetPoint, capacity, status, createdAt: at(-5) }
+    const m: Meetup = { id: newId(), mapId, hostId, title, description, meetAt, meetPoint, capacity, status, visibility: 'public', inviteCode: null, createdAt: at(-5) }
     db.meetups.push(m)
     ;[hostId, ...memberIds].forEach((userId, i) => db.members.push({ meetupId: m.id, userId, joinedAt: at(-5 + i * 0.3) }))
   }
@@ -843,6 +1282,7 @@ export async function adminGetStats(): Promise<AdminStats> {
   const db = load()
   const ym = new Date().toISOString().slice(0, 7)
   return {
+    reportsOpen: db.reports.filter((r) => r.status === 'open').length,
     users: users.length,
     suspended: users.filter((u) => u.suspended).length,
     maps: db.maps.length,
@@ -900,5 +1340,9 @@ export async function adminDeleteUser(userId: string): Promise<void> {
   db.members = db.members.filter((r) => r.userId !== userId && !meetupIds.has(r.meetupId))
   db.uses = db.uses.filter((u) => u.userId !== userId && !mapIds.has(u.mapId))
   db.decos = db.decos.filter((d) => d.userId !== userId)
+  db.comments = db.comments.filter((c) => c.userId !== userId && !meetupIds.has(c.meetupId))
+  db.blocks = db.blocks.filter((b) => b.userId !== userId && b.blockedId !== userId)
+  db.mapMembers = db.mapMembers.filter((m) => m.userId !== userId && !mapIds.has(m.mapId))
+  db.mapInvites = db.mapInvites.filter((m) => !mapIds.has(m.mapId))
   persist(db)
 }

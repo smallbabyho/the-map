@@ -29,7 +29,7 @@ const DEMO_USERS: { id: string; email: string; nickname: string; role: UserRole;
   { id: 'u-cafe', email: 'cafe@example.com', nickname: '카페투어러', role: 'user', daysAgo: 12 },
   { id: 'u-admin', email: 'admin@example.com', nickname: '관리자', role: 'admin', daysAgo: 60 },
 ]
-export const DEMO_ACCOUNT = { email: DEMO_USERS[0].email, password: DEMO_PASSWORD }
+export const DEMO_ACCOUNT: { email: string; password: string } | null = { email: DEMO_USERS[0].email, password: DEMO_PASSWORD }
 export const DEMO_ADMIN = { email: 'admin@example.com', password: DEMO_PASSWORD }
 
 // 비밀번호를 평문으로 두지 않기 위한 간단한 해시 (mock 이라 보안용은 아님)
@@ -79,7 +79,7 @@ function persist(store: AuthStore) {
   }
 }
 
-const toUser = (u: StoredUser): User => ({ id: u.id, nickname: u.nickname, role: u.role })
+const toUser = (u: StoredUser): User => ({ id: u.id, nickname: u.nickname, role: u.role, avatarUrl: u.avatarUrl ?? null })
 const newId = () => (typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `u-${Date.now().toString(36)}`)
 const tick = () => new Promise((r) => setTimeout(r, 250))
 
@@ -105,6 +105,22 @@ export function mockCurrentUser(): User | null {
 export function mockUserById(id: string): User {
   const u = load().users.find((x) => x.id === id)
   return u ? toUser(u) : { id, nickname: '알 수 없음' }
+}
+
+/** 내 프로필 수정: 닉네임 · 프로필 사진 (null 이면 사진 지우기) */
+export function mockUpdateMe(patch: { nickname?: string; avatarUrl?: string | null }): User {
+  const store = load()
+  const u = store.users.find((x) => x.id === store.sessionUserId)
+  if (!u || u.suspended) throw new Error('로그인이 필요해요.')
+  if (patch.nickname !== undefined) {
+    const nick = patch.nickname.trim()
+    if (!nick) throw new Error('닉네임을 입력해 주세요.')
+    u.nickname = nick.slice(0, 30)
+  }
+  if (patch.avatarUrl !== undefined) u.avatarUrl = patch.avatarUrl
+  persist(store)
+  emit()
+  return toUser(u)
 }
 
 // ---- 공개 함수 ----
@@ -203,6 +219,7 @@ const toRow = (u: StoredUser): AdminUserRow => ({
   id: u.id,
   email: u.email,
   nickname: u.nickname,
+  avatarUrl: u.avatarUrl ?? null,
   role: u.role,
   suspended: u.suspended,
   createdAt: u.createdAt,

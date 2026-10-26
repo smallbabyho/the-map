@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { getCurrentUser } from '../db/api'
 import type { User } from '../types'
-import { onAuthChange } from './mock'
+import { onAuthChange } from './impl'
 
 /**
  * 로그인한 사용자 (상태가 바뀌면 자동 갱신).

@@ -7,6 +7,7 @@ import { AppRail, MobileTabBar } from '../components/AppRail'
 import { MapThumb } from '../components/MapThumb'
 import { useAppearance } from '../components/appearance'
 import { useSiteColor } from '../components/siteColor'
+import { InstallAppButton } from '../components/pwa'
 import { useReveal, useScrollProgress } from '../components/useReveal'
 import { getMonthlyRanking } from '../db/api'
 import type { MapRankingEntry } from '../types'
@@ -120,6 +121,7 @@ export function LandingPage({ embedded = false }: { embedded?: boolean }) {
             <Link href="/explore" className="tm-btn rounded-full bg-(--c-surface) px-6 py-3 text-[0.9375rem] font-bold">
               지도 둘러보기
             </Link>
+            <InstallAppButton label="📱 앱으로 설치하기" className="tm-btn rounded-full bg-(--c-surface) px-6 py-3 text-[0.9375rem] font-bold" />
           </div>
         </div>
         <div className="tm-intro" style={{ '--delay': '0.2s' } as CSSProperties}>

@@ -29,23 +29,23 @@ export function MapCard({ map, index, shared = false, onDelete, onToggle, select
     <div className={`tm-card group relative overflow-hidden rounded-2xl ${selected ? 'ring-[3px] ring-(--c-accent)' : ''}`}>
       <Link href={`/maps/${map.id}`} className="block">
         <MapThumb id={map.id} theme={map.theme} cover={map.coverUrl} className="h-44">
-          <span className="absolute left-3 top-3 rounded-full bg-(--c-ink) px-2.5 py-1 font-mono text-[10px] font-bold uppercase tracking-wider text-(--c-bg)">
+          <span className="absolute left-3 top-3 rounded-full bg-(--c-ink) px-2.5 py-1 font-mono text-[0.625rem] font-bold uppercase tracking-wider text-(--c-bg)">
             {purposeMeta(mapPurpose(map)).emoji} {purposeMeta(mapPurpose(map)).label}
             {index != null && ` · No.${String(index + 1).padStart(2, '0')}`}
           </span>
-          {shared && <span className="absolute right-12 top-3 rounded-full bg-(--c-lime) px-2.5 py-1 text-[11px] font-bold text-gray-900">👥 함께 꾸미는 중</span>}
-          <span className="absolute bottom-3 left-3 rounded-full bg-white/95 px-2.5 py-1 text-[11px] font-bold text-gray-800 shadow-sm">
+          {shared && <span className="absolute right-12 top-3 rounded-full bg-(--c-lime) px-2.5 py-1 text-[0.6875rem] font-bold text-gray-900">👥 함께 꾸미는 중</span>}
+          <span className="absolute bottom-3 left-3 rounded-full bg-white/95 px-2.5 py-1 text-[0.6875rem] font-bold text-gray-800 shadow-sm">
             {mapCategoryText(map).emoji} {mapCategoryText(map).label}
           </span>
         </MapThumb>
         <div className="border-t border-(--c-border) px-4 pb-4 pt-3">
           <h3 className="truncate text-lg font-bold tracking-tight">{map.title || '제목 없는 지도'}</h3>
           {map.plannedDate && daysUntil(map.plannedDate) >= 0 && (
-            <p className="mt-1 text-[13px] font-semibold text-(--c-accent)">
+            <p className="mt-1 text-[0.8125rem] font-semibold text-(--c-accent)">
               📅 {planDday(map.plannedDate)} · {formatPlanDate(map.plannedDate)}
             </p>
           )}
-          <div className="mt-2 flex items-center justify-between font-mono text-[11px] uppercase tracking-wider text-(--c-muted)">
+          <div className="mt-2 flex items-center justify-between font-mono text-[0.6875rem] uppercase tracking-wider text-(--c-muted)">
             <span className="inline-flex items-center gap-1.5">
               <span className="size-2 rounded-full" style={{ background: theme.accent }} aria-hidden />
               {theme.name}

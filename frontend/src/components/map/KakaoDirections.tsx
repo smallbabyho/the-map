@@ -53,7 +53,7 @@ export function KakaoDirectionsLink({ to, from, mode }: { to: Place; from?: Plac
       target="_blank"
       rel="noopener noreferrer"
       title={from ? `${from.name}에서 ${to.name}까지 카카오맵 길찾기` : `${to.name}까지 카카오맵 길찾기`}
-      className="flex shrink-0 flex-col items-center gap-0.5 rounded-xl px-2 py-1.5 text-[11px] font-semibold text-(--c-muted) transition hover:bg-[#FEE500]/40 hover:text-(--c-text)"
+      className="flex shrink-0 flex-col items-center gap-0.5 rounded-xl px-2 py-1.5 text-[0.6875rem] font-semibold text-(--c-muted) transition hover:bg-[#FEE500]/40 hover:text-(--c-text)"
     >
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
         <path d="M12 2 3 21l9-4 9 4z" />

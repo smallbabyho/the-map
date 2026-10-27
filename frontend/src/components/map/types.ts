@@ -28,6 +28,11 @@ export interface MapViewProps {
   insets?: MapInsets
   /** 지도를 누르면(우클릭 · 길게 누르기도) 뜨는 팝업에서 장소를 고르면 호출. 없으면 지도 찍기 기능 꺼짐. */
   onAddPlace?: (place: PlaceSearchResult) => void
+  /**
+   * 처음 열 때 내 위치 찾기. 'center' = 내 위치로 화면 시작 (핀 없는 새 지도), 'show' = 파란 점만 (화면은 핀에 맞춤).
+   * 권한이 없거나 실패해도 조용히 넘어간다.
+   */
+  autoLocate?: 'center' | 'show'
 }
 
 /** 지도에서 찍은 지점 */

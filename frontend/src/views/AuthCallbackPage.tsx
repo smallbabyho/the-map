@@ -33,7 +33,7 @@ export function AuthCallbackPage() {
           <p role="alert" className="rounded-xl bg-red-500/10 px-4 py-3 text-sm text-red-600">
             {error}
           </p>
-          <Link href={`/login?next=${encodeURIComponent(next)}`} className="tm-btn mt-4 grid h-12 place-items-center rounded-xl bg-(--c-accent) text-[15px] font-bold text-(--c-accent-text)">
+          <Link href={`/login?next=${encodeURIComponent(next)}`} className="tm-btn mt-4 grid h-12 place-items-center rounded-xl bg-(--c-accent) text-[0.9375rem] font-bold text-(--c-accent-text)">
             로그인 화면으로
           </Link>
         </div>

@@ -95,7 +95,7 @@ export function LegModeSwitch({ mode, durationMin, note, onChange }: { mode: Tra
           </button>
         ))}
       </span>
-      {note && <span className="basis-full text-[11px] text-amber-600">⚠️ {note}</span>}
+      {note && <span className="basis-full text-[0.6875rem] text-amber-600">⚠️ {note}</span>}
     </span>
   )
 }

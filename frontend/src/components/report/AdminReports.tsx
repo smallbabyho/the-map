@@ -114,7 +114,7 @@ export function AdminReports({ onChange }: { onChange?: () => void }) {
                 </div>
 
                 {r.targetLabel && (
-                  <p className="mt-2 text-[15px] font-semibold">
+                  <p className="mt-2 text-[0.9375rem] font-semibold">
                     {href ? (
                       <Link href={href} className="hover:underline">
                         {r.targetLabel} ↗

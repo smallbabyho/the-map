@@ -89,14 +89,14 @@ function StoryCardDialog({ data, onClose }: { data: StoryCardData; onClose: () =
           {error && <div className="absolute inset-0 grid place-items-center text-sm text-red-200">{error}</div>}
         </div>
         <div className="grid w-full grid-cols-2 gap-2">
-          <button type="button" onClick={download} disabled={!blob} className="h-12 rounded-xl bg-white text-[15px] font-bold text-gray-900 disabled:opacity-50">
+          <button type="button" onClick={download} disabled={!blob} className="h-12 rounded-xl bg-white text-[0.9375rem] font-bold text-gray-900 disabled:opacity-50">
             저장하기
           </button>
           <button
             type="button"
             onClick={canShare ? share : download}
             disabled={!blob}
-            className="h-12 rounded-xl text-[15px] font-bold text-white disabled:opacity-50"
+            className="h-12 rounded-xl text-[0.9375rem] font-bold text-white disabled:opacity-50"
             style={{ background: 'linear-gradient(45deg, #f58529, #dd2a7b, #8134af)' }}
           >
             {canShare ? '인스타·카톡 공유' : 'PNG 내려받기'}

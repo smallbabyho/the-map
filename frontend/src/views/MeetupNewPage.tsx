@@ -92,7 +92,7 @@ export function MeetupNewPage() {
   }
 
   const label = 'mb-2 block text-sm font-semibold'
-  const field = 'h-12 w-full rounded-xl border border-(--c-border) bg-(--c-surface) px-4 text-[15px] outline-none transition focus:border-(--c-accent)'
+  const field = 'h-12 w-full rounded-xl border border-(--c-border) bg-(--c-surface) px-4 text-[0.9375rem] outline-none transition focus:border-(--c-accent)'
 
   if (!user) return <div className="h-dvh" />
 
@@ -131,7 +131,7 @@ export function MeetupNewPage() {
                   onClick={() => setVisibility(id)}
                   className={`rounded-xl border-2 p-3.5 text-left transition ${visibility === id ? 'border-(--c-accent) bg-(--c-accent)/5' : 'border-(--c-border) hover:border-(--c-ink)/30'}`}
                 >
-                  <span className="block text-[15px] font-bold">{name}</span>
+                  <span className="block text-[0.9375rem] font-bold">{name}</span>
                   <span className="mt-0.5 block text-xs text-(--c-muted)">{desc}</span>
                 </button>
               ))}
@@ -198,7 +198,7 @@ export function MeetupNewPage() {
               <label htmlFor="mt-cap" className={label}>정원 (나 포함)</label>
               <div className="flex h-12 items-center rounded-xl border border-(--c-border) bg-(--c-surface)">
                 <button type="button" onClick={() => setCapacity((c) => Math.max(2, c - 1))} className="h-full w-12 text-xl text-(--c-muted)" aria-label="정원 줄이기">−</button>
-                <input id="mt-cap" type="number" min={2} max={50} value={capacity} onChange={(e) => setCapacity(Math.max(2, Math.min(50, Number(e.target.value) || 2)))} className="w-full bg-transparent text-center text-[15px] font-semibold outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none" />
+                <input id="mt-cap" type="number" min={2} max={50} value={capacity} onChange={(e) => setCapacity(Math.max(2, Math.min(50, Number(e.target.value) || 2)))} className="w-full bg-transparent text-center text-[0.9375rem] font-semibold outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none" />
                 <button type="button" onClick={() => setCapacity((c) => Math.min(50, c + 1))} className="h-full w-12 text-xl text-(--c-muted)" aria-label="정원 늘리기">+</button>
               </div>
             </section>
@@ -220,7 +220,7 @@ export function MeetupNewPage() {
 
           <section>
             <label htmlFor="mt-desc" className={label}>소개 <span className="font-normal text-(--c-muted)">(선택)</span></label>
-            <textarea id="mt-desc" value={description} onChange={(e) => setDescription(e.target.value)} rows={5} maxLength={1000} placeholder="어떤 분과 함께하고 싶은지, 준비물, 코스 설명 등을 적어 주세요." className="w-full resize-none rounded-xl border border-(--c-border) bg-(--c-surface) px-4 py-3 text-[15px] outline-none focus:border-(--c-accent)" />
+            <textarea id="mt-desc" value={description} onChange={(e) => setDescription(e.target.value)} rows={5} maxLength={1000} placeholder="어떤 분과 함께하고 싶은지, 준비물, 코스 설명 등을 적어 주세요." className="w-full resize-none rounded-xl border border-(--c-border) bg-(--c-surface) px-4 py-3 text-[0.9375rem] outline-none focus:border-(--c-accent)" />
           </section>
 
           {error && <p role="alert" className="rounded-xl bg-red-500/10 px-4 py-3 text-sm text-red-600">{error}</p>}

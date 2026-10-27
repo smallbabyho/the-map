@@ -9,9 +9,12 @@ declare namespace kakao.maps {
   }
   class Point {
     constructor(x: number, y: number)
+    x: number
+    y: number
   }
   interface MapProjection {
     coordsFromContainerPoint(point: Point): LatLng
+    containerPointFromCoords(latlng: LatLng): Point
   }
   class LatLngBounds {
     constructor()

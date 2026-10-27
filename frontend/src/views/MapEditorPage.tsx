@@ -12,6 +12,7 @@ import { PlaceSearchBox } from '../components/editor/PlaceSearchBox'
 import { CollabButton } from '../components/editor/CollabButton'
 import { MapLookButton, MapLookPanel } from '../components/editor/MapLookPicker'
 import { StoryCardButton } from '../components/share/StoryCardButton'
+import { ExportMapButton } from '../components/share/ExportMapButton'
 import { useMapDraft } from '../components/editor/useMapDraft'
 import { CheckIcon, ChevronLeftIcon, GlobeIcon, LockIcon, PinIcon } from '../components/icons'
 import { MapView, type MapInsets } from '../components/map'
@@ -30,7 +31,7 @@ const EDITOR_TOUR: TourStep[] = [
   { target: 'map-look', title: '🎨 지도 꾸미기', body: '대표색, 마커, 코스 선, 커버, 카테고리를 여기서 골라요. 장소를 누르면 같은 자리에 그 핀 꾸미기가 열려요.' },
   { target: 'collab', title: '함께 꾸미기', body: '초대 링크를 보내면 친구와 한 지도를 같이 짜요.' },
   { target: 'map-public', title: '공개 설정', body: '공개하면 둘러보기에 올라가요. 비공개면 나와 함께 꾸미는 사람만 봐요.' },
-  { target: 'save', title: '저장', body: '고친 내용은 저장을 눌러야 남아요.' },
+  { target: 'save', title: '저장', body: '고친 내용은 1분마다 자동으로 저장돼요. 바로 남기고 싶으면 저장을 눌러요.' },
 ]
 
 /** 왼쪽 세로 메뉴를 없앴다 (오른쪽 위 HeaderActions 로) */
@@ -38,6 +39,8 @@ const RAIL_W = 0
 const PANEL_W = 380
 const DETAIL_W = 360
 const DESKTOP_MIN = 768
+/** 자동 저장 간격 */
+const AUTOSAVE_MS = 60_000
 
 /** 편집 화면을 불러오는 동안 보여줄 화면 (라우트의 Suspense fallback 으로도 쓴다) */
 export function EditorLoading() {
@@ -169,6 +172,20 @@ export function MapEditorPage() {
   useEffect(() => {
     saveRef.current = save
   })
+
+  // 자동 저장: 고치기 시작하고 1분 뒤 (계속 고쳐도 1분마다 한 번). 실패하면 1분 뒤 다시.
+  // 다른 탭으로 가거나 앱을 내리면 바로 저장한다
+  useEffect(() => {
+    if (!draft.dirty || draft.saving) return
+    const t = window.setTimeout(() => saveRef.current(), AUTOSAVE_MS)
+    return () => window.clearTimeout(t)
+  }, [draft.dirty, draft.saving])
+  useEffect(() => {
+    if (!draft.dirty) return
+    const onHide = () => document.visibilityState === 'hidden' && saveRef.current()
+    document.addEventListener('visibilitychange', onHide)
+    return () => document.removeEventListener('visibilitychange', onHide)
+  }, [draft.dirty])
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') {
@@ -220,6 +237,7 @@ export function MapEditorPage() {
       type="button"
       onClick={save}
       disabled={draft.saving || !draft.dirty}
+      title="1분마다 자동으로 저장돼요 (⌘/Ctrl + S 로 바로 저장)"
       className={`tm-float inline-flex h-10 items-center gap-1.5 rounded-full px-5 text-sm font-bold transition ${
         draft.dirty ? 'bg-(--c-accent) text-(--c-accent-text) hover:opacity-90' : 'bg-(--c-surface) text-(--c-muted)'
       }`}
@@ -242,6 +260,7 @@ export function MapEditorPage() {
           onSelectPin={(id) => setSelectedId((cur) => (cur === id ? null : id))}
           insets={insets}
           onAddPlace={(place) => setSelectedId(draft.addPlace(place))}
+          autoLocate={pins.length === 0 ? 'center' : 'show'}
         />
       </div>
 
@@ -394,12 +413,13 @@ export function MapEditorPage() {
               onClick={(e) => {
                 if (draft.dirty && !window.confirm('저장하지 않은 변경이 있어요. 저장하지 않고 모임 만들기로 갈까요?')) e.preventDefault()
               }}
-              className="flex h-9 items-center gap-1.5 rounded-full border border-(--c-border) px-3 text-[13px] font-semibold transition hover:bg-black/[0.03]"
+              className="flex h-9 items-center gap-1.5 rounded-full border border-(--c-border) px-3 text-[0.8125rem] font-semibold transition hover:bg-black/[0.03]"
               title="이 지도로 성지순례 모집하기"
             >
               <span aria-hidden>🚩</span> 모임 열기
             </Link>
-            <StoryCardButton className="h-9! w-auto! rounded-full! px-3 text-[13px]! font-semibold!" data={{ map, pins, legs, theme, ownerName: user?.nickname }} />
+            <StoryCardButton className="h-9! w-auto! rounded-full! px-3 text-[0.8125rem]! font-semibold!" data={{ map, pins, legs, theme, ownerName: user?.nickname }} />
+            <ExportMapButton className="h-9! w-auto! rounded-full! px-3 text-[0.8125rem]! font-semibold!" data={{ map, pins, legs }} />
           </div>
 
           <div data-tour="place-search">
@@ -407,7 +427,7 @@ export function MapEditorPage() {
           </div>
         </div>
 
-        <div className="flex shrink-0 items-center justify-between gap-3 border-t border-(--c-border) px-5 py-2.5 text-[13px]">
+        <div className="flex shrink-0 items-center justify-between gap-3 border-t border-(--c-border) px-5 py-2.5 text-[0.8125rem]">
           <span className="shrink-0 font-semibold">
             장소 <span className="text-(--c-accent)">{pins.length}</span>곳
             {totalMin > 0 && <span className="ml-2 font-normal text-(--c-muted)">이동 총 {totalMin >= 60 ? `${Math.floor(totalMin / 60)}시간 ${totalMin % 60}분` : `${totalMin}분`}</span>}

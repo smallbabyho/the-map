@@ -74,7 +74,7 @@ export function JoinMapPage() {
               places {preview.pinCount} · editors {preview.editorCount + 1}
             </p>
             {error && <p role="alert" className="mt-4 rounded-xl bg-red-500/10 px-3 py-2 text-sm text-red-600">{error}</p>}
-            <button type="button" onClick={join} disabled={busy} className="tm-btn mt-7 h-12 w-full rounded-xl bg-(--c-accent) text-[15px] font-bold text-(--c-accent-text) disabled:opacity-60">
+            <button type="button" onClick={join} disabled={busy} className="tm-btn mt-7 h-12 w-full rounded-xl bg-(--c-accent) text-[0.9375rem] font-bold text-(--c-accent-text) disabled:opacity-60">
               {busy ? '참여하는 중…' : user ? '👥 같이 꾸미기' : '로그인하고 같이 꾸미기'}
             </button>
             <p className="mt-3 text-xs text-(--c-muted)">참여하면 핀 · 경로 · 꾸미기를 같이 고칠 수 있어요.</p>

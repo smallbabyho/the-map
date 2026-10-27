@@ -110,7 +110,7 @@ function MockCaptcha({ onVerify }: { onVerify: (token: string) => void }) {
         className="size-5 accent-(--c-accent)"
       />
       <span className="flex-1">로봇이 아닙니다</span>
-      <span className="text-[10px] leading-tight text-(--c-muted)">개발용 캡차<br />(Turnstile 키 없음)</span>
+      <span className="text-[0.625rem] leading-tight text-(--c-muted)">개발용 캡차<br />(Turnstile 키 없음)</span>
     </label>
   )
 }

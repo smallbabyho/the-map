@@ -18,7 +18,7 @@ interface Props extends MapViewProps {
   onLoadError: (message: string) => void
 }
 
-export function KakaoMap({ pins, segments, theme, look = DEFAULT_LOOK, selectedPinId, onSelectPin, insets = NO_INSETS, onAddPlace, onLoadError }: Props) {
+export function KakaoMap({ pins, segments, theme, look = DEFAULT_LOOK, selectedPinId, onSelectPin, insets = NO_INSETS, onAddPlace, onLoadError, autoLocate }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<kakao.maps.Map | null>(null)
   const [ready, setReady] = useState(false)
@@ -40,6 +40,8 @@ export function KakaoMap({ pins, segments, theme, look = DEFAULT_LOOK, selectedP
   const insetsRef = useRef(insets)
   const pinsRef = useRef(pins)
   const onAddRef = useRef(onAddPlace)
+  /** 지도를 마지막으로 맞출 때 쓴 패널 영역 (패널 크기가 바뀌면 그 차이만큼 지도를 옮긴다) */
+  const shownInsets = useRef(insets)
   useEffect(() => {
     onAddRef.current = onAddPlace
     onSelectRef.current = onSelectPin
@@ -133,6 +135,7 @@ export function KakaoMap({ pins, segments, theme, look = DEFAULT_LOOK, selectedP
     if (list.length === 1) {
       map.setLevel(4)
       map.setCenter(new k.maps.LatLng(list[0].place.lat, list[0].place.lng))
+      shownInsets.current = { ...NO_INSETS }
       return
     }
     const bounds = new k.maps.LatLngBounds()
@@ -143,20 +146,34 @@ export function KakaoMap({ pins, segments, theme, look = DEFAULT_LOOK, selectedP
     if (el && el.clientHeight - ins.top - ins.bottom < 220) ins.bottom = 0
     if (el && el.clientWidth - ins.left - ins.right < 220) ins.left = 0
     map.setBounds(bounds, ins.top + 60, ins.right + 60, ins.bottom + 60, ins.left + 60)
+    shownInsets.current = insetsRef.current
   }
   const pinCount = pins.length
   useEffect(() => {
     if (ready) fitAll()
   }, [ready, pinCount])
 
+  /**
+   * 그 좌표를 패널에 안 가린 '보이는 영역' 가운데로 한 번에 부드럽게 옮긴다.
+   * (가운데로 순간 이동한 뒤 다시 미끄러지면 화면이 튕겨 보여서, 도착할 중심을 먼저 계산한다)
+   */
+  const panToVisible = (lat: number, lng: number) => {
+    const map = mapRef.current
+    if (!map) return
+    const k = window.kakao!
+    const ins = insetsRef.current
+    const proj = map.getProjection()
+    const at = proj.containerPointFromCoords(new k.maps.LatLng(lat, lng))
+    const center = proj.coordsFromContainerPoint(new k.maps.Point(at.x - (ins.left - ins.right) / 2, at.y - (ins.top - ins.bottom) / 2))
+    map.panTo(center)
+    shownInsets.current = ins
+  }
+
   // 5) 선택한 핀으로 이동. 패널이 가린 부분을 빼고 '보이는 영역'의 가운데로 온다.
   useEffect(() => {
-    const map = mapRef.current
     const pin = pinsRef.current.find((p) => p.id === selectedPinId)
-    if (!ready || !map || !pin) return
-    const ins = insetsRef.current
-    map.setCenter(new window.kakao!.maps.LatLng(pin.place.lat, pin.place.lng))
-    map.panBy(-(ins.left - ins.right) / 2, -(ins.top - ins.bottom) / 2)
+    if (!ready || !pin) return
+    panToVisible(pin.place.lat, pin.place.lng)
   }, [ready, selectedPinId])
 
   // 6) 내 위치 (파란 점 + 오차 범위)
@@ -249,15 +266,43 @@ export function KakaoMap({ pins, segments, theme, look = DEFAULT_LOOK, selectedP
     return () => overlay.setMap(null)
   }, [ready, picked, popupHost])
 
-  const goToMe = () =>
-    me.locate((p: MyPosition) => {
-      const map = mapRef.current
-      if (!map) return
-      if (map.getLevel() > 4) map.setLevel(4)
-      const ins = insetsRef.current
-      map.setCenter(new window.kakao!.maps.LatLng(p.lat, p.lng))
-      map.panBy(-(ins.left - ins.right) / 2, -(ins.top - ins.bottom) / 2)
-    })
+  /** 내 위치를 패널에 안 가린 '보이는 영역' 가운데로 */
+  const centerOnMe = (p: MyPosition) => {
+    const map = mapRef.current
+    if (!map) return
+    if (map.getLevel() > 4) map.setLevel(4)
+    panToVisible(p.lat, p.lng)
+  }
+  const goToMe = () => me.locate(centerOnMe)
+
+  // 처음 열 때 내 위치 (한 번만): 새 지도면 내 위치에서 시작, 핀이 있으면 파란 점만
+  const autoLocated = useRef(false)
+  const locateRef = useRef(me.locate)
+  const centerRef = useRef(centerOnMe)
+  useEffect(() => {
+    locateRef.current = me.locate
+    centerRef.current = centerOnMe
+  })
+  useEffect(() => {
+    if (!ready || !autoLocate || autoLocated.current) return
+    autoLocated.current = true
+    locateRef.current((p) => autoLocate === 'center' && pinsRef.current.length === 0 && centerRef.current(p), { silent: true })
+  }, [ready, autoLocate])
+
+  // 패널(모바일 하단 시트 · 꾸미기 창)이 커지거나 작아지면, 보이던 곳이 가려지지 않게 지도도 그만큼 옮긴다
+  useEffect(() => {
+    const map = mapRef.current
+    if (!ready || !map) return
+    const t = window.setTimeout(() => {
+      const prev = shownInsets.current
+      const insets = insetsRef.current
+      shownInsets.current = insets
+      const dx = (insets.left - insets.right - (prev.left - prev.right)) / 2
+      const dy = (insets.top - insets.bottom - (prev.top - prev.bottom)) / 2
+      if (Math.abs(dx) > 1 || Math.abs(dy) > 1) map.panBy(-dx, -dy)
+    }, 120) // 끄는 동안엔 기다렸다가 한 번에
+    return () => window.clearTimeout(t)
+  }, [ready, insets.top, insets.right, insets.bottom, insets.left])
 
   return (
     <>

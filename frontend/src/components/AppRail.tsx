@@ -37,13 +37,13 @@ export const HEADER_H = 56
 export function Wordmark({ className = '' }: { className?: string }) {
   return (
     <Link href="/about" className={`flex min-w-0 items-center gap-1.5 min-[360px]:gap-2 ${className}`} aria-label="My Concept Map 소개">
-      <span className="grid size-8 place-items-center rounded-full bg-(--c-ink) text-[15px] text-(--c-bg)" aria-hidden>
+      <span className="grid size-8 place-items-center rounded-full bg-(--c-ink) text-[0.9375rem] text-(--c-bg)" aria-hidden>
         📍
       </span>
       {/* 고전 세리프 (Playfair Display 900): 오래된 지도책 표지 느낌 */}
-      <span className="whitespace-nowrap text-[15px] italic min-[360px]:text-[17px] min-[380px]:text-[20px] sm:text-[24px] leading-none tracking-[-0.01em]" style={{ fontFamily: '"Playfair Display", "Noto Serif KR", serif', fontWeight: 900 }}>
+      <span className="whitespace-nowrap text-[0.9375rem] italic min-[360px]:text-[1.0625rem] min-[380px]:text-[1.25rem] sm:text-[1.5rem] leading-none tracking-[-0.01em]" style={{ fontFamily: '"Playfair Display", "Noto Serif KR", serif', fontWeight: 900 }}>
         My <span className="text-(--c-accent)">Concept</span> Map
-        <sup className="ml-0.5 align-super font-mono text-[10px] font-bold">®</sup>
+        <sup className="ml-0.5 align-super font-mono text-[0.625rem] font-bold">®</sup>
       </span>
     </Link>
   )
@@ -106,7 +106,7 @@ export function HeaderActions({ user: given, active, floating = false }: { user?
           <span className="hidden max-w-[120px] truncate text-sm font-semibold sm:block">{user.nickname}</span>
         </Link>
       ) : (
-        <Link href="/login" className="tm-btn shrink-0 whitespace-nowrap rounded-full bg-(--c-surface) px-3 py-1.5 text-[13px] font-bold min-[360px]:px-4 min-[360px]:text-sm">
+        <Link href="/login" className="tm-btn shrink-0 whitespace-nowrap rounded-full bg-(--c-surface) px-3 py-1.5 text-[0.8125rem] font-bold min-[360px]:px-4 min-[360px]:text-sm">
           로그인
         </Link>
       )}
@@ -272,7 +272,7 @@ export function MobileTabBar({ active }: { active?: NavKey }) {
           key={it.key}
           href={it.href}
           data-tour={`nav-${it.key}`}
-          className={`flex flex-1 flex-col items-center gap-0.5 py-2 text-[11px] font-semibold ${active === it.key ? 'text-(--c-text)' : 'text-(--c-muted)'}`}
+          className={`flex flex-1 flex-col items-center gap-0.5 py-2 text-[0.6875rem] font-semibold ${active === it.key ? 'text-(--c-text)' : 'text-(--c-muted)'}`}
         >
           {it.icon}
           {it.label}

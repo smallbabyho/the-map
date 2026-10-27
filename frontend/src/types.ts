@@ -219,11 +219,25 @@ export interface MeetupComment {
   createdAt: string
 }
 
+/** 도착 인증 방법: 지금 위치(GPS) · 그 자리에서 찍은 사진의 촬영 위치 */
+export type ArrivalMethod = 'gps' | 'photo'
+
+/** 도착 체크할 때 보내는 위치 (거리는 서버가 잰다, 300m 안이어야 체크된다) */
+export interface ArrivalProof {
+  lat: number
+  lng: number
+  method: ArrivalMethod
+}
+
 /** 순례방 도착 체크: 누가 코스의 어느 장소에 도착했는지 */
 export interface MeetupCheckin {
   userId: string
   pinId: string
   createdAt: string
+  /** 어떻게 인증했는지. null = 인증 기능 전에 체크 */
+  verifiedBy: ArrivalMethod | null
+  /** 체크할 때 장소까지 거리(m) */
+  distanceM: number | null
 }
 
 export interface MeetupCommentInput {
@@ -398,6 +412,26 @@ export interface ProfileDeco {
 }
 
 export type ProfileDecoInput = Omit<ProfileDeco, 'userId' | 'updatedAt'>
+
+/** 🏅 배지 계산용 숫자 (공개 지도만 센다). 배지 이름 · 단계는 components/badges.ts */
+export interface BadgeStats {
+  /** 공개 기록 지도 수 */
+  recordMaps: number
+  /** 공개 기록 지도에 담은 서로 다른 장소 수 */
+  places: number
+  /** 시 · 도 id (components/regions.ts) → 그곳 장소 수 */
+  regions: Record<string, number>
+  /** 공개 기록 지도의 카테고리별 지도 수 */
+  categories: Partial<Record<MapCategory, number>>
+  /** 쓴 장소 리뷰 수 */
+  reviews: number
+  /** 체크인한 성지순례 수 */
+  meetupsJoined: number
+  /** 연 성지순례 수 (취소 제외) */
+  meetupsHosted: number
+  /** 남이 내 공개 지도를 가져간 횟수 */
+  copied: number
+}
 
 /** getProfile() 결과: 사람 + 꾸미기 + 공개 지도(대표 지도 먼저) */
 export interface ProfilePage {

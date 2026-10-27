@@ -143,10 +143,10 @@ export function AdminPage() {
               role="tab"
               aria-selected={section === id}
               onClick={() => setSection(id)}
-              className={`-mb-px border-b-2 pb-2.5 text-[15px] font-bold ${section === id ? 'border-(--c-text)' : 'border-transparent text-(--c-muted)'}`}
+              className={`-mb-px border-b-2 pb-2.5 text-[0.9375rem] font-bold ${section === id ? 'border-(--c-text)' : 'border-transparent text-(--c-muted)'}`}
             >
               {label}
-              {id === 'reports' && !!stats?.reportsOpen && <span className="ml-1.5 rounded-full bg-red-500 px-1.5 py-0.5 text-[11px] text-white">{stats.reportsOpen}</span>}
+              {id === 'reports' && !!stats?.reportsOpen && <span className="ml-1.5 rounded-full bg-red-500 px-1.5 py-0.5 text-[0.6875rem] text-white">{stats.reportsOpen}</span>}
             </button>
           ))}
         </div>
@@ -209,8 +209,8 @@ export function AdminPage() {
                         <p className="flex flex-wrap items-center gap-1.5 text-sm font-semibold">
                           <span className="truncate">{u.nickname}</span>
                           {self && <span className="text-xs text-(--c-muted)">(나)</span>}
-                          {u.role === 'admin' && <span className="rounded-full bg-indigo-500/10 px-2 py-0.5 text-[11px] font-bold text-indigo-600">관리자</span>}
-                          {u.suspended && <span className="rounded-full bg-red-500/10 px-2 py-0.5 text-[11px] font-bold text-red-600">정지</span>}
+                          {u.role === 'admin' && <span className="rounded-full bg-indigo-500/10 px-2 py-0.5 text-[0.6875rem] font-bold text-indigo-600">관리자</span>}
+                          {u.suspended && <span className="rounded-full bg-red-500/10 px-2 py-0.5 text-[0.6875rem] font-bold text-red-600">정지</span>}
                         </p>
                         <p className="truncate text-xs text-(--c-muted)">{u.email}</p>
                       </div>

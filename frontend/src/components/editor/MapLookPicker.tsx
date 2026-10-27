@@ -46,7 +46,7 @@ export function MapLookButton({ open, onClick, variant = 'float' }: { open: bool
       title="지도 꾸미기 (대표색 · 마커 · 선 · 커버 · 카테고리)"
       className={`${
         variant === 'float' ? 'tm-float h-10 rounded-full bg-(--c-surface) px-4' : 'h-9 rounded-full border border-(--c-border) px-3'
-      } flex items-center gap-1.5 text-[13px] font-semibold ${open ? 'ring-2 ring-(--c-accent)' : ''}`}
+      } flex items-center gap-1.5 text-[0.8125rem] font-semibold ${open ? 'ring-2 ring-(--c-accent)' : ''}`}
     >
       <span aria-hidden>🎨</span> 지도 꾸미기
     </button>
@@ -73,7 +73,7 @@ export function MapLookPanel({ look, coverUrl, onChange, theme, onTheme, categor
     }
   }
 
-  const opt = (on: boolean) => `flex flex-col items-center gap-1 rounded-xl border-2 p-2 text-[11px] font-semibold transition ${on ? 'border-(--c-accent) bg-(--c-accent)/5' : 'border-(--c-border) hover:bg-black/[0.03]'}`
+  const opt = (on: boolean) => `flex flex-col items-center gap-1 rounded-xl border-2 p-2 text-[0.6875rem] font-semibold transition ${on ? 'border-(--c-accent) bg-(--c-accent)/5' : 'border-(--c-border) hover:bg-black/[0.03]'}`
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -136,7 +136,7 @@ export function MapLookPanel({ look, coverUrl, onChange, theme, onTheme, categor
               </button>
             ))}
           </div>
-          {look.lineStyle !== 'auto' && <p className="mt-1.5 text-[11px] text-(--c-muted)">버스·지하철 노선 구간은 노선 모양 그대로예요.</p>}
+          {look.lineStyle !== 'auto' && <p className="mt-1.5 text-[0.6875rem] text-(--c-muted)">버스·지하철 노선 구간은 노선 모양 그대로예요.</p>}
         </div>
 
         <div>

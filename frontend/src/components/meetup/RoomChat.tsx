@@ -113,10 +113,10 @@ export function RoomChat({ meetup, me, list, onChange }: Props) {
               <span aria-hidden>📢</span>
               <p className="min-w-0 flex-1 whitespace-pre-line break-words">
                 {n.body}
-                <span className="ml-1.5 text-[11px] text-(--c-muted)">{dayOf(n.createdAt)}</span>
+                <span className="ml-1.5 text-[0.6875rem] text-(--c-muted)">{dayOf(n.createdAt)}</span>
               </p>
               {canDelete(n) && (
-                <button type="button" onClick={() => remove(n)} className="shrink-0 text-[11px] text-(--c-muted) hover:text-red-500">
+                <button type="button" onClick={() => remove(n)} className="shrink-0 text-[0.6875rem] text-(--c-muted) hover:text-red-500">
                   내리기
                 </button>
               )}
@@ -157,7 +157,7 @@ export function RoomChat({ meetup, me, list, onChange }: Props) {
                 <li key={c.id}>
                   {newDay && (
                     <p className="my-3 text-center">
-                      <span className="rounded-full bg-black/5 px-3 py-1 text-[11px] text-(--c-muted)">{dayOf(c.createdAt)}</span>
+                      <span className="rounded-full bg-black/5 px-3 py-1 text-[0.6875rem] text-(--c-muted)">{dayOf(c.createdAt)}</span>
                     </p>
                   )}
                   <div className={`group flex items-end gap-2 ${mine ? 'flex-row-reverse' : ''} ${sameAuthor ? '' : 'mt-3'}`}>
@@ -174,15 +174,15 @@ export function RoomChat({ meetup, me, list, onChange }: Props) {
                       {!mine && !sameAuthor && (
                         <p className="mb-1 flex items-center gap-1 text-xs font-semibold">
                           {c.author.nickname}
-                          {c.author.id === meetup.hostId && <span className="rounded bg-black/5 px-1 text-[10px] font-bold text-(--c-muted)">주최자</span>}
+                          {c.author.id === meetup.hostId && <span className="rounded bg-black/5 px-1 text-[0.625rem] font-bold text-(--c-muted)">주최자</span>}
                         </p>
                       )}
                       <div
-                        className={`rounded-2xl px-3 py-2 text-[15px] leading-relaxed ${
+                        className={`rounded-2xl px-3 py-2 text-[0.9375rem] leading-relaxed ${
                           mine ? 'rounded-br-md bg-(--c-accent) text-(--c-accent-text)' : 'rounded-bl-md border border-(--c-border) bg-(--c-surface)'
                         }`}
                       >
-                        {c.kind === 'review' && <p className="mb-0.5 text-[11px] font-bold opacity-80">⭐ 후기</p>}
+                        {c.kind === 'review' && <p className="mb-0.5 text-[0.6875rem] font-bold opacity-80">⭐ 후기</p>}
                         {c.body && <p className="whitespace-pre-line break-words">{c.body}</p>}
                         {c.photoUrl && (
                           // eslint-disable-next-line @next/next/no-img-element -- data URL/스토리지 URL
@@ -190,7 +190,7 @@ export function RoomChat({ meetup, me, list, onChange }: Props) {
                         )}
                       </div>
                     </div>
-                    <div className={`flex shrink-0 flex-col pb-0.5 text-[10px] text-(--c-muted) ${mine ? 'items-end' : 'items-start'}`}>
+                    <div className={`flex shrink-0 flex-col pb-0.5 text-[0.625rem] text-(--c-muted) ${mine ? 'items-end' : 'items-start'}`}>
                       <span className="flex gap-1.5 opacity-0 transition group-hover:opacity-100 group-focus-within:opacity-100">
                         {!mine && (
                           <ReportButton
@@ -252,7 +252,7 @@ export function RoomChat({ meetup, me, list, onChange }: Props) {
               }
             }}
             placeholder={asNotice ? '모두에게 알릴 공지' : ended ? '오늘 순례는 어땠나요? 후기를 남겨요' : '메시지 보내기'}
-            className="max-h-32 min-h-10 flex-1 resize-none rounded-2xl bg-black/[0.04] px-3.5 py-2.5 text-[15px] outline-none field-sizing-content"
+            className="max-h-32 min-h-10 flex-1 resize-none rounded-2xl bg-black/[0.04] px-3.5 py-2.5 text-[0.9375rem] outline-none field-sizing-content"
             aria-label="메시지"
           />
           <button

@@ -115,7 +115,7 @@ export function ExplorePage() {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder={tab === 'maps' ? '지도 · 장소 · 카테고리 (예: 런던베이글, 떡볶이, 카페)' : '닉네임'}
-            className="min-w-0 flex-1 bg-transparent text-[16px] outline-none placeholder:text-(--c-muted)/70"
+            className="min-w-0 flex-1 bg-transparent text-[1rem] outline-none placeholder:text-(--c-muted)/70"
             aria-label="검색어"
           />
           {input && (
@@ -340,14 +340,14 @@ function MapResult({ e }: { e: MapSearchEntry }) {
     <Link href={`/maps/${e.map.id}`} className="tm-card block overflow-hidden rounded-2xl">
       <MapThumb id={e.map.id} theme={e.map.theme} cover={e.map.coverUrl} dots={e.pinCount} className="h-40">
         <span className="absolute left-3 top-3 flex gap-1">
-          <span className="rounded-full bg-(--c-ink) px-2.5 py-1 text-[11px] font-bold text-(--c-bg) shadow-sm">
+          <span className="rounded-full bg-(--c-ink) px-2.5 py-1 text-[0.6875rem] font-bold text-(--c-bg) shadow-sm">
             {purpose.emoji} {purpose.label}
           </span>
-          <span className="rounded-full bg-white/95 px-2.5 py-1 text-[11px] font-bold text-gray-800 shadow-sm">
+          <span className="rounded-full bg-white/95 px-2.5 py-1 text-[0.6875rem] font-bold text-gray-800 shadow-sm">
             {cat.emoji} {cat.label}
           </span>
         </span>
-        {e.openMeetups > 0 && <span className="absolute right-3 top-3 rounded-full bg-emerald-500 px-2.5 py-1 text-[11px] font-bold text-white">🚩 모집 중 {e.openMeetups}</span>}
+        {e.openMeetups > 0 && <span className="absolute right-3 top-3 rounded-full bg-emerald-500 px-2.5 py-1 text-[0.6875rem] font-bold text-white">🚩 모집 중 {e.openMeetups}</span>}
       </MapThumb>
       <div className="border-t border-(--c-border) px-4 pb-4 pt-3">
         <h3 className="truncate text-lg font-bold tracking-tight">{e.map.title || '제목 없는 지도'}</h3>
@@ -424,7 +424,7 @@ function MonthlyTop() {
                     </span>
                   </MapThumb>
                   <div className="px-3 pb-3 pt-2.5">
-                    <h3 className="truncate text-[15px] font-bold">{e.map.title || '제목 없는 지도'}</h3>
+                    <h3 className="truncate text-[0.9375rem] font-bold">{e.map.title || '제목 없는 지도'}</h3>
                     <p className="mt-0.5 truncate text-xs text-(--c-muted)">
                       {e.owner.nickname} · <b className="font-bold text-(--c-text)">{e.users}명</b>이 사용
                     </p>

@@ -280,15 +280,15 @@ export function ApiTestPage() {
           <div className="hidden md:block">
             {groups.map((g) => (
               <div key={g} className="mb-3">
-                <p className="px-2 pb-1 text-[11px] font-bold uppercase tracking-wider text-gray-500">{g}</p>
+                <p className="px-2 pb-1 text-[0.6875rem] font-bold uppercase tracking-wider text-gray-500">{g}</p>
                 {ENDPOINTS.filter((e) => e.group === g).map((e) => (
                   <button
                     key={e.name}
                     type="button"
                     onClick={() => pick(e.name)}
-                    className={`flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left font-mono text-[13px] ${selected === e.name ? 'bg-white/10 text-white' : 'text-gray-300 hover:bg-white/5'}`}
+                    className={`flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left font-mono text-[0.8125rem] ${selected === e.name ? 'bg-white/10 text-white' : 'text-gray-300 hover:bg-white/5'}`}
                   >
-                    <span className={`w-12 shrink-0 rounded px-1 text-center text-[10px] font-bold ${METHOD_COLOR[e.method]}`}>{e.method}</span>
+                    <span className={`w-12 shrink-0 rounded px-1 text-center text-[0.625rem] font-bold ${METHOD_COLOR[e.method]}`}>{e.method}</span>
                     <span className="truncate">{e.name}</span>
                   </button>
                 ))}
@@ -301,10 +301,10 @@ export function ApiTestPage() {
           {/* 호출 */}
           <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 md:p-5">
             <div className="flex flex-wrap items-center gap-2">
-              <span className={`rounded px-1.5 py-0.5 text-[11px] font-bold ${METHOD_COLOR[ep.method]}`}>{ep.method}</span>
-              <code className="font-mono text-[15px] font-semibold text-white">{signature}</code>
+              <span className={`rounded px-1.5 py-0.5 text-[0.6875rem] font-bold ${METHOD_COLOR[ep.method]}`}>{ep.method}</span>
+              <code className="font-mono text-[0.9375rem] font-semibold text-white">{signature}</code>
               {ep.auth && (
-                <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${ep.auth === 'admin' ? 'bg-indigo-400/15 text-indigo-300' : 'bg-white/10 text-gray-300'}`}>
+                <span className={`rounded-full px-2 py-0.5 text-[0.6875rem] font-bold ${ep.auth === 'admin' ? 'bg-indigo-400/15 text-indigo-300' : 'bg-white/10 text-gray-300'}`}>
                   {ep.auth === 'admin' ? '관리자 전용' : '로그인 필요'}
                 </span>
               )}
@@ -325,7 +325,7 @@ export function ApiTestPage() {
                       onChange={(e) => setValues((v) => ({ ...v, [p.name]: e.target.value }))}
                       rows={Math.min(12, (values[p.name] ?? p.initial ?? '').split('\n').length + 1)}
                       spellCheck={false}
-                      className="w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 font-mono text-[13px] outline-none focus:border-amber-300/60"
+                      className="w-full rounded-lg border border-white/10 bg-black/40 px-3 py-2 font-mono text-[0.8125rem] outline-none focus:border-amber-300/60"
                     />
                   ) : p.type === 'file' ? (
                     <input type="file" accept="image/*" onChange={(e) => setFile(e.target.files?.[0] ?? null)} className="block w-full text-sm text-gray-300 file:mr-3 file:rounded-lg file:border-0 file:bg-white/10 file:px-3 file:py-1.5 file:text-gray-100" />
@@ -335,7 +335,7 @@ export function ApiTestPage() {
                       onChange={(e) => setValues((v) => ({ ...v, [p.name]: e.target.value }))}
                       placeholder={p.placeholder}
                       inputMode={p.type === 'number' ? 'numeric' : undefined}
-                      className="h-10 w-full rounded-lg border border-white/10 bg-black/40 px-3 font-mono text-[13px] outline-none placeholder:text-gray-600 focus:border-amber-300/60"
+                      className="h-10 w-full rounded-lg border border-white/10 bg-black/40 px-3 font-mono text-[0.8125rem] outline-none placeholder:text-gray-600 focus:border-amber-300/60"
                     />
                   )}
                 </label>
@@ -380,7 +380,7 @@ export function ApiTestPage() {
                   {copied ? '복사됨' : '복사'}
                 </button>
               </div>
-              <pre className="max-h-[50vh] overflow-auto bg-black/40 p-4 font-mono text-[12.5px] leading-relaxed text-gray-200" data-testid="api-result">
+              <pre className="max-h-[50vh] overflow-auto bg-black/40 p-4 font-mono text-[0.78125rem] leading-relaxed text-gray-200" data-testid="api-result">
                 {last.result}
               </pre>
             </section>
@@ -390,7 +390,7 @@ export function ApiTestPage() {
           {history.length > 0 && (
             <section className="mt-6">
               <p className="mb-2 text-xs font-semibold text-gray-500">최근 호출</p>
-              <ul className="divide-y divide-white/5 rounded-xl border border-white/10 text-[13px]">
+              <ul className="divide-y divide-white/5 rounded-xl border border-white/10 text-[0.8125rem]">
                 {history.map((h) => (
                   <li key={h.id}>
                     <button type="button" onClick={() => setLast(h)} className="flex w-full items-center gap-3 px-3 py-2 text-left hover:bg-white/5">

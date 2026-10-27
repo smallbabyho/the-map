@@ -11,7 +11,7 @@ import { RoomChat } from '../components/meetup/RoomChat'
 import { RoomCourse, RoomMembers } from '../components/meetup/RoomCourse'
 import { getTheme, themeVars } from '../components/themes'
 import { getMeetup, getMeetupCheckins, getMeetupComments, setMeetupCheckin, subscribeMeetupRoom } from '../db/api'
-import type { MapDetail, MeetupCheckin, MeetupComment, MeetupSummary } from '../types'
+import type { ArrivalProof, MapDetail, MeetupCheckin, MeetupComment, MeetupSummary } from '../types'
 
 type Tab = 'chat' | 'course' | 'members'
 const TABS: { id: Tab; label: string }[] = [
@@ -63,17 +63,23 @@ export function MeetupRoomPage() {
     return subscribeMeetupRoom(meetupId, reload)
   }, [member, meetupId, reload])
 
-  const toggle = async (pinId: string, arrived: boolean) => {
+  const uncheck = async (pinId: string) => {
     setBusyPinId(pinId)
     setError('')
     try {
-      await setMeetupCheckin(meetupId, pinId, arrived)
+      await setMeetupCheckin(meetupId, pinId, false)
       setCheckins(await getMeetupCheckins(meetupId))
     } catch (e) {
-      setError(e instanceof Error ? e.message : '체크하지 못했어요.')
+      setError(e instanceof Error ? e.message : '체크를 풀지 못했어요.')
     } finally {
       setBusyPinId(null)
     }
+  }
+
+  /** 도착 인증: 실패 메시지는 인증 창이 보여 준다 */
+  const arrive = async (pinId: string, proof: ArrivalProof) => {
+    await setMeetupCheckin(meetupId, pinId, true, proof)
+    setCheckins(await getMeetupCheckins(meetupId))
   }
 
   if (meetup === undefined || me === undefined) return <div className="h-dvh animate-pulse bg-black/[0.03]" />
@@ -109,7 +115,7 @@ export function MeetupRoomPage() {
       <section className={tab === 'members' ? 'hidden md:block' : ''}>
         <h2 className="mb-3 text-base font-bold">코스 · 도착 체크</h2>
         {mapDetail && mapDetail.pins.length > 0 ? (
-          <RoomCourse mapDetail={mapDetail} me={me} members={meetup.members} checkins={checkins} onToggle={toggle} busyPinId={busyPinId} />
+          <RoomCourse mapDetail={mapDetail} me={me} members={meetup.members} checkins={checkins} onUncheck={uncheck} onArrive={arrive} busyPinId={busyPinId} meetAt={meetup.meetAt} />
         ) : (
           <p className="rounded-xl bg-black/[0.03] px-4 py-6 text-center text-sm text-(--c-muted)">지도가 삭제됐거나 장소가 없어요.</p>
         )}
@@ -132,7 +138,7 @@ export function MeetupRoomPage() {
           <ChevronLeftIcon size={20} />
         </Link>
         <div className="min-w-0 flex-1">
-          <h1 className="truncate text-[15px] font-bold">{meetup.title}</h1>
+          <h1 className="truncate text-[0.9375rem] font-bold">{meetup.title}</h1>
           <p className="truncate text-xs text-(--c-muted)">
             <b className="font-semibold text-(--c-accent)">{dday(meetup.meetAt)}</b> · {formatMeetAt(meetup.meetAt)} · {meetup.meetPoint}
           </p>
@@ -156,7 +162,7 @@ export function MeetupRoomPage() {
             role="tab"
             aria-selected={tab === t.id}
             onClick={() => setTab(t.id)}
-            className={`flex-1 border-b-2 py-2.5 text-[13px] font-semibold transition ${tab === t.id ? 'border-(--c-accent) text-(--c-text)' : 'border-transparent text-(--c-muted)'}`}
+            className={`flex-1 border-b-2 py-2.5 text-[0.8125rem] font-semibold transition ${tab === t.id ? 'border-(--c-accent) text-(--c-text)' : 'border-transparent text-(--c-muted)'}`}
           >
             {t.label}
           </button>

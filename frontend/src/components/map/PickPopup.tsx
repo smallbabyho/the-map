@@ -68,7 +68,7 @@ export function PickPopup({ point, onAdd, onClose }: Props) {
                 className="flex w-full items-center gap-2 rounded-xl px-2 py-2 text-left transition hover:bg-black/[0.04] active:bg-black/[0.08]"
               >
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-[14px] font-semibold">{p.name}</span>
+                  <span className="block truncate text-[0.875rem] font-semibold">{p.name}</span>
                   <span className="block truncate text-xs text-(--c-muted)">
                     {p.category ? `${p.category} · ` : ''}
                     {p.distance}m
@@ -88,7 +88,7 @@ export function PickPopup({ point, onAdd, onClose }: Props) {
             <PinIcon size={15} />
           </span>
           <div className="min-w-0">
-            <p className="truncate text-[14px] font-bold">{place ? place.name : '주소 찾는 중…'}</p>
+            <p className="truncate text-[0.875rem] font-bold">{place ? place.name : '주소 찾는 중…'}</p>
             <p className="mt-0.5 line-clamp-2 text-xs text-(--c-muted)">{place?.address ?? `${point.lat.toFixed(5)}, ${point.lng.toFixed(5)}`}</p>
           </div>
         </div>

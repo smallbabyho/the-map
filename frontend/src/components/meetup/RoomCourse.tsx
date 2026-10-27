@@ -2,7 +2,8 @@
 
 import Link from 'next/link'
 import { Fragment, useState } from 'react'
-import type { MapDetail, MeetupCheckin, MeetupMember, User } from '../../types'
+import type { ArrivalProof, MapDetail, MeetupCheckin, MeetupMember, User } from '../../types'
+import { ArrivalDialog } from './ArrivalDialog'
 import { Avatar } from '../Avatar'
 import { CheckIcon } from '../icons'
 import { MapView } from '../map'
@@ -16,24 +17,32 @@ interface Props {
   me: User
   members: MeetupMember[]
   checkins: MeetupCheckin[]
-  /** 내 도착 체크 켜기 / 끄기 */
-  onToggle: (pinId: string, arrived: boolean) => void
+  /** 내 도착 체크 풀기 */
+  onUncheck: (pinId: string) => void
+  /** 도착 인증 (실패하면 던진다 → 인증 창에 보여 준다) */
+  onArrive: (pinId: string, proof: ArrivalProof) => Promise<void>
   busyPinId: string | null
+  /** 모임 시각 (사진 인증에서 촬영 날짜 확인) */
+  meetAt: string
 }
 
 /**
  * 순례방 코스: 지도 + 이동수단 바꿔 보기 + 장소마다 '도착' 체크.
  * 장소 옆에 그곳에 도착한 사람들의 얼굴이 모인다 (서로 어디쯤인지 보기).
  */
-export function RoomCourse({ mapDetail, me, members, checkins, onToggle, busyPinId }: Props) {
+export function RoomCourse({ mapDetail, me, members, checkins, onUncheck, onArrive, busyPinId, meetAt }: Props) {
   const { pins } = mapDetail
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  /** 도착 인증 창을 띄운 장소 */
+  const [verifying, setVerifying] = useState<string | null>(null)
+  const verifyingPin = pins.find((p) => p.id === verifying)
   const [viewMode, setViewMode] = useState<ViewMode>('course')
   const view = useViewCourse(pins, mapDetail.legs, viewMode)
   const theme = getTheme(mapDetail.map.theme)
 
   const arrivedAt = (pinId: string) => checkins.filter((c) => c.pinId === pinId)
-  const mine = new Set(checkins.filter((c) => c.userId === me.id).map((c) => c.pinId))
+  const myCheckins = new Map(checkins.filter((c) => c.userId === me.id).map((c) => [c.pinId, c]))
+  const mine = new Set(myCheckins.keys())
   const memberOf = (userId: string) => members.find((m) => m.userId === userId)
 
   return (
@@ -60,16 +69,17 @@ export function RoomCourse({ mapDetail, me, members, checkins, onToggle, busyPin
           const transit = next && view.transitOf(p.id, next.id)
           const here = arrivedAt(p.id)
           const done = mine.has(p.id)
+          const proof = myCheckins.get(p.id)
           return (
             <Fragment key={p.id}>
               <li className={`flex items-center gap-2 rounded-xl border p-2 pr-1 transition ${selectedId === p.id ? 'border-(--c-accent) bg-(--c-accent)/5' : 'border-(--c-border) bg-(--c-surface)'}`}>
                 <button type="button" onClick={() => setSelectedId(p.id)} className="flex min-w-0 flex-1 items-center gap-2.5 text-left">
                   <span className="relative grid size-9 shrink-0 place-items-center rounded-full text-lg" style={{ background: p.color }}>
                     {p.icon}
-                    <span className="absolute -right-1 -top-1 grid h-4 min-w-4 place-items-center rounded-full bg-gray-900 px-1 text-[9px] font-bold text-white">{i + 1}</span>
+                    <span className="absolute -right-1 -top-1 grid h-4 min-w-4 place-items-center rounded-full bg-gray-900 px-1 text-[0.5625rem] font-bold text-white">{i + 1}</span>
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-[15px] font-semibold">{p.place.name}</span>
+                    <span className="block truncate text-[0.9375rem] font-semibold">{p.place.name}</span>
                     {here.length > 0 ? (
                       <span className="mt-0.5 flex items-center gap-1">
                         <span className="flex -space-x-1.5">
@@ -78,10 +88,10 @@ export function RoomCourse({ mapDetail, me, members, checkins, onToggle, busyPin
                             return <Avatar key={c.userId} id={c.userId} nickname={m?.nickname ?? '?'} src={m?.avatarUrl} size={18} ring />
                           })}
                         </span>
-                        <span className="text-[11px] text-(--c-muted)">{here.length}명 도착</span>
+                        <span className="text-[0.6875rem] text-(--c-muted)">{here.length}명 도착</span>
                       </span>
                     ) : (
-                      p.memo && <span className="block truncate text-[13px] text-(--c-muted)">{p.memo}</span>
+                      p.memo && <span className="block truncate text-[0.8125rem] text-(--c-muted)">{p.memo}</span>
                     )}
                   </span>
                 </button>
@@ -89,14 +99,15 @@ export function RoomCourse({ mapDetail, me, members, checkins, onToggle, busyPin
                 <button
                   type="button"
                   disabled={busyPinId === p.id}
-                  onClick={() => onToggle(p.id, !done)}
+                  onClick={() => (done ? onUncheck(p.id) : setVerifying(p.id))}
                   aria-pressed={done}
+                  title={done ? `${proof?.verifiedBy === 'gps' ? 'GPS 인증' : proof?.verifiedBy === 'photo' ? '사진 인증' : '도착'}${proof?.distanceM != null ? ` · 장소에서 ${proof.distanceM}m` : ''} (누르면 체크 풀기)` : '위치를 인증하고 도착 체크'}
                   className={`flex h-10 shrink-0 items-center gap-1 rounded-xl px-3 text-xs font-bold transition disabled:opacity-50 ${
                     done ? 'bg-(--c-accent) text-(--c-accent-text)' : 'border border-(--c-border) text-(--c-muted) hover:border-(--c-accent) hover:text-(--c-accent)'
                   }`}
                 >
                   {done ? <CheckIcon size={14} /> : '📍'}
-                  {done ? '도착' : '도착 체크'}
+                  {done ? (proof?.verifiedBy ? '인증 완료' : '도착') : '도착 인증'}
                 </button>
               </li>
               {legMode && (
@@ -109,6 +120,7 @@ export function RoomCourse({ mapDetail, me, members, checkins, onToggle, busyPin
           )
         })}
       </ol>
+      {verifyingPin && <ArrivalDialog pin={verifyingPin} meetAt={meetAt} onArrive={(proof) => onArrive(verifyingPin.id, proof)} onClose={() => setVerifying(null)} />}
     </div>
   )
 }
@@ -131,7 +143,7 @@ export function RoomMembers({ members, hostId, pinCount, checkins, meId }: { mem
                   {m.nickname}
                 </Link>
                 {m.userId === meId && <span className="text-xs font-medium text-(--c-muted)">(나)</span>}
-                {m.userId === hostId && <span className="rounded bg-black/5 px-1 text-[10px] font-bold text-(--c-muted)">주최자</span>}
+                {m.userId === hostId && <span className="rounded bg-black/5 px-1 text-[0.625rem] font-bold text-(--c-muted)">주최자</span>}
               </p>
               <div className="mt-1 h-1 overflow-hidden rounded-full bg-black/5">
                 <div className="h-full rounded-full bg-(--c-accent)" style={{ width: `${pinCount ? (done / pinCount) * 100 : 0}%` }} />

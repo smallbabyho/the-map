@@ -105,13 +105,13 @@ function PinRow({ pin, index, selected, onSelect }: { pin: Pin; index: number; s
             style={{ background: pin.color }}
           >
             {pin.icon}
-            <span className="absolute -right-1 -top-1 grid h-[18px] min-w-[18px] place-items-center rounded-full bg-gray-900 px-1 text-[10px] font-bold text-white ring-2 ring-(--c-surface)">
+            <span className="absolute -right-1 -top-1 grid h-[18px] min-w-[18px] place-items-center rounded-full bg-gray-900 px-1 text-[0.625rem] font-bold text-white ring-2 ring-(--c-surface)">
               {index + 1}
             </span>
           </span>
           <span className="min-w-0 flex-1">
-            <span className="block truncate text-[15px] font-semibold">{pin.place.name}</span>
-            <span className="block truncate text-[13px] text-(--c-muted)">{sub || '눌러서 꾸미기'}</span>
+            <span className="block truncate text-[0.9375rem] font-semibold">{pin.place.name}</span>
+            <span className="block truncate text-[0.8125rem] text-(--c-muted)">{sub || '눌러서 꾸미기'}</span>
           </span>
           {pin.photoUrl && (
             // eslint-disable-next-line @next/next/no-img-element -- data URL/외부 URL 미리보기

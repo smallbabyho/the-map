@@ -40,6 +40,8 @@ import type {
   ProfileDecoInput,
   ProfilePage,
   PublicMapSummary,
+  BadgeStats,
+  ArrivalProof,
   User,
   MapSearchEntry,
   MapSearchFilters,
@@ -51,6 +53,7 @@ import { regionById, regionOf } from '../components/regions'
 import { categoriesMatching } from '../components/mapCategories'
 import { mockCurrentUser, mockDeleteUser, mockListUsers, mockSearchUsers, mockUpdateMe, mockUpdateUser, mockUserById, mockUserCreatedAt } from '../auth/mock'
 import { BANNED_WORD_MESSAGE, hasBannedWord } from '../lib/bannedWords'
+import { ARRIVAL_RADIUS_M, distanceMeters } from '../lib/arrival'
 
 const STORAGE_KEY = 'the-map:mock-db:v1'
 
@@ -898,22 +901,34 @@ export async function getMeetupCheckins(meetupId: string): Promise<MeetupCheckin
   await tick()
   const db = load()
   if (!isMember(db, meetupId, mockCurrentUser()?.id)) return []
-  return db.checkins.filter((c) => c.meetupId === meetupId).map(({ userId, pinId, createdAt }) => ({ userId, pinId, createdAt }))
+  return db.checkins
+    .filter((c) => c.meetupId === meetupId)
+    .map(({ userId, pinId, createdAt, verifiedBy, distanceM }) => ({ userId, pinId, createdAt, verifiedBy: verifiedBy ?? null, distanceM: distanceM ?? null }))
 }
 
 /**
  * 내 도착 체크 켜기 / 끄기 (참여자만).
  *
  * @example
- * await setMeetupCheckin(meetupId, pin.id, true)
+ * await setMeetupCheckin(meetupId, pin.id, true, { lat, lng, method: 'gps' }) // 장소 300m 안이어야 한다
  */
-export async function setMeetupCheckin(meetupId: string, pinId: string, arrived: boolean): Promise<void> {
+export async function setMeetupCheckin(meetupId: string, pinId: string, arrived: boolean, proof?: ArrivalProof): Promise<void> {
   await tick()
   const me = requireUser()
   const db = load()
   if (!isMember(db, meetupId, me.id)) throw new Error('모임에 참여한 사람만 체크할 수 있어요.')
+  let distanceM: number | null = null
+  if (arrived) {
+    if (!proof) throw new Error('위치 인증이 필요해요.')
+    const meetup = db.meetups.find((m) => m.id === meetupId)
+    const pin = db.pins.find((p) => p.id === pinId && p.mapId === meetup?.mapId)
+    const place = pin && db.places.find((pl) => pl.id === pin.placeId)
+    if (!place) throw new Error('이 모임 코스의 장소가 아니에요.')
+    distanceM = Math.round(distanceMeters(proof, place))
+    if (distanceM > ARRIVAL_RADIUS_M) throw new Error(`장소에서 ${distanceM}m 떨어져 있어요. ${ARRIVAL_RADIUS_M}m 안에서 인증해 주세요.`)
+  }
   db.checkins = db.checkins.filter((c) => !(c.meetupId === meetupId && c.userId === me.id && c.pinId === pinId))
-  if (arrived) db.checkins.push({ meetupId, userId: me.id, pinId, createdAt: now() })
+  if (arrived) db.checkins.push({ meetupId, userId: me.id, pinId, createdAt: now(), verifiedBy: proof!.method, distanceM })
   persist(db)
 }
 
@@ -1118,6 +1133,40 @@ export async function getProfile(userId: string): Promise<ProfilePage> {
   // 비공개로 바꾼 지도는 대표 지도에서 빠진다
   const visible = { ...deco, pinnedMapIds: pinned.map((m) => m.id) }
   return { user: mockUserById(userId), deco: visible, maps: [...pinned, ...rest].map((m) => toPublicSummary(db, m)) }
+}
+
+/**
+ * 🏅 배지용 숫자 (공개 지도만 센다, DB 함수 profile_badge_stats 와 같은 규칙)
+ *
+ * @example
+ * const stats = await getBadgeStats(userId)
+ * stats?.regions.seoul // 서울에서 누빈 장소 수
+ */
+export async function getBadgeStats(userId: string): Promise<BadgeStats | null> {
+  await tick()
+  const db = load()
+  const records = db.maps.filter((m) => m.ownerId === userId && m.isPublic && m.purpose === 'record')
+  const recordIds = new Set(records.map((m) => m.id))
+  const placeIds = new Set(db.pins.filter((p) => recordIds.has(p.mapId)).map((p) => p.placeId))
+  const regions: Record<string, number> = {}
+  for (const p of db.places) {
+    if (!placeIds.has(p.id)) continue
+    const r = regionOf(p.lat, p.lng)
+    regions[r] = (regions[r] ?? 0) + 1
+  }
+  const categories: Partial<Record<MapCategory, number>> = {}
+  for (const m of records) categories[m.category] = (categories[m.category] ?? 0) + 1
+  const publicIds = new Set(db.maps.filter((m) => m.ownerId === userId && m.isPublic).map((m) => m.id))
+  return {
+    recordMaps: records.length,
+    places: placeIds.size,
+    regions,
+    categories,
+    reviews: db.placeReviews.filter((r) => r.userId === userId && !r.hidden).length,
+    meetupsJoined: new Set(db.checkins.filter((c) => c.userId === userId).map((c) => c.meetupId)).size,
+    meetupsHosted: db.meetups.filter((m) => m.hostId === userId && m.status !== 'canceled').length,
+    copied: db.uses.filter((u) => publicIds.has(u.mapId) && u.kind === 'copy' && u.userId !== userId).length,
+  }
 }
 
 /**

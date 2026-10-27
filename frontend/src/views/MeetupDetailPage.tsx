@@ -133,7 +133,7 @@ export function MeetupDetailPage() {
   // 참여자(주최자 포함)는 순례방으로, 아니면 참여하기
   const primaryAction = joined ? (
     <div className="flex gap-2">
-      <Link href={`/meetups/${meetup.id}/room`} className="tm-btn flex h-12 flex-1 items-center justify-center rounded-xl bg-(--c-accent) text-[15px] font-bold text-(--c-accent-text)">
+      <Link href={`/meetups/${meetup.id}/room`} className="tm-btn flex h-12 flex-1 items-center justify-center rounded-xl bg-(--c-accent) text-[0.9375rem] font-bold text-(--c-accent-text)">
         💬 순례방 들어가기
       </Link>
       {!isHost && (
@@ -147,7 +147,7 @@ export function MeetupDetailPage() {
       type="button"
       onClick={join}
       disabled={busy || !canJoin}
-      className="tm-btn h-12 w-full rounded-xl bg-(--c-accent) text-[15px] font-bold text-(--c-accent-text) disabled:border-(--c-border) disabled:bg-(--c-border) disabled:text-(--c-muted) disabled:shadow-none"
+      className="tm-btn h-12 w-full rounded-xl bg-(--c-accent) text-[0.9375rem] font-bold text-(--c-accent-text) disabled:border-(--c-border) disabled:bg-(--c-border) disabled:text-(--c-muted) disabled:shadow-none"
     >
       {canJoin ? (user ? `참여하기 · ${left}자리 남음` : '로그인하고 참여하기') : blockedUntil ? `노쇼 2번 · ${formatDay(blockedUntil)}까지 참여 제한` : badge.label}
     </button>
@@ -206,7 +206,7 @@ export function MeetupDetailPage() {
                 <b className="font-semibold text-(--c-text)">{meetup.host.nickname}</b> 님이 열었어요
               </span>
             </Link>
-            {meetup.description && <p className="mt-5 whitespace-pre-wrap text-[15px] leading-relaxed">{meetup.description}</p>}
+            {meetup.description && <p className="mt-5 whitespace-pre-wrap text-[0.9375rem] leading-relaxed">{meetup.description}</p>}
 
             {/* 코스 */}
             {mapDetail && mapDetail.pins.length > 0 && (
@@ -234,8 +234,8 @@ export function MeetupDetailPage() {
                           >
                             <span className="grid size-9 shrink-0 place-items-center rounded-full text-lg" style={{ background: p.color }}>{p.icon}</span>
                             <span className="min-w-0 flex-1">
-                              <span className="block truncate text-[15px] font-semibold">{i + 1}. {p.place.name}</span>
-                              {p.memo && <span className="block truncate text-[13px] text-(--c-muted)">{p.memo}</span>}
+                              <span className="block truncate text-[0.9375rem] font-semibold">{i + 1}. {p.place.name}</span>
+                              {p.memo && <span className="block truncate text-[0.8125rem] text-(--c-muted)">{p.memo}</span>}
                             </span>
                           </button>
                           <KakaoDirectionsLink to={p.place} from={mapDetail.pins[i - 1]?.place} mode={i > 0 ? view.modeOf(mapDetail.pins[i - 1].id, p.id) : undefined} />
@@ -289,7 +289,7 @@ export function MeetupDetailPage() {
                         type="button"
                         onClick={() => toggleNoshow(m.userId)}
                         aria-pressed={noshows.includes(m.userId)}
-                        className={`ml-auto shrink-0 rounded-full px-2 py-1 text-[11px] font-bold transition ${noshows.includes(m.userId) ? 'bg-red-500 text-white' : 'border border-(--c-border) text-(--c-muted) hover:text-red-500'}`}
+                        className={`ml-auto shrink-0 rounded-full px-2 py-1 text-[0.6875rem] font-bold transition ${noshows.includes(m.userId) ? 'bg-red-500 text-white' : 'border border-(--c-border) text-(--c-muted) hover:text-red-500'}`}
                         title="안 온 사람을 노쇼로 표시해요 (다시 누르면 취소)"
                       >
                         {noshows.includes(m.userId) ? '노쇼 ✕' : '노쇼'}
@@ -307,7 +307,7 @@ export function MeetupDetailPage() {
           {/* 오른쪽: 요약 + 참여 (데스크톱 고정) */}
           <aside className="lg:sticky lg:top-8 lg:self-start">
             <div className="rounded-2xl border border-(--c-border) bg-(--c-surface) p-5">
-              <dl className="space-y-4 text-[15px]">
+              <dl className="space-y-4 text-[0.9375rem]">
                 <Info icon={<CalendarIcon size={18} />} label="언제">{formatMeetAt(meetup.meetAt)}</Info>
                 <Info icon={<PinIcon size={18} />} label="어디서">{meetup.meetPoint}</Info>
                 <Info icon={<UsersIcon size={18} />} label="인원">

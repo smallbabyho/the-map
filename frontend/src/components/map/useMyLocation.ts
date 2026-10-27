@@ -40,14 +40,15 @@ export function useMyLocation() {
     [],
   )
 
+  /** silent: 화면을 열 때 자동으로 찾는 경우 → 실패해도 알림을 띄우지 않는다 */
   const locate = useCallback(
-    (onFix: (p: MyPosition) => void) => {
+    (onFix: (p: MyPosition) => void, { silent = false } = {}) => {
       if (typeof navigator === 'undefined' || !('geolocation' in navigator)) {
-        setError('이 브라우저에서는 위치 기능을 쓸 수 없어요.')
+        if (!silent) setError('이 브라우저에서는 위치 기능을 쓸 수 없어요.')
         return
       }
       if (!window.isSecureContext) {
-        setError('위치 기능은 https 또는 localhost 에서만 쓸 수 있어요.')
+        if (!silent) setError('위치 기능은 https 또는 localhost 에서만 쓸 수 있어요.')
         return
       }
       // 이미 위치를 알고 있으면 바로 이동
@@ -70,7 +71,7 @@ export function useMyLocation() {
         (e) => {
           setLocating(false)
           pendingFix.current = null
-          setError(ERROR_MESSAGES[e.code] ?? '현재 위치를 가져오지 못했어요.')
+          if (!silent) setError(ERROR_MESSAGES[e.code] ?? '현재 위치를 가져오지 못했어요.')
           if (e.code === 1 && watchId.current != null) {
             navigator.geolocation.clearWatch(watchId.current)
             watchId.current = null

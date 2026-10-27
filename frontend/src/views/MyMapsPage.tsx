@@ -167,7 +167,7 @@ export function MyMapsPage() {
               <h2 className="tm-headline mt-6 text-3xl">
                 첫 <em>지도</em>를 그려 볼까요?
               </h2>
-              <p className="mt-3 max-w-sm text-[15px] text-(--c-muted)">카페 투어, 빵지순례, 드라마 촬영지… 나만의 테마로 첫 지도를 꾸며 보세요.</p>
+              <p className="mt-3 max-w-sm text-[0.9375rem] text-(--c-muted)">카페 투어, 빵지순례, 드라마 촬영지… 나만의 테마로 첫 지도를 꾸며 보세요.</p>
               <div className="mt-8 grid w-full max-w-md gap-3 sm:grid-cols-2">
                 {MAP_PURPOSES.map((p) => (
                   <button

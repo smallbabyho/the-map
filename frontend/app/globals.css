@@ -139,6 +139,13 @@ html {
   background: var(--c-base-bg);
 }
 
+/* 휴대폰: 화면 전체를 조금 작게 (rem 기준인 글자 · 여백 · 버튼이 같은 비율로 줄어든다). 데스크톱은 16px 그대로 */
+@media (max-width: 767px) {
+  html {
+    font-size: 0.90625rem;
+  }
+}
+
 body {
   background: var(--c-bg);
   color: var(--c-text);
@@ -185,7 +192,7 @@ body::before {
 /* ● 라벨: 모노 대문자 작은 글씨 (섹션 이름 · 메타 정보) */
 .tm-label {
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: 0.6875rem;
   font-weight: 500;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -343,7 +350,7 @@ body::before {
   height: 40px;
   display: grid;
   place-items: center;
-  font-size: 18px;
+  font-size: 1.125rem;
   line-height: 1;
 }
 .tm-marker-no {
@@ -356,7 +363,7 @@ body::before {
   border-radius: 9999px;
   background: #111827;
   color: #fff;
-  font-size: 11px;
+  font-size: 0.6875rem;
   font-weight: 700;
   display: grid;
   place-items: center;
@@ -372,7 +379,7 @@ body::before {
   border-radius: 6px;
   background: rgb(255 255 255 / 0.95);
   color: #111827;
-  font-size: 12px;
+  font-size: 0.75rem;
   font-weight: 600;
   white-space: nowrap;
   overflow: hidden;
@@ -413,7 +420,7 @@ body::before {
 }
 .tm-marker[data-shape="emoji"] .tm-marker-emoji {
   height: 50px;
-  font-size: 34px;
+  font-size: 2.125rem;
   filter: drop-shadow(0 0 1.5px #fff) drop-shadow(0 0 1.5px #fff) drop-shadow(0 3px 4px rgb(15 23 42 / 0.3));
 }
 
@@ -422,7 +429,7 @@ body::before {
   border-radius: 9999px;
   background: #fff;
   color: #111827;
-  font-size: 11px;
+  font-size: 0.6875rem;
   font-weight: 600;
   white-space: nowrap;
   box-shadow: 0 1px 4px rgb(15 23 42 / 0.2);

@@ -66,8 +66,8 @@ export function CollabButton({ mapId, myId, collab, onChange, variant = 'float' 
         aria-expanded={open}
         className={
           variant === 'float'
-            ? 'tm-float flex h-10 items-center gap-2 rounded-full bg-(--c-surface) pl-1.5 pr-4 text-[13px] font-semibold'
-            : 'flex h-9 items-center gap-2 rounded-full border border-(--c-border) pl-1 pr-3 text-[13px] font-semibold'
+            ? 'tm-float flex h-10 items-center gap-2 rounded-full bg-(--c-surface) pl-1.5 pr-4 text-[0.8125rem] font-semibold'
+            : 'flex h-9 items-center gap-2 rounded-full border border-(--c-border) pl-1 pr-3 text-[0.8125rem] font-semibold'
         }
       >
         <span className="flex -space-x-2">

@@ -43,7 +43,7 @@ export function PinEditPanel({ pin, index, theme, onChange, onRename, onDelete, 
     }
   }
 
-  const label = 'mb-2 block text-[13px] font-semibold text-(--c-muted)'
+  const label = 'mb-2 block text-[0.8125rem] font-semibold text-(--c-muted)'
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -150,7 +150,7 @@ export function PinEditPanel({ pin, index, theme, onChange, onRename, onDelete, 
             type="date"
             value={pin.visitedAt ?? ''}
             onChange={(e) => onChange({ visitedAt: e.target.value || null })}
-            className="h-11 w-full rounded-xl border border-(--c-border) bg-(--c-surface) px-3 text-[15px] outline-none focus:border-(--c-accent)"
+            className="h-11 w-full rounded-xl border border-(--c-border) bg-(--c-surface) px-3 text-[0.9375rem] outline-none focus:border-(--c-accent)"
           />
         </section>
 
@@ -164,7 +164,7 @@ export function PinEditPanel({ pin, index, theme, onChange, onRename, onDelete, 
             rows={4}
             maxLength={500}
             placeholder="이 장소에 대한 기억을 남겨 보세요"
-            className="w-full resize-none rounded-xl border border-(--c-border) bg-(--c-surface) px-3 py-2.5 text-[15px] outline-none placeholder:text-(--c-muted)/70 focus:border-(--c-accent)"
+            className="w-full resize-none rounded-xl border border-(--c-border) bg-(--c-surface) px-3 py-2.5 text-[0.9375rem] outline-none placeholder:text-(--c-muted)/70 focus:border-(--c-accent)"
           />
           <p className="mt-1 text-right text-xs text-(--c-muted)">{pin.memo.length}/500</p>
         </section>

@@ -103,7 +103,7 @@ export function LoginPage() {
   }
 
   const field =
-    'h-12 w-full rounded-xl border border-(--c-border) bg-(--c-surface) px-4 text-[15px] outline-none transition placeholder:text-(--c-muted)/70 focus:border-(--c-accent) focus:shadow-[0_0_0_4px_color-mix(in_srgb,var(--c-accent)_15%,transparent)]'
+    'h-12 w-full rounded-xl border border-(--c-border) bg-(--c-surface) px-4 text-[0.9375rem] outline-none transition placeholder:text-(--c-muted)/70 focus:border-(--c-accent) focus:shadow-[0_0_0_4px_color-mix(in_srgb,var(--c-accent)_15%,transparent)]'
 
   return (
     <div className="relative min-h-dvh pb-16 pt-14 md:pb-0">
@@ -144,18 +144,18 @@ export function LoginPage() {
                 </section>
                 <SafetySection />
                 <div className="mt-4 grid gap-2">
-                  <Link href={`/u/${user.id}`} className="grid h-12 place-items-center rounded-xl border border-(--c-border) text-[15px] font-semibold">
+                  <Link href={`/u/${user.id}`} className="grid h-12 place-items-center rounded-xl border border-(--c-border) text-[0.9375rem] font-semibold">
                     내 프로필 꾸미기
                   </Link>
-                  <Link href={next} className="tm-btn grid h-12 place-items-center rounded-xl bg-(--c-accent) text-[15px] font-bold text-(--c-accent-text)">
+                  <Link href={next} className="tm-btn grid h-12 place-items-center rounded-xl bg-(--c-accent) text-[0.9375rem] font-bold text-(--c-accent-text)">
                     {next === '/' ? '내 지도로' : '계속하기'}
                   </Link>
                   {user.role === 'admin' && (
-                    <Link href="/customers" className="grid h-12 place-items-center rounded-xl border border-(--c-border) text-[15px] font-semibold">
+                    <Link href="/customers" className="grid h-12 place-items-center rounded-xl border border-(--c-border) text-[0.9375rem] font-semibold">
                       관리자 모드
                     </Link>
                   )}
-                  <button type="button" onClick={async () => (await signOut(), router.push('/'))} className="h-12 rounded-xl text-[15px] font-semibold text-red-500 hover:bg-red-500/10">
+                  <button type="button" onClick={async () => (await signOut(), router.push('/'))} className="h-12 rounded-xl text-[0.9375rem] font-semibold text-red-500 hover:bg-red-500/10">
                     로그아웃
                   </button>
                 </div>
@@ -189,7 +189,7 @@ export function LoginPage() {
                       type="button"
                       onClick={() => startSocial(s.id)}
                       disabled={!!socialBusy}
-                      className={`relative flex h-12 w-full items-center justify-center rounded-xl text-[15px] font-semibold transition hover:brightness-95 disabled:opacity-60 ${s.className}`}
+                      className={`relative flex h-12 w-full items-center justify-center rounded-xl text-[0.9375rem] font-semibold transition hover:brightness-95 disabled:opacity-60 ${s.className}`}
                     >
                       <span className="absolute left-4">{s.logo}</span>
                       {socialBusy === s.id ? '이동하는 중…' : `${s.label}로 시작하기`}
@@ -234,7 +234,7 @@ export function LoginPage() {
                   <button
                     type="submit"
                     disabled={busy}
-                    className="tm-btn mt-2 h-12 w-full rounded-xl bg-(--c-accent) text-[15px] font-bold text-(--c-accent-text) disabled:opacity-60"
+                    className="tm-btn mt-2 h-12 w-full rounded-xl bg-(--c-accent) text-[0.9375rem] font-bold text-(--c-accent-text) disabled:opacity-60"
                   >
                     {busy ? '잠시만요…' : mode === 'signin' ? '로그인' : '가입하기'}
                   </button>

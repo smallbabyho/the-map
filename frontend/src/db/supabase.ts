@@ -38,6 +38,9 @@ import type {
   ProfileDecoInput,
   ProfilePage,
   PublicMapSummary,
+  BadgeStats,
+  ArrivalMethod,
+  ArrivalProof,
   Report,
   ReportInput,
   ReportStatus,
@@ -652,20 +655,29 @@ export async function deleteMeetupComment(commentId: string): Promise<void> {
 
 export async function getMeetupCheckins(meetupId: string): Promise<MeetupCheckin[]> {
   if (!(await myId())) return []
-  const { data, error } = await supabase.from('meetup_checkins').select('user_id, pin_id, created_at').eq('meetup_id', meetupId)
+  const { data, error } = await supabase.from('meetup_checkins').select('user_id, pin_id, created_at, verified_by, distance_m').eq('meetup_id', meetupId)
   if (error) fail(error)
-  return (data as { user_id: string; pin_id: string; created_at: string }[]).map((r) => ({ userId: r.user_id, pinId: r.pin_id, createdAt: r.created_at }))
+  return (data as { user_id: string; pin_id: string; created_at: string; verified_by: ArrivalMethod | null; distance_m: number | null }[]).map((r) => ({
+    userId: r.user_id,
+    pinId: r.pin_id,
+    createdAt: r.created_at,
+    verifiedBy: r.verified_by,
+    distanceM: r.distance_m,
+  }))
 }
 
-export async function setMeetupCheckin(meetupId: string, pinId: string, arrived: boolean): Promise<void> {
+/** 도착 체크 (proof 의 위치가 장소 300m 안이어야 한다, 거리는 DB 함수가 잰다) / 체크 풀기 */
+export async function setMeetupCheckin(meetupId: string, pinId: string, arrived: boolean, proof?: ArrivalProof): Promise<void> {
   const me = await requireMe()
-  const { error } = arrived
-    ? await supabase.from('meetup_checkins').upsert({ meetup_id: meetupId, user_id: me, pin_id: pinId }, { onConflict: 'meetup_id,user_id,pin_id', ignoreDuplicates: true })
-    : await supabase.from('meetup_checkins').delete().eq('meetup_id', meetupId).eq('user_id', me).eq('pin_id', pinId)
-  if (error) {
-    if (/row-level security/i.test(error.message)) throw new Error('모임에 참여한 사람만 체크할 수 있어요.')
-    fail(error)
+  if (arrived) {
+    if (!proof) throw new Error('위치 인증이 필요해요.')
+    const { error } = await supabase.rpc('checkin_meetup_pin', { p_meetup_id: meetupId, p_pin_id: pinId, p_lat: proof.lat, p_lng: proof.lng, p_method: proof.method })
+    // DB 함수의 한국어 메시지(거리 등)를 그대로 보여 준다
+    if (error) throw new Error(error.message)
+    return
   }
+  const { error } = await supabase.from('meetup_checkins').delete().eq('meetup_id', meetupId).eq('user_id', me).eq('pin_id', pinId)
+  if (error) fail(error)
 }
 
 /** 순례방 채팅 · 도착 체크가 바뀌면 onChange (Supabase 실시간). 돌려준 함수로 그만 듣는다 */
@@ -848,6 +860,25 @@ export async function getProfile(userId: string): Promise<ProfilePage> {
   const pinned = d.pinnedMapIds.map((id) => publicMaps.find((m) => m.id === id)).filter((m): m is MapRow => !!m)
   const rest = publicMaps.filter((m) => !d.pinnedMapIds.includes(m.id))
   return { user, deco: { ...d, pinnedMapIds: pinned.map((m) => m.id) }, maps: await toPublicSummaries([...pinned, ...rest]) }
+}
+
+/** 🏅 배지용 숫자 (DB 함수 profile_badge_stats, 공개 지도만). 함수가 아직 없는 DB 면 null */
+export async function getBadgeStats(userId: string): Promise<BadgeStats | null> {
+  const { data, error } = await supabase.rpc('profile_badge_stats', { p_user: userId })
+  if (error || !data) return null
+  const d = data as Record<string, unknown>
+  const num = (v: unknown) => Number(v ?? 0) || 0
+  const counts = (v: unknown) => Object.fromEntries(Object.entries((v ?? {}) as Record<string, unknown>).map(([k, n]) => [k, num(n)]))
+  return {
+    recordMaps: num(d.record_maps),
+    places: num(d.places),
+    regions: counts(d.regions),
+    categories: counts(d.categories),
+    reviews: num(d.reviews),
+    meetupsJoined: num(d.meetups_joined),
+    meetupsHosted: num(d.meetups_hosted),
+    copied: num(d.copied),
+  }
 }
 
 /** 다이어리 판에 붙인 것 정리 (저장 전): 위치 · 크기 범위, 사진 주소 · 글 · 색 형식 */

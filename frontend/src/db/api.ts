@@ -44,6 +44,7 @@ export const getBlockedUsers = impl.getBlockedUsers
 export const adminListReports = impl.adminListReports
 export const adminResolveReport = impl.adminResolveReport
 export const getProfile = impl.getProfile
+export const getBadgeStats = impl.getBadgeStats
 export const saveProfileDeco = impl.saveProfileDeco
 export const copyMap = impl.copyMap
 export const getPublicMaps = impl.getPublicMaps

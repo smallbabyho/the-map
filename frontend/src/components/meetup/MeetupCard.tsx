@@ -16,7 +16,7 @@ export function MemberStack({ members, max = 5, size = 26 }: { members: MeetupSu
         <Avatar key={m.userId} id={m.userId} nickname={m.nickname} src={m.avatarUrl} size={size} ring />
       ))}
       {members.length > max && (
-        <span className="grid place-items-center rounded-full bg-(--c-border) text-[11px] font-bold text-(--c-muted) ring-2 ring-(--c-surface)" style={{ width: size, height: size }}>
+        <span className="grid place-items-center rounded-full bg-(--c-border) text-[0.6875rem] font-bold text-(--c-muted) ring-2 ring-(--c-surface)" style={{ width: size, height: size }}>
           +{members.length - max}
         </span>
       )}
@@ -36,21 +36,21 @@ export function MeetupCard({ meetup, myId }: { meetup: MeetupSummary; myId?: str
       className={`group block overflow-hidden tm-card rounded-2xl ${dim ? 'opacity-60' : ''}`}
     >
       <MapThumb id={meetup.map.id} theme={meetup.map.theme} cover={meetup.map.coverUrl} dots={meetup.map.pinCount} className="h-32">
-        <span className={`absolute left-3 top-3 rounded-full px-2.5 py-1 text-[11px] font-bold shadow-sm ${badge.className}`}>{badge.label}</span>
+        <span className={`absolute left-3 top-3 rounded-full px-2.5 py-1 text-[0.6875rem] font-bold shadow-sm ${badge.className}`}>{badge.label}</span>
         <span className="absolute right-3 top-3 flex gap-1">
-          {meetup.visibility === 'private' && <span className="rounded-full bg-gray-900 px-2.5 py-1 text-[11px] font-bold text-white shadow-sm">🔒 친구끼리</span>}
-          <span className="rounded-full bg-white/95 px-2.5 py-1 text-[11px] font-bold text-gray-800 shadow-sm">{dday(meetup.meetAt)}</span>
+          {meetup.visibility === 'private' && <span className="rounded-full bg-gray-900 px-2.5 py-1 text-[0.6875rem] font-bold text-white shadow-sm">🔒 친구끼리</span>}
+          <span className="rounded-full bg-white/95 px-2.5 py-1 text-[0.6875rem] font-bold text-gray-800 shadow-sm">{dday(meetup.meetAt)}</span>
         </span>
         {joined && (
-          <span className="absolute bottom-3 left-3 rounded-full bg-(--c-accent) px-2.5 py-1 text-[11px] font-bold text-(--c-accent-text) shadow-sm">
+          <span className="absolute bottom-3 left-3 rounded-full bg-(--c-accent) px-2.5 py-1 text-[0.6875rem] font-bold text-(--c-accent-text) shadow-sm">
             {meetup.hostId === myId ? '내가 연 모임' : '참여 중'}
           </span>
         )}
       </MapThumb>
       <div className="px-4 pb-4 pt-3">
         <p className="truncate text-xs font-medium text-(--c-muted)">🗺️ {meetup.map.title} · 장소 {meetup.map.pinCount}곳</p>
-        <h3 className="mt-1 line-clamp-2 min-h-[2.75rem] text-[15px] font-bold leading-snug">{meetup.title}</h3>
-        <div className="mt-2.5 space-y-1 text-[13px] text-(--c-muted)">
+        <h3 className="mt-1 line-clamp-2 min-h-[2.75rem] text-[0.9375rem] font-bold leading-snug">{meetup.title}</h3>
+        <div className="mt-2.5 space-y-1 text-[0.8125rem] text-(--c-muted)">
           <p className="flex items-center gap-1.5">
             <CalendarIcon size={14} />
             {formatMeetAt(meetup.meetAt)}
@@ -62,7 +62,7 @@ export function MeetupCard({ meetup, myId }: { meetup: MeetupSummary; myId?: str
         </div>
         <div className="mt-3.5 flex items-center justify-between border-t border-(--c-border) pt-3">
           <MemberStack members={meetup.members} />
-          <span className="text-[13px] font-semibold">
+          <span className="text-[0.8125rem] font-semibold">
             <span className={state === 'almost' ? 'text-orange-500' : 'text-(--c-accent)'}>{meetup.members.length}</span>
             <span className="text-(--c-muted)"> / {meetup.capacity}명</span>
           </span>

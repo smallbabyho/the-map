@@ -45,6 +45,8 @@ export function useMapDraft(mapId: string) {
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState('')
   const [justSaved, setJustSaved] = useState(false)
+  /** 고칠 때마다 1씩: 저장하는 사이에 또 고쳤는지 알아본다 (자동 저장 중에도 계속 편집하니까) */
+  const editVersion = useRef(0)
 
   const apply = useCallback((d: MapDetail) => {
     setMap(d.map)
@@ -110,6 +112,7 @@ export function useMapDraft(mapId: string) {
   )
 
   const touch = () => {
+    editVersion.current++
     setDirty(true)
     setJustSaved(false)
     setSaveError('')
@@ -223,6 +226,7 @@ export function useMapDraft(mapId: string) {
     if (!map || saving) return null
     setSaving(true)
     setSaveError('')
+    const startVersion = editVersion.current
     try {
       await saveMap({
         id: map.id,
@@ -272,8 +276,27 @@ export function useMapDraft(mapId: string) {
       }
 
       const fresh = await getMap(map.id)
-      if (fresh) apply(fresh)
-      setJustSaved(true)
+      if (editVersion.current !== startVersion) {
+        // 저장하는 사이에 더 고쳤다 → 화면은 그대로 두고 임시 id 만 실제 id 로 바꾼다 (고친 내용은 다음 저장에)
+        const real = (id: string) => idMap[id] ?? id
+        setPins((ps) => ps.map((p) => (idMap[p.id] ? { ...p, id: idMap[p.id], mapId: map.id } : p)))
+        setLegDrafts((d) =>
+          Object.fromEntries(
+            Object.entries(d).map(([key, leg]) => {
+              const [from, to] = key.split('>')
+              return [pairKey(real(from), real(to)), leg]
+            }),
+          ),
+        )
+        setRemovedPinIds((ids) => ids.filter((id) => !removedPinIds.includes(id)))
+        if (fresh) {
+          serverLegs.current = fresh.legs
+          setLoadedLegs(fresh.legs)
+        }
+      } else {
+        if (fresh) apply(fresh)
+        setJustSaved(true)
+      }
       return idMap
     } catch (e) {
       setSaveError(e instanceof Error ? e.message : '저장하지 못했어요. 잠시 후 다시 시도해 주세요.')

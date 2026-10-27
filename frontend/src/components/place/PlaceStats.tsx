@@ -32,7 +32,7 @@ export function StarInput({ value, onChange }: { value: number; onChange: (v: nu
           aria-checked={value === n}
           aria-label={`${n}점`}
           onClick={() => onChange(n)}
-          className={`text-[28px] leading-none transition hover:scale-110 ${n <= value ? 'text-amber-400' : 'text-(--c-muted)/30'}`}
+          className={`text-[1.75rem] leading-none transition hover:scale-110 ${n <= value ? 'text-amber-400' : 'text-(--c-muted)/30'}`}
         >
           ★
         </button>

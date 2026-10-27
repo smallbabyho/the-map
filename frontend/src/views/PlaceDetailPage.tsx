@@ -134,8 +134,8 @@ export function PlaceDetailPage() {
                       <Link href={`/maps/${s.map.id}`} className="tm-card block overflow-hidden rounded-2xl">
                         <MapThumb id={s.map.id} theme={s.map.theme} cover={s.map.coverUrl} dots={s.pinCount} className="h-28" />
                         <div className="p-4">
-                          <h3 className="truncate text-[15px] font-bold">{s.map.title || '제목 없는 지도'}</h3>
-                          <p className="mt-1 flex items-center gap-1.5 text-[13px] text-(--c-muted)">
+                          <h3 className="truncate text-[0.9375rem] font-bold">{s.map.title || '제목 없는 지도'}</h3>
+                          <p className="mt-1 flex items-center gap-1.5 text-[0.8125rem] text-(--c-muted)">
                             <Avatar id={s.owner.id} nickname={s.owner.nickname} src={s.owner.avatarUrl} size={18} />
                             {s.owner.nickname} · 장소 {s.pinCount}곳
                           </p>
@@ -196,7 +196,7 @@ function ReviewForm({ placeId, mine, onSaved }: { placeId: string; mine: PlaceRe
           onChange={(e) => setBody(e.target.value)}
           maxLength={REVIEW_MAX}
           placeholder="한 줄 후기 (선택)"
-          className="h-11 min-w-0 flex-1 rounded-xl border border-(--c-border) bg-transparent px-3 text-[15px] outline-none focus:border-(--c-accent)"
+          className="h-11 min-w-0 flex-1 rounded-xl border border-(--c-border) bg-transparent px-3 text-[0.9375rem] outline-none focus:border-(--c-accent)"
           aria-label="한 줄 후기"
         />
         <button type="submit" disabled={saving || !rating} className="h-11 shrink-0 rounded-xl bg-(--c-accent) px-4 text-sm font-semibold text-(--c-accent-text) transition disabled:opacity-40">
@@ -246,7 +246,7 @@ function ReviewItem({ review: r, canDelete, canReport, onDeleted, onError }: { r
             )}
           </span>
         </div>
-        {r.body && <p className="mt-1 break-words text-[15px]">{r.body}</p>}
+        {r.body && <p className="mt-1 break-words text-[0.9375rem]">{r.body}</p>}
         {r.hidden && <p className="mt-1.5 rounded-lg bg-amber-500/10 px-2.5 py-1.5 text-xs text-amber-700">신고가 여러 번 들어와서 다른 사람에게는 숨겨졌어요. 관리자가 확인한 뒤 다시 보일 수 있어요.</p>}
       </div>
     </li>

@@ -111,7 +111,7 @@ export function ReportDialog({ subject, onClose }: { subject: ReportSubject; onC
               type="button"
               onClick={send}
               disabled={busy || (isBug && !detail.trim())}
-              className="mt-4 h-12 w-full rounded-xl bg-(--c-accent) text-[15px] font-bold text-(--c-accent-text) disabled:opacity-50"
+              className="mt-4 h-12 w-full rounded-xl bg-(--c-accent) text-[0.9375rem] font-bold text-(--c-accent-text) disabled:opacity-50"
             >
               {busy ? '보내는 중…' : isBug ? '보내기' : '신고하기'}
             </button>

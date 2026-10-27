@@ -48,7 +48,7 @@ export function AppearanceButton({ variant }: { variant: 'map' | 'rail' }) {
           aria-label={label}
           aria-expanded={open}
           title={label}
-          className="flex w-14 flex-col items-center gap-1 rounded-xl py-2 text-[11px] font-medium text-(--c-muted) transition hover:bg-black/5 hover:text-(--c-text)"
+          className="flex w-14 flex-col items-center gap-1 rounded-xl py-2 text-[0.6875rem] font-medium text-(--c-muted) transition hover:bg-black/5 hover:text-(--c-text)"
         >
           <Icon size={20} />
           {LABEL[pref]}

@@ -16,6 +16,7 @@ import { KakaoDirectionsLink } from '../components/map/KakaoDirections'
 import { placeHref } from '../components/place/PlaceStats'
 import { KakaoShareButton } from '../components/share/KakaoShareButton'
 import { StoryCardButton } from '../components/share/StoryCardButton'
+import { ExportMapButton } from '../components/share/ExportMapButton'
 import { ReportButton } from '../components/report/ReportDialog'
 import { TransitSteps } from '../components/TransitSteps'
 import { copyMap, getUser } from '../db/api'
@@ -133,6 +134,7 @@ export function MapViewer({ detail }: { detail: MapDetail }) {
             onError={setError}
           />
           <StoryCardButton className="mt-2" data={{ map, pins, legs, theme, ownerName: owner?.nickname }} />
+          <ExportMapButton className="mt-2" data={{ map, pins, legs }} />
           <p className="mt-2 text-xs text-(--c-muted)">가져오거나 이 지도로 순례하면 이번 달 지도 순위에 반영돼요.</p>
           {error && <p role="alert" className="mt-3 rounded-xl bg-red-500/10 px-3 py-2.5 text-sm text-red-600">{error}</p>}
           {me && me.id !== map.ownerId && (
@@ -159,11 +161,11 @@ export function MapViewer({ detail }: { detail: MapDetail }) {
                   >
                     <span className="relative grid size-10 shrink-0 place-items-center rounded-full text-lg shadow-sm ring-2 ring-(--c-surface)" style={{ background: p.color }}>
                       {p.icon}
-                      <span className="absolute -right-1 -top-1 grid h-[18px] min-w-[18px] place-items-center rounded-full bg-gray-900 px-1 text-[10px] font-bold text-white ring-2 ring-(--c-surface)">{i + 1}</span>
+                      <span className="absolute -right-1 -top-1 grid h-[18px] min-w-[18px] place-items-center rounded-full bg-gray-900 px-1 text-[0.625rem] font-bold text-white ring-2 ring-(--c-surface)">{i + 1}</span>
                     </span>
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-[15px] font-semibold">{p.place.name}</span>
-                      {p.memo && <span className="block truncate text-[13px] text-(--c-muted)">{p.memo}</span>}
+                      <span className="block truncate text-[0.9375rem] font-semibold">{p.place.name}</span>
+                      {p.memo && <span className="block truncate text-[0.8125rem] text-(--c-muted)">{p.memo}</span>}
                     </span>
                     {p.photoUrl && (
                       // eslint-disable-next-line @next/next/no-img-element -- data URL/외부 URL 미리보기
@@ -174,9 +176,9 @@ export function MapViewer({ detail }: { detail: MapDetail }) {
                     <Link
                       href={placeHref(p.place.externalId)}
                       title={`${p.place.name} 리뷰 · 담긴 횟수`}
-                      className="flex shrink-0 flex-col items-center gap-0.5 rounded-xl px-2 py-1.5 text-[11px] font-semibold text-(--c-muted) transition hover:bg-amber-400/20 hover:text-(--c-text)"
+                      className="flex shrink-0 flex-col items-center gap-0.5 rounded-xl px-2 py-1.5 text-[0.6875rem] font-semibold text-(--c-muted) transition hover:bg-amber-400/20 hover:text-(--c-text)"
                     >
-                      <span className="text-[17px] leading-[18px] text-amber-400" aria-hidden>★</span>
+                      <span className="text-[1.0625rem] leading-[18px] text-amber-400" aria-hidden>★</span>
                       리뷰
                     </Link>
                   )}

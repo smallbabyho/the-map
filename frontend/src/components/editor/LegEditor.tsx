@@ -34,7 +34,7 @@ export function LegEditor({ leg, from, to, onChange }: Props) {
               role="radio"
               aria-checked={on}
               onClick={() => onChange({ mode: m.id })}
-              className={`flex h-10 items-center justify-center gap-1 rounded-lg text-[13px] font-semibold transition ${
+              className={`flex h-10 items-center justify-center gap-1 rounded-lg text-[0.8125rem] font-semibold transition ${
                 on ? 'bg-(--c-surface) text-(--c-text) shadow-sm ring-1 ring-(--c-accent)/40' : 'text-(--c-muted) hover:bg-(--c-surface)/60 hover:text-(--c-text)'
               }`}
             >
@@ -46,18 +46,18 @@ export function LegEditor({ leg, from, to, onChange }: Props) {
           )
         })}
       </div>
-      <p className="mt-1.5 flex items-center gap-1.5 text-[13px]">
+      <p className="mt-1.5 flex items-center gap-1.5 text-[0.8125rem]">
         {route ? (
           <>
             <b className="font-bold">{leg.durationMin != null ? formatMinutes(leg.durationMin) : '–'}</b>
             <span className="text-(--c-muted)">· {formatDistance(route.distanceM)}</span>
             {route.estimated && (
-              <span className="rounded bg-black/[0.05] px-1 py-px text-[10px] text-(--c-muted)" title={route.note ?? (leg.mode === 'transit' ? '직선거리로 예상한 시간이에요' : '길찾기에 실패해 직선거리로 예상했어요')}>
+              <span className="rounded bg-black/[0.05] px-1 py-px text-[0.625rem] text-(--c-muted)" title={route.note ?? (leg.mode === 'transit' ? '직선거리로 예상한 시간이에요' : '길찾기에 실패해 직선거리로 예상했어요')}>
                 예상
               </span>
             )}
             {route.note && (
-              <span className="truncate text-[11px] text-amber-600">⚠️ {route.note}</span>
+              <span className="truncate text-[0.6875rem] text-amber-600">⚠️ {route.note}</span>
             )}
           </>
         ) : (

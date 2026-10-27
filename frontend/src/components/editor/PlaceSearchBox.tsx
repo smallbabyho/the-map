@@ -78,7 +78,7 @@ export function PlaceSearchBox({ onPick }: Props) {
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => e.key === 'Escape' && clear()}
           placeholder={hasKakaoKey ? '장소, 주소 검색' : '샘플 장소 검색 (예: 카페, 공원, 성수)'}
-          className="min-w-0 flex-1 bg-transparent text-[15px] outline-none placeholder:text-(--c-muted)/80"
+          className="min-w-0 flex-1 bg-transparent text-[0.9375rem] outline-none placeholder:text-(--c-muted)/80"
           enterKeyHint="search"
           aria-label="장소 검색"
         />
@@ -118,10 +118,10 @@ export function PlaceSearchBox({ onPick }: Props) {
                   >
                     <div className="min-w-0 flex-1">
                       <div className="flex items-baseline gap-2">
-                        <span className="truncate text-[15px] font-semibold">{r.name}</span>
+                        <span className="truncate text-[0.9375rem] font-semibold">{r.name}</span>
                         {r.category && <span className="shrink-0 text-xs text-(--c-muted)">{r.category}</span>}
                       </div>
-                      <p className="mt-0.5 truncate text-[13px] text-(--c-muted)">{r.address}</p>
+                      <p className="mt-0.5 truncate text-[0.8125rem] text-(--c-muted)">{r.address}</p>
                     </div>
                     <span className="grid size-8 shrink-0 place-items-center rounded-full border border-(--c-border) text-(--c-accent)">
                       <PlusIcon size={16} />

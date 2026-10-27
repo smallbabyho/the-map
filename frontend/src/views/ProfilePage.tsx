@@ -28,10 +28,11 @@ import {
 import { ReportButton } from '../components/report/ReportDialog'
 import { EmojiPicker } from '../components/EmojiPicker'
 import { ImageCropDialog } from '../components/ImageCropDialog'
-import { getBlockedUsers, getProfile, saveProfileDeco, setBlocked, updateMyProfile, uploadAvatar, uploadPinPhoto } from '../db/api'
-import type { MapCardStyle, ProfileDecoInput, ProfilePage as ProfileData, ProfileSections, PublicMapSummary, Sticker, StickerKind, User } from '../types'
+import { getBadgeStats, getBlockedUsers, getProfile, saveProfileDeco, setBlocked, updateMyProfile, uploadAvatar, uploadPinPhoto } from '../db/api'
+import type { BadgeStats, MapCardStyle, ProfileDecoInput, ProfilePage as ProfileData, ProfileSections, PublicMapSummary, Sticker, StickerKind, User } from '../types'
 import { mapCategoryText } from '../components/mapCategories'
 import { mapPurpose } from '../components/mapPurpose'
+import { Achievements, earnedBadgeCount } from '../components/profile/Achievements'
 
 const newId = () => (typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `s-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`)
 
@@ -67,7 +68,8 @@ export function ProfilePage() {
   const [nickname, setNickname] = useState('')
   const [selected, setSelected] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
-  const [tab, setTab] = useState<'maps' | 'diary'>('maps')
+  const [tab, setTab] = useState<'maps' | 'diary' | 'badges'>('maps')
+  const [badgeStats, setBadgeStats] = useState<BadgeStats | null>(null)
 
   const isMe = !!me && me.id === userId
   const [blocked, setBlockedState] = useState(false)
@@ -96,6 +98,10 @@ export function ProfilePage() {
     getProfile(userId)
       .then((d) => !cancelled && setData(d))
       .catch((e: unknown) => !cancelled && setError(e instanceof Error ? e.message : '프로필을 불러오지 못했어요.'))
+    // 배지는 못 불러와도 프로필은 그대로 보인다
+    getBadgeStats(userId)
+      .then((s) => !cancelled && setBadgeStats(s))
+      .catch(() => {})
     return () => {
       cancelled = true
     }
@@ -211,7 +217,7 @@ export function ProfilePage() {
               {deco.sections.intro && deco.mood && (
                 <p className="mt-4 inline-block -rotate-1 rounded-full bg-(--c-lime) px-3.5 py-1.5 text-sm font-bold text-gray-900">💭 {deco.mood}</p>
               )}
-              {deco.sections.intro && deco.bio && <p className="mt-3 max-w-xl whitespace-pre-line text-[15px] leading-relaxed">{deco.bio}</p>}
+              {deco.sections.intro && deco.bio && <p className="mt-3 max-w-xl whitespace-pre-line text-[0.9375rem] leading-relaxed">{deco.bio}</p>}
               {!deco.bio && !deco.mood && isMe && !draft && (
                 <button type="button" onClick={startEdit} className="mt-3 text-sm font-semibold text-(--c-accent) hover:underline">
                   + 소개글과 오늘의 한마디를 남겨 보세요
@@ -227,6 +233,7 @@ export function ProfilePage() {
                 [
                   ['maps', '지도', data.maps.length],
                   ['diary', '다이어리', null],
+                  ['badges', '업적', badgeStats ? earnedBadgeCount(badgeStats) : null],
                 ] as const
               ).map(([id, label, count]) => (
                 <button
@@ -236,7 +243,7 @@ export function ProfilePage() {
                   aria-selected={showTab === id}
                   disabled={!!draft}
                   onClick={() => setTab(id)}
-                  className={`-mb-px border-b-2 pb-3 text-[15px] font-bold transition ${showTab === id ? 'border-(--c-accent) text-(--c-text)' : 'border-transparent text-(--c-muted) hover:text-(--c-text)'}`}
+                  className={`-mb-px border-b-2 pb-3 text-[0.9375rem] font-bold transition ${showTab === id ? 'border-(--c-accent) text-(--c-text)' : 'border-transparent text-(--c-muted) hover:text-(--c-text)'}`}
                 >
                   {label}
                   {count != null && <span className="ml-1.5 font-mono text-xs text-(--c-muted)">{count}</span>}
@@ -254,7 +261,7 @@ export function ProfilePage() {
                       <Link href={`/maps/${m.map.id}`} className="tm-card block overflow-hidden rounded-2xl">
                         <MapThumb id={m.map.id} theme={m.map.theme} cover={m.map.coverUrl} dots={m.pinCount} className="h-40">
                           {data.deco.pinnedMapIds.includes(m.map.id) && (
-                            <span className="absolute left-3 top-3 rounded-full bg-(--c-ink) px-2.5 py-1 font-mono text-[10px] font-bold uppercase tracking-wider text-(--c-bg)">📌 pinned</span>
+                            <span className="absolute left-3 top-3 rounded-full bg-(--c-ink) px-2.5 py-1 font-mono text-[0.625rem] font-bold uppercase tracking-wider text-(--c-bg)">📌 pinned</span>
                           )}
                         </MapThumb>
                         <div className="border-t border-(--c-border) px-4 py-3">
@@ -266,6 +273,8 @@ export function ProfilePage() {
                   ))}
                 </ul>
               )
+            ) : showTab === 'badges' ? (
+              <Achievements stats={badgeStats} isMe={isMe} />
             ) : (
               <div className={`mt-6 ${draft ? 'grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start' : ''}`}>
                 <DiaryBoard
@@ -324,7 +333,7 @@ function ProfileBanner({ deco, editing, onBanner, onError }: { deco: ProfileDeco
           <div className="absolute -right-10 -top-16 size-64 rounded-full bg-(--c-accent) opacity-80 mix-blend-multiply [:root[data-mode=dark]_&]:opacity-45 [:root[data-mode=dark]_&]:mix-blend-normal" aria-hidden />
           <div className="absolute -bottom-20 left-1/3 size-56 rounded-full bg-(--c-sky) opacity-70 mix-blend-multiply [:root[data-mode=dark]_&]:opacity-45 [:root[data-mode=dark]_&]:mix-blend-normal" aria-hidden />
           <div className="absolute -left-8 top-6 size-36 rotate-12 rounded-[40%] bg-(--c-lime) opacity-80 mix-blend-multiply [:root[data-mode=dark]_&]:opacity-45 [:root[data-mode=dark]_&]:mix-blend-normal" aria-hidden />
-          <p className="absolute bottom-3 right-5 font-mono text-[11px] font-bold uppercase tracking-[0.2em] opacity-60">my concept map ® diary</p>
+          <p className="absolute bottom-3 right-5 font-mono text-[0.6875rem] font-bold uppercase tracking-[0.2em] opacity-60">my concept map ® diary</p>
         </>
       )}
       {editing && (
@@ -873,7 +882,7 @@ function Field({ label, count, children }: { label: string; count?: string; chil
     <div>
       <div className="mb-2 flex items-center justify-between">
         <p className="text-xs font-semibold text-(--c-muted)">{label}</p>
-        {count && <p className="text-[11px] text-(--c-muted)">{count}</p>}
+        {count && <p className="text-[0.6875rem] text-(--c-muted)">{count}</p>}
       </div>
       {children}
     </div>

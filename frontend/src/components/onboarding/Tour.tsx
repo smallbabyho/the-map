@@ -188,11 +188,11 @@ export function Tour({ id, userId, steps }: Props) {
             aria-hidden
           />
         )}
-        <p className="font-mono text-[11px] font-bold text-(--c-accent)">
+        <p className="font-mono text-[0.6875rem] font-bold text-(--c-accent)">
           {index + 1} / {steps.length}
         </p>
-        <h2 className="mt-1 text-[15px] font-bold">{step.title}</h2>
-        <p className="mt-1 text-[13px] leading-relaxed text-(--c-muted)">{step.body}</p>
+        <h2 className="mt-1 text-[0.9375rem] font-bold">{step.title}</h2>
+        <p className="mt-1 text-[0.8125rem] leading-relaxed text-(--c-muted)">{step.body}</p>
         <div className="mt-3 flex items-center justify-between">
           {last ? (
             <span />

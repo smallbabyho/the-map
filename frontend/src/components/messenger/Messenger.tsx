@@ -137,7 +137,7 @@ function MessengerFor({ me }: { me: User }) {
                                 {formatMeetAt(m.meetAt)} · {m.meetPoint}
                               </span>
                             </span>
-                            <span className="shrink-0 rounded-full bg-(--c-accent) px-2 py-0.5 text-[11px] font-bold text-(--c-accent-text)">
+                            <span className="shrink-0 rounded-full bg-(--c-accent) px-2 py-0.5 text-[0.6875rem] font-bold text-(--c-accent-text)">
                               {Date.parse(m.meetAt) < loadedAt ? '진행 중' : dday(m.meetAt)}
                             </span>
                           </button>
@@ -156,7 +156,7 @@ function MessengerFor({ me }: { me: User }) {
                                   <span className="block truncate font-semibold">{m.title || '제목 없는 지도'}</span>
                                   <span className="block text-xs text-(--c-muted)">{formatPlanDate(m.plannedDate!)}</span>
                                 </span>
-                                <span className="shrink-0 rounded-full border border-(--c-accent) px-2 py-0.5 text-[11px] font-bold text-(--c-accent)">{planDday(m.plannedDate!)}</span>
+                                <span className="shrink-0 rounded-full border border-(--c-accent) px-2 py-0.5 text-[0.6875rem] font-bold text-(--c-accent)">{planDday(m.plannedDate!)}</span>
                               </Link>
                             </li>
                           ))}
@@ -180,7 +180,7 @@ function MessengerFor({ me }: { me: User }) {
       >
         {open ? <CloseIcon size={22} /> : '💬'}
         {!open && count > 0 && (
-          <span className="absolute -right-0.5 -top-0.5 grid h-5 min-w-5 place-items-center rounded-full bg-red-500 px-1 text-[11px] font-bold text-white ring-2 ring-(--c-bg)">{count}</span>
+          <span className="absolute -right-0.5 -top-0.5 grid h-5 min-w-5 place-items-center rounded-full bg-red-500 px-1 text-[0.6875rem] font-bold text-white ring-2 ring-(--c-bg)">{count}</span>
         )}
       </button>
     </>

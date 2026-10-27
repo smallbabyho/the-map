@@ -6,6 +6,7 @@ import { AppRail, MobileTabBar } from '../components/AppRail'
 import { MapCard } from '../components/MapCard'
 import { PlusIcon, TrashIcon } from '../components/icons'
 import { Tour, type TourStep } from '../components/onboarding/Tour'
+import { InstallAppButton, useIsStandalone } from '../components/pwa'
 import { useCurrentUser } from '../auth'
 import { deleteMap, getMyMaps, removeMapEditor, saveMap } from '../db/api'
 import { LandingPage } from './LandingPage'
@@ -21,6 +22,13 @@ const HOME_TOUR: TourStep[] = [
   { target: 'nav-profile', title: '내 프로필', body: '다이어리처럼 꾸미고, 공개한 지도를 모아 보여줘요.' },
 ]
 
+/** 첫 안내 마지막: 홈 화면 앱으로 설치 (이미 앱으로 열었으면 빼고) */
+const INSTALL_STEP: TourStep = {
+  title: '📱 앱으로 설치해요',
+  body: '홈 화면에 아이콘을 두면 앱처럼 바로 열려요. 나중에 ☰ 메뉴에서도 할 수 있어요.',
+  action: <InstallAppButton className="tm-btn h-9 w-full rounded-full bg-(--c-surface) text-xs font-bold ring-1 ring-(--c-border)" />,
+}
+
 export function MyMapsPage() {
   const router = useRouter()
   const user = useCurrentUser()
@@ -28,6 +36,7 @@ export function MyMapsPage() {
   const [error, setError] = useState('')
   const [creating, setCreating] = useState<MapPurpose | null>(null)
   const [filter, setFilter] = useState<MapPurpose | 'all'>('all')
+  const standalone = useIsStandalone()
   /** 여러 개 골라 한 번에 지우기. null 이면 고르는 중이 아님 */
   const [selected, setSelected] = useState<Set<string> | null>(null)
   const [removing, setRemoving] = useState(false)
@@ -119,7 +128,7 @@ export function MyMapsPage() {
     <div className="relative min-h-dvh pb-16 pt-14 md:pb-0">
       <AppRail active="maps" />
       <MobileTabBar active="maps" />
-      <Tour id="home" userId={user?.id} steps={HOME_TOUR} />
+      <Tour id="home" userId={user?.id} steps={standalone ? HOME_TOUR : [...HOME_TOUR, INSTALL_STEP]} />
 
       <main className="mx-auto max-w-6xl px-4 pb-16 pt-8 md:px-10 md:pt-14">
         <div className="flex flex-wrap items-end justify-between gap-6 border-b border-(--c-ink) pb-6">

@@ -9,6 +9,19 @@ const nextConfig: NextConfig = {
   devIndicators: false,
   cacheComponents: true,
   partialPrefetching: true,
+  // 서비스 워커(public/sw.js)는 항상 새로 받게 (예전 것이 남아 앱이 안 바뀌는 일이 없게)
+  async headers() {
+    return [
+      {
+        source: "/sw.js",
+        headers: [
+          { key: "Content-Type", value: "application/javascript; charset=utf-8" },
+          { key: "Cache-Control", value: "no-cache, no-store, must-revalidate" },
+          { key: "Content-Security-Policy", value: "default-src 'self'; script-src 'self'" },
+        ],
+      },
+    ];
+  },
   async redirects() {
     return [
       // 관리자 화면은 /customers 로 옮겼다. 예전 주소로 들어와도 넘겨준다.

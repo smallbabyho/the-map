@@ -1,6 +1,7 @@
 'use client'
 
 import { useSyncExternalStore } from 'react'
+import { withThemeTransition } from './themeTransition'
 import { APPEARANCE_STORAGE_KEY as STORAGE_KEY, SUN_BASE as BASE } from './appearanceScript'
 
 // 라이트 / 다크 화면. 보는 사람마다 고르고(브라우저에 저장), 기본은 '자동' = 일출~일몰은 라이트, 밤은 다크.
@@ -86,23 +87,15 @@ export function syncAppearance() {
   apply(readPref())
 }
 
-/**
- * 라이트 · 다크 · 자동 바꾸기. 바뀌면 페이지를 새로고침한다:
- * 지도 타일 · 캔버스 등 일부 요소가 그 자리에서 색을 다 못 따라와 어색하게 남아서, 처음부터 그 모드로 다시 그린다.
- * (새로고침 직후엔 <head> 스크립트가 저장된 설정을 먼저 적용해서 깜빡이지 않는다. 저장 안 한 편집이 있으면 브라우저가 먼저 묻는다)
- */
 export function setAppearancePref(pref: AppearancePref) {
-  const before = readPref()
   try {
     if (pref === 'auto') localStorage.removeItem(STORAGE_KEY)
     else localStorage.setItem(STORAGE_KEY, pref)
   } catch {
-    // 저장을 못 해도 이번 화면에는 적용 (새로고침하면 설정이 사라지니 하지 않는다)
-    apply(pref)
-    return
+    // 저장을 못 해도 이번 화면에는 적용
   }
-  apply(pref)
-  if (pref !== before) window.location.reload()
+  // 직접 바꿀 때만 천천히 (1분마다 자동으로 맞추는 syncAppearance 는 그대로)
+  withThemeTransition(() => apply(pref))
 }
 
 function subscribe(l: () => void) {

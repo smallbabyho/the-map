@@ -115,11 +115,11 @@ export function MapLookPanel({ look, coverUrl, onChange, theme, onTheme, categor
                 <svg width="44" height="14" aria-hidden>
                   {l.id === 'auto' ? (
                     <>
-                      <line x1="3" y1="7" x2="18" y2="7" stroke="var(--c-accent)" strokeWidth="3" strokeLinecap="round" strokeDasharray="0.1 5" />
-                      <line x1="24" y1="7" x2="41" y2="7" stroke="var(--c-accent)" strokeWidth="3" strokeLinecap="round" />
+                      <line x1="3" y1="7" x2="18" y2="7" strokeWidth="3" strokeLinecap="round" strokeDasharray="0.1 5" style={{ stroke: 'var(--c-accent)' }} />
+                      <line x1="24" y1="7" x2="41" y2="7" strokeWidth="3" strokeLinecap="round" style={{ stroke: 'var(--c-accent)' }} />
                     </>
                   ) : (
-                    <line x1="3" y1="7" x2="41" y2="7" stroke="var(--c-accent)" strokeWidth="3" strokeLinecap="round" strokeDasharray={l.dash} />
+                    <line x1="3" y1="7" x2="41" y2="7" strokeWidth="3" strokeLinecap="round" strokeDasharray={l.dash} style={{ stroke: 'var(--c-accent)' }} />
                   )}
                 </svg>
                 {l.name}

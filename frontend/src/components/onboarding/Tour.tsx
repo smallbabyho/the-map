@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { getSeenTours, rememberTourSeen } from '../../auth'
 
@@ -13,6 +13,8 @@ export interface TourStep {
   target?: string
   title: string
   body: string
+  /** 설명 아래에 넣을 버튼 등 (예: 앱으로 설치) */
+  action?: ReactNode
 }
 
 interface Props {
@@ -193,6 +195,7 @@ export function Tour({ id, userId, steps }: Props) {
         </p>
         <h2 className="mt-1 text-[0.9375rem] font-bold">{step.title}</h2>
         <p className="mt-1 text-[0.8125rem] leading-relaxed text-(--c-muted)">{step.body}</p>
+        {step.action && <div className="mt-3">{step.action}</div>}
         <div className="mt-3 flex items-center justify-between">
           {last ? (
             <span />

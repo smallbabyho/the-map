@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { signOut, useCurrentUser } from '../auth'
 import type { User } from '../types'
+import { InstallAppButton } from './pwa'
 import { setAppearancePref, useAppearance, type AppearancePref } from './appearance'
 import { Avatar } from './Avatar'
 import { SiteColorPicker } from './SiteColorPicker'
@@ -236,6 +237,7 @@ function MainMenu({ user }: { user: User | null }) {
             <SiteColorPicker />
           </div>
 
+          <InstallAppButton className={`${item} w-full text-left`} onDone={close} />
           <button type="button" onClick={() => (setBug(true), close())} className={item}>
             문제 제보 · 신고 <span aria-hidden>🛠️</span>
           </button>

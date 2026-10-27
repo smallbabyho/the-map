@@ -4,17 +4,25 @@ import "./globals.css";
 import { EARLY_APPEARANCE_SCRIPT } from "@/src/components/appearanceScript";
 import { AppearanceSync } from "@/src/components/AppearanceSync";
 import { Messenger } from "@/src/components/messenger/Messenger";
+import { PwaSetup } from "@/src/components/pwa";
 
 export const metadata: Metadata = {
   // 각 페이지는 '성지순례' 처럼 앞부분만 정하면 뒤에 사이트 이름이 붙는다
   title: { default: "My Concept Map", template: "%s · My Concept Map" },
   description: "지도 위에 펼쳐지는 나만의 세상, My Concept Map",
+  // 홈 화면 앱(PWA): 아이폰에서 전체 화면으로 열리게. 앱 정보는 app/manifest.ts
+  appleWebApp: { capable: true, title: "Concept Map", statusBarStyle: "default" },
 };
 
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
+  // 폰 상단 상태바 · 앱 전환 화면 색 (배경색과 같게)
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#f2eee4" },
+    { media: "(prefers-color-scheme: dark)", color: "#0e0e0d" },
+  ],
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
@@ -38,6 +46,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <body className="min-h-full">
         {children}
         <AppearanceSync />
+        <PwaSetup />
         {/* 💬 떠 있는 버튼: 주소(usePathname)를 읽어서 Suspense 안에 둔다 (Cache Components 에서 페이지를 막지 않게) */}
         <Suspense fallback={null}>
           <Messenger />

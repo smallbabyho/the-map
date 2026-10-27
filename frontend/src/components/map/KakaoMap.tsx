@@ -214,6 +214,7 @@ export function KakaoMap({ pins, segments, theme, look = DEFAULT_LOOK, selectedP
     knownPinIds.current = new Set(list.map((p) => p.id))
     if (!known) return fitAll()
     const added = list.filter((p) => !known.has(p.id))
+    if (added.length > 1) return fitAll() // 링크로 한 번에 여러 곳을 넣었으면 전체가 보이게
     if (added.length !== 1) return
     const { lat, lng } = added[0].place
     if (map.getLevel() > FOCUS_LEVEL) {

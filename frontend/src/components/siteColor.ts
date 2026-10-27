@@ -2,6 +2,7 @@
 
 import { useSyncExternalStore } from 'react'
 import { SITE_COLOR_STORAGE_KEY as STORAGE_KEY } from './appearanceScript'
+import { withThemeTransition } from './themeTransition'
 
 // 화면 색 테마: 사이트 강조색 + 라이트 화면 배경 틴트. 라이트 / 다크와는 따로 고른다 (보는 사람마다, 브라우저에 저장).
 // 실제 색은 app/globals.css 의 :root[data-color='…'] 에서 바뀐다. 여기서는 <html data-color> 만 정한다.
@@ -42,8 +43,10 @@ export function setSiteColor(color: SiteColor) {
   } catch {
     // 저장 못 해도 이번 화면에는 적용
   }
-  document.documentElement.dataset.color = color
-  listeners.forEach((fn) => fn())
+  withThemeTransition(() => {
+    document.documentElement.dataset.color = color
+    listeners.forEach((fn) => fn())
+  })
 }
 
 /** 지금 고른 색 테마 */

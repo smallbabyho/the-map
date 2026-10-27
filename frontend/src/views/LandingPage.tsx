@@ -5,6 +5,8 @@ import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { useCurrentUser } from '../auth'
 import { AppRail, MobileTabBar } from '../components/AppRail'
 import { MapThumb } from '../components/MapThumb'
+import { useAppearance } from '../components/appearance'
+import { useSiteColor } from '../components/siteColor'
 import { useReveal, useScrollProgress } from '../components/useReveal'
 import { getMonthlyRanking } from '../db/api'
 import type { MapRankingEntry } from '../types'
@@ -307,37 +309,40 @@ function MapPaper({ children, tint = '#ff5a2b' }: { children?: React.ReactNode; 
     [10, 168, 58, 34], [196, 160, 70, 46], [276, 170, 50, 30], [338, 162, 56, 44],
     [168, 300, 62, 40], [244, 296, 74, 36], [332, 290, 60, 44], [96, 304, 50, 30],
   ]
+  // 라이트 · 다크 · 색 테마가 바뀌면 그림을 새로 만든다: 브라우저가 SVG 무늬(pattern)를 캐시해서 예전 색이 남는 경우가 있다
+  const { mode } = useAppearance()
+  const color = useSiteColor()
   return (
-    <svg viewBox="0 0 400 440" className="block h-auto w-full" role="img" aria-label="My Concept Map 예시 (성수동 코스)">
+    <svg key={`${mode}-${color}`} viewBox="0 0 400 440" className="block h-auto w-full" role="img" aria-label="My Concept Map 예시 (성수동 코스)">
       <defs>
         <pattern id="tm-grid" width="22" height="22" patternUnits="userSpaceOnUse">
           <path d="M22 0H0V22" fill="none" stroke="currentColor" strokeOpacity="0.05" />
         </pattern>
         <pattern id="tm-wave" width="26" height="10" patternUnits="userSpaceOnUse">
-          <path d="M0 6 Q 6.5 1, 13 6 T 26 6" fill="none" stroke="var(--paper-wave)" strokeOpacity="0.7" strokeWidth="1.4" />
+          <path d="M0 6 Q 6.5 1, 13 6 T 26 6" fill="none" strokeOpacity="0.7" strokeWidth="1.4" style={{ stroke: 'var(--paper-wave)' }} />
         </pattern>
       </defs>
-      <rect width="400" height="440" fill="var(--paper-bg)" />
+      <rect width="400" height="440" style={{ fill: 'var(--paper-bg)' }} />
       <rect width="400" height="440" fill={tint} fillOpacity="0.05" style={{ transition: 'fill 0.6s' }} />
       <rect width="400" height="440" fill="url(#tm-grid)" />
 
       {/* 건물 */}
       {blocks.map(([x, y, w, h], i) => (
-        <rect key={i} x={x} y={y} width={w} height={h} rx="5" fill={`var(--paper-block-${(i % 3) + 1})`} stroke="var(--paper-block-line)" strokeWidth="1" />
+        <rect key={i} x={x} y={y} width={w} height={h} rx="5" strokeWidth="1" style={{ fill: `var(--paper-block-${(i % 3) + 1})`, stroke: 'var(--paper-block-line)' }} />
       ))}
 
       {/* 서울숲 */}
-      <path d="M-10 196 C 30 186, 70 196, 96 214 C 110 250, 96 282, 60 292 C 26 300, -4 290, -10 280 Z" fill="var(--paper-park)" />
-      <path d="M8 222 C 26 214, 48 220, 58 236 C 62 252, 44 262, 26 258 C 10 254, 2 240, 8 222 Z" fill="var(--paper-pond)" fillOpacity="0.8" />
+      <path d="M-10 196 C 30 186, 70 196, 96 214 C 110 250, 96 282, 60 292 C 26 300, -4 290, -10 280 Z" style={{ fill: 'var(--paper-park)' }} />
+      <path d="M8 222 C 26 214, 48 220, 58 236 C 62 252, 44 262, 26 258 C 10 254, 2 240, 8 222 Z" fillOpacity="0.8" style={{ fill: 'var(--paper-pond)' }} />
       <text x="20" y="282" fontSize="13">🌳</text>
       <text x="64" y="272" fontSize="15">🌳</text>
       <text x="74" y="230" fontSize="11">🌲</text>
-      <text x="40" y="210" fontFamily="var(--font-mono)" fontSize="7.5" fill="var(--paper-park-label)" letterSpacing="0.06em">SEOUL FOREST</text>
+      <text x="40" y="210" fontFamily="var(--font-mono)" fontSize="7.5" letterSpacing="0.06em" style={{ fill: 'var(--paper-park-label)' }} >SEOUL FOREST</text>
 
       {/* 한강 */}
-      <path d="M-10 384 C 70 350, 150 404, 240 372 S 370 330, 410 344 L410 450 L-10 450Z" fill="var(--paper-river)" />
+      <path d="M-10 384 C 70 350, 150 404, 240 372 S 370 330, 410 344 L410 450 L-10 450Z" style={{ fill: 'var(--paper-river)' }} />
       <path d="M-10 384 C 70 350, 150 404, 240 372 S 370 330, 410 344 L410 450 L-10 450Z" fill="url(#tm-wave)" />
-      <text x="300" y="408" fontFamily="var(--font-mono)" fontSize="8" fill="var(--paper-river-label)" letterSpacing="0.2em">HAN RIVER</text>
+      <text x="300" y="408" fontFamily="var(--font-mono)" fontSize="8" letterSpacing="0.2em" style={{ fill: 'var(--paper-river-label)' }} >HAN RIVER</text>
 
       {/* 도로: 흰 길 + 옅은 테두리 */}
       <g fill="none" strokeLinecap="round">
@@ -349,12 +354,12 @@ function MapPaper({ children, tint = '#ff5a2b' }: { children?: React.ReactNode; 
           ['M-10 64 L410 82', 8],
         ].map(([d, w]) => (
           <g key={d as string}>
-            <path d={d as string} stroke="var(--paper-road-edge)" strokeWidth={(w as number) + 2} />
-            <path d={d as string} stroke="var(--paper-road)" strokeWidth={w as number} />
+            <path d={d as string} strokeWidth={(w as number) + 2} style={{ stroke: 'var(--paper-road-edge)' }} />
+            <path d={d as string} strokeWidth={w as number} style={{ stroke: 'var(--paper-road)' }} />
           </g>
         ))}
       </g>
-      <g fontFamily="var(--font-mono)" fontSize="7" fill="var(--paper-road-label)" letterSpacing="0.08em">
+      <g fontFamily="var(--font-mono)" fontSize="7" letterSpacing="0.08em" style={{ fill: 'var(--paper-road-label)' }}>
         <text x="250" y="122" transform="rotate(-3.5 250 122)">TTUKSEOM-RO</text>
         <text x="150" y="40" transform="rotate(77 150 40)">SEONGSU-IRO</text>
         <text x="330" y="252" transform="rotate(-9 330 252)">YEONMUJANG-GIL</text>
@@ -387,7 +392,7 @@ function HeroMap() {
     <div className="relative mx-auto max-w-md">
       <div className="relative rotate-[1.5deg] overflow-hidden rounded-3xl border-[1.5px] border-(--c-ink) bg-(--c-surface) shadow-[8px_8px_0_var(--c-ink)]">
         <MapPaper>
-          <path id="tm-hero-route" d={ROUTE} fill="none" stroke="var(--paper-road)" strokeWidth="13" strokeLinecap="round" />
+          <path id="tm-hero-route" d={ROUTE} fill="none" strokeWidth="13" strokeLinecap="round" style={{ stroke: 'var(--paper-road)' }} />
           <path d={ROUTE} fill="none" stroke="#ff5a2b" strokeWidth="6" strokeLinecap="round" strokeDasharray="600" strokeDashoffset="600" className="animate-[tm-draw_2.4s_0.4s_cubic-bezier(.6,0,.2,1)_forwards]" />
           {/* 코스를 따라 걷는 사람 */}
           <g className="opacity-0 animate-[tm-fade-in_0.4s_2.8s_forwards]">
@@ -512,7 +517,7 @@ function ShareChat({ show }: { show: boolean }) {
         <div className="flex justify-end" style={appear(1)}>
           <div className="w-44 overflow-hidden rounded-xl bg-(--chat-bubble) text-(--chat-text) shadow-sm">
             <svg viewBox="0 0 400 440" className="block h-24 w-full" preserveAspectRatio="xMidYMid slice">
-              <rect width="400" height="440" fill="var(--chat-card-map)" />
+              <rect width="400" height="440" style={{ fill: 'var(--chat-card-map)' }} />
               <path d={ROUTE} fill="none" stroke="#ff5a2b" strokeWidth="10" strokeLinecap="round" />
               {PINS.map((p) => (
                 <circle key={p.e} cx={p.x} cy={p.y} r="22" fill={p.c} stroke="#fff" strokeWidth="6" />
@@ -581,8 +586,8 @@ function StepMap({ step }: { step: number }) {
               [290, 185, '🚌 9분'],
             ].map(([x, y, t]) => (
               <g key={t as string}>
-                <rect x={(x as number) - 34} y={(y as number) - 13} width="68" height="26" rx="13" fill="var(--chat-bubble)" stroke="currentColor" strokeOpacity="0.15" />
-                <text x={x as number} y={(y as number) + 5} textAnchor="middle" fontSize="12" fontWeight="700" fill="var(--chat-text)">
+                <rect x={(x as number) - 34} y={(y as number) - 13} width="68" height="26" rx="13" stroke="currentColor" strokeOpacity="0.15" style={{ fill: 'var(--chat-bubble)' }} />
+                <text x={x as number} y={(y as number) + 5} textAnchor="middle" fontSize="12" fontWeight="700" style={{ fill: 'var(--chat-text)' }} >
                   {t}
                 </text>
               </g>

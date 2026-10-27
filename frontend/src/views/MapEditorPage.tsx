@@ -12,6 +12,7 @@ import { PlaceSearchBox } from '../components/editor/PlaceSearchBox'
 import { CollabButton } from '../components/editor/CollabButton'
 import { MapLookButton, MapLookPanel } from '../components/editor/MapLookPicker'
 import { ShareMenu } from '../components/editor/ShareMenu'
+import { LinkImportDialog } from '../components/editor/LinkImportDialog'
 import { useMapDraft } from '../components/editor/useMapDraft'
 import { CheckIcon, ChevronLeftIcon, GlobeIcon, LockIcon, PinIcon } from '../components/icons'
 import { MapView, type MapInsets } from '../components/map'
@@ -185,6 +186,8 @@ export function MapEditorPage() {
   const selectedPin = selectedIndex >= 0 ? pins[selectedIndex] : null
   // 옆 창: 핀을 고르면 핀 꾸미기, 🎨 지도 꾸미기를 누르면 지도 꾸미기 (같은 자리, 하나만)
   const [decoOpen, setDecoOpen] = useState(false)
+  /** 🔗 링크로 한 번에 채우기 창 */
+  const [linkOpen, setLinkOpen] = useState(false)
   /** 목록에서 방금 지운 핀 (5초 동안 되돌리기) */
   const [undo, setUndo] = useState<{ pin: Pin; index: number } | null>(null)
   useEffect(() => {
@@ -373,6 +376,18 @@ export function MapEditorPage() {
         </div>
       </div>
 
+      {linkOpen && (
+        <LinkImportDialog
+          onAdd={(items) => {
+            for (const { place, memo } of items) {
+              const id = draft.addPlace(place)
+              if (memo) draft.updatePin(id, { memo })
+            }
+          }}
+          onClose={() => setLinkOpen(false)}
+        />
+      )}
+
       {undo && (
         <div role="status" className="tm-float absolute left-1/2 top-16 z-40 flex w-max max-w-[calc(100%-32px)] -translate-x-1/2 items-center gap-3 rounded-full bg-gray-900/90 py-2 pl-4 pr-2 text-sm text-white backdrop-blur md:top-20">
           <span className="truncate">‘{undo.pin.place.name}’ 지웠어요</span>
@@ -518,6 +533,14 @@ export function MapEditorPage() {
             {totalMin > 0 && <span className="ml-2 font-normal text-(--c-muted)">이동 총 {totalMin >= 60 ? `${Math.floor(totalMin / 60)}시간 ${totalMin % 60}분` : `${totalMin}분`}</span>}
           </span>
           <div className="flex shrink-0 items-center gap-1">
+            <button
+              type="button"
+              onClick={() => setLinkOpen(true)}
+              className="rounded-full px-2.5 py-1 text-xs font-semibold text-(--c-muted) transition hover:bg-black/5 hover:text-(--c-text)"
+              title="블로그 글에 나온 장소를 한 번에 추가"
+            >
+              🔗 링크로 채우기
+            </button>
             {pins.length > 1 && (
               <button
                 type="button"
@@ -542,6 +565,14 @@ export function MapEditorPage() {
               <p className="mt-1 text-sm text-(--c-muted)">
                 위쪽 검색창에서 장소를 찾거나, 지도를 눌러 근처 장소를 골라 핀을 꽂아 보세요. 순서대로 선이 이어져요.
               </p>
+              <button
+                type="button"
+                onClick={() => setLinkOpen(true)}
+                className="tm-btn mt-5 inline-flex h-11 items-center gap-1.5 rounded-full bg-(--c-accent) px-5 text-sm font-bold text-(--c-accent-text)"
+              >
+                🔗 링크로 한 번에 채우기
+              </button>
+              <p className="mt-2 text-xs text-(--c-muted)">블로그 글에 나온 장소를 한 번에 핀으로 꽂아요</p>
             </div>
           ) : (
             <PinList

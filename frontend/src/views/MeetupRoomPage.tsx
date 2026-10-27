@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useParams } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import { useCallback, useEffect, useState } from 'react'
 import { useCurrentUser } from '../auth'
 import { Avatar } from '../components/Avatar'
@@ -10,7 +10,7 @@ import { dday, formatMeetAt } from '../components/meetup/format'
 import { RoomChat } from '../components/meetup/RoomChat'
 import { RoomCourse, RoomMembers } from '../components/meetup/RoomCourse'
 import { getTheme, themeVars } from '../components/themes'
-import { getMeetup, getMeetupCheckins, getMeetupComments, setMeetupCheckin, subscribeMeetupRoom } from '../db/api'
+import { getMeetup, getMeetupCheckins, getMeetupComments, getMeetupCourseMap, kickMeetupMember, setMeetupCheckin, subscribeMeetupRoom } from '../db/api'
 import type { ArrivalProof, MapDetail, MeetupCheckin, MeetupComment, MeetupSummary } from '../types'
 
 type Tab = 'chat' | 'course' | 'members'
@@ -35,7 +35,10 @@ export function MeetupRoomPage() {
   const [tab, setTab] = useState<Tab>('chat')
   const [busyPinId, setBusyPinId] = useState<string | null>(null)
   const [error, setError] = useState('')
+  const router = useRouter()
+  const [openingEditor, setOpeningEditor] = useState(false)
 
+  const [version, setVersion] = useState(0)
   useEffect(() => {
     let cancelled = false
     getMeetup(meetupId)
@@ -48,7 +51,34 @@ export function MeetupRoomPage() {
     return () => {
       cancelled = true
     }
-  }, [meetupId])
+  }, [meetupId, version])
+
+  /** 참여자 누구나: 편집 화면에서 코스 고치기 (남의 지도로 연 모임이면 모임 전용 코스로 복사된다) */
+  const editCourse = async () => {
+    if (openingEditor) return
+    setOpeningEditor(true)
+    setError('')
+    try {
+      const mapId = await getMeetupCourseMap(meetupId)
+      router.push(`/maps/${mapId}?meetup=${meetupId}`)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '코스 편집을 열지 못했어요.')
+      setOpeningEditor(false)
+    }
+  }
+
+  /** 주최자: 강제 퇴장 (다시 참여 못 함) */
+  const kick = async (userId: string, nickname: string) => {
+    if (!window.confirm(`${nickname} 님을 내보낼까요? 이 모임에 다시 참여할 수 없어요.`)) return
+    setError('')
+    try {
+      await kickMeetupMember(meetupId, userId)
+      setVersion((v) => v + 1)
+      setCheckins(await getMeetupCheckins(meetupId))
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '내보내지 못했어요.')
+    }
+  }
 
   const member = !!me && !!meetup?.members.some((m) => m.userId === me.id)
 
@@ -113,7 +143,20 @@ export function MeetupRoomPage() {
     <div className="space-y-8">
       {error && <p role="alert" className="rounded-xl bg-red-500/10 px-3 py-2.5 text-sm text-red-600">{error}</p>}
       <section className={tab === 'members' ? 'hidden md:block' : ''}>
-        <h2 className="mb-3 text-base font-bold">코스 · 도착 체크</h2>
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <h2 className="text-base font-bold">코스 · 도착 체크</h2>
+          {meetup.status !== 'canceled' && (
+            <button
+              type="button"
+              onClick={editCourse}
+              disabled={openingEditor}
+              className="shrink-0 rounded-full border border-(--c-border) px-3 py-1.5 text-xs font-bold transition hover:border-(--c-accent) hover:text-(--c-accent) disabled:opacity-50"
+              title="장소 추가 · 삭제 · 순서 바꾸기 (참여자 누구나)"
+            >
+              {openingEditor ? '여는 중…' : '✏️ 코스 고치기'}
+            </button>
+          )}
+        </div>
         {mapDetail && mapDetail.pins.length > 0 ? (
           <RoomCourse mapDetail={mapDetail} me={me} members={meetup.members} checkins={checkins} onUncheck={uncheck} onArrive={arrive} busyPinId={busyPinId} meetAt={meetup.meetAt} />
         ) : (
@@ -125,7 +168,7 @@ export function MeetupRoomPage() {
           멤버 <span className="text-(--c-accent)">{meetup.members.length}</span>
           <span className="text-sm font-medium text-(--c-muted)"> / {meetup.capacity}명</span>
         </h2>
-        <RoomMembers members={meetup.members} hostId={meetup.hostId} pinCount={mapDetail?.pins.length ?? 0} checkins={checkins} meId={me.id} />
+        <RoomMembers members={meetup.members} hostId={meetup.hostId} pinCount={mapDetail?.pins.length ?? 0} checkins={checkins} meId={me.id} onKick={me.id === meetup.hostId ? kick : undefined} />
       </section>
     </div>
   )

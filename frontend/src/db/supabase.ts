@@ -528,6 +528,28 @@ export async function getMeetups(filter: MeetupFilter = 'all'): Promise<MeetupSu
   return toSummaries(rows)
 }
 
+/** 이 지도를 고칠 수 있는지 (주인 · 공동 편집자 · 이 지도로 열린 모임의 참여자). DB 함수 can_edit_map */
+export async function canEditMap(mapId: string): Promise<boolean> {
+  if (!(await myId())) return false
+  const { data, error } = await supabase.rpc('can_edit_map', { p_map_id: mapId })
+  return !error && data === true
+}
+
+/** 순례방 '코스 고치기': 고칠 지도 id. 남의 지도로 연 모임이면 모임 전용 코스로 복사된다 (DB 함수 meetup_course_map) */
+export async function getMeetupCourseMap(meetupId: string): Promise<string> {
+  await requireMe()
+  const { data, error } = await supabase.rpc('meetup_course_map', { p_meetup_id: meetupId })
+  if (error) throw new Error(error.message)
+  return data as string
+}
+
+/** 주최자: 참여자 강제 퇴장 (다시 참여 못 함) */
+export async function kickMeetupMember(meetupId: string, userId: string): Promise<void> {
+  await requireMe()
+  const { error } = await supabase.rpc('kick_meetup_member', { p_meetup_id: meetupId, p_user_id: userId })
+  if (error) throw new Error(error.message)
+}
+
 /** 이 지도로 모이는 성지순례 중 아직 안 지난 것 (취소 제외, 가까운 날 순). 비공개 모임은 RLS 가 참여자에게만 */
 export async function getMapMeetups(mapId: string): Promise<MeetupSummary[]> {
   const { data, error } = await supabase

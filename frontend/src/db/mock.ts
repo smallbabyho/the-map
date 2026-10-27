@@ -96,6 +96,8 @@ interface Db {
   placeReviews: PlaceReviewRow[]
   /** 노쇼: 주최자가 끝난 모임에서 표시 */
   noshows: { meetupId: string; userId: string; createdAt: string }[]
+  /** 주최자가 내보낸 사람 (다시 참여 못 함) */
+  kicks?: { meetupId: string; userId: string }[]
   seeded?: boolean
   reviewsSeeded?: boolean
 }
@@ -194,13 +196,82 @@ function ownMapOrThrow(db: Db, mapId: string): ConceptMap {
 
 const isEditor = (db: Db, mapId: string, userId: string | undefined) => !!userId && db.mapMembers.some((m) => m.mapId === mapId && m.userId === userId)
 
-/** 주인 또는 공동 편집자만 (핀 · 구간 · 제목 · 꾸미기 고치기) */
+/** 이 지도로 열린 모임(주최자 본인의 지도)의 참여자 → 순례방에서 코스를 고칠 수 있다 (DB 함수 is_meetup_course_editor 와 같은 규칙) */
+const isCourseEditor = (db: Db, mapId: string, userId: string | undefined) =>
+  !!userId &&
+  db.meetups.some(
+    (mt) =>
+      mt.mapId === mapId &&
+      mt.status !== 'canceled' &&
+      db.maps.some((m) => m.id === mapId && m.ownerId === mt.hostId) &&
+      db.members.some((r) => r.meetupId === mt.id && r.userId === userId),
+  )
+
+/** 주인 · 공동 편집자 · 모임 참여자만 (핀 · 구간 · 제목 · 꾸미기 고치기) */
 function editableMapOrThrow(db: Db, mapId: string): ConceptMap {
   const map = db.maps.find((m) => m.id === mapId)
   if (!map) throw new Error('지도를 찾을 수 없어요.')
   const me = requireUser().id
-  if (map.ownerId !== me && !isEditor(db, mapId, me)) throw new Error('이 지도를 고칠 권한이 없어요.')
+  if (map.ownerId !== me && !isEditor(db, mapId, me) && !isCourseEditor(db, mapId, me)) throw new Error('이 지도를 고칠 권한이 없어요.')
   return map
+}
+
+/** 이 지도를 고칠 수 있는지 (주인 · 공동 편집자 · 이 지도로 열린 모임의 참여자) */
+export async function canEditMap(mapId: string): Promise<boolean> {
+  await tick()
+  const db = load()
+  const me = mockCurrentUser()?.id
+  const map = db.maps.find((m) => m.id === mapId)
+  return !!map && !!me && (map.ownerId === me || isEditor(db, mapId, me) || isCourseEditor(db, mapId, me))
+}
+
+/**
+ * 순례방 '코스 고치기': 고칠 지도 id. 남의 지도로 연 모임이면 주최자 소유의 모임 전용 코스로 복사한다 (원래 지도는 그대로).
+ *
+ * @example
+ * router.push(`/maps/${await getMeetupCourseMap(meetupId)}?meetup=${meetupId}`)
+ */
+export async function getMeetupCourseMap(meetupId: string): Promise<string> {
+  await tick()
+  const db = load()
+  const me = requireUser()
+  const mt = db.meetups.find((m) => m.id === meetupId)
+  if (!mt) throw new Error('모임을 찾을 수 없어요.')
+  if (mt.status === 'canceled') throw new Error('취소된 모임이에요.')
+  if (!isMember(db, meetupId, me.id)) throw new Error('모임에 참여한 사람만 코스를 고칠 수 있어요.')
+  const src = db.maps.find((m) => m.id === mt.mapId)
+  if (!src) throw new Error('지도를 찾을 수 없어요.')
+  if (src.ownerId === mt.hostId) return src.id
+
+  const id = newId()
+  db.maps.push({ ...src, id, ownerId: mt.hostId, title: `${src.title} · ${mt.title}`.slice(0, 60), isPublic: false, purpose: 'plan', plannedDate: null, createdAt: now(), updatedAt: now() })
+  const pinIds = new Map<string, string>()
+  for (const p of db.pins.filter((p) => p.mapId === src.id)) {
+    const nid = newId()
+    pinIds.set(p.id, nid)
+    db.pins.push({ ...p, id: nid, mapId: id, visitedAt: null })
+  }
+  for (const l of db.legs.filter((l) => l.mapId === src.id)) {
+    if (pinIds.has(l.fromPinId) && pinIds.has(l.toPinId)) db.legs.push({ ...l, id: newId(), mapId: id, fromPinId: pinIds.get(l.fromPinId)!, toPinId: pinIds.get(l.toPinId)! })
+  }
+  db.checkins = db.checkins.map((c) => (c.meetupId === meetupId && pinIds.has(c.pinId) ? { ...c, pinId: pinIds.get(c.pinId)! } : c))
+  mt.mapId = id
+  persist(db)
+  return id
+}
+
+/** 주최자: 참여자 강제 퇴장. 내보낸 사람은 그 모임에 다시 참여할 수 없다 */
+export async function kickMeetupMember(meetupId: string, userId: string): Promise<void> {
+  await tick()
+  const db = load()
+  const me = requireUser()
+  const mt = db.meetups.find((m) => m.id === meetupId)
+  if (!mt || mt.hostId !== me.id) throw new Error('주최자만 내보낼 수 있어요.')
+  if (userId === me.id) throw new Error('주최자는 자신을 내보낼 수 없어요.')
+  db.members = db.members.filter((r) => !(r.meetupId === meetupId && r.userId === userId))
+  db.checkins = db.checkins.filter((c) => !(c.meetupId === meetupId && c.userId === userId))
+  db.kicks = [...(db.kicks ?? []).filter((k) => !(k.meetupId === meetupId && k.userId === userId)), { meetupId, userId }]
+  persist(db)
 }
 
 /**
@@ -242,7 +313,7 @@ export async function getMap(mapId: string): Promise<MapDetail | null> {
   const map = db.maps.find((m) => m.id === mapId)
   if (!map) return null
   const meId = mockCurrentUser()?.id
-  if (!map.isPublic && map.ownerId !== meId && !isEditor(db, mapId, meId)) return null
+  if (!map.isPublic && map.ownerId !== meId && !isEditor(db, mapId, meId) && !isCourseEditor(db, mapId, meId)) return null
   const pins = db.pins
     .filter((p) => p.mapId === mapId)
     .sort((a, b) => a.order - b.order)
@@ -769,6 +840,7 @@ export async function joinMeetup(meetupId: string, inviteCode?: string): Promise
   const members = db.members.filter((r) => r.meetupId === m.id)
   if (members.some((r) => r.userId === me.id)) throw new Error('이미 참여한 모임이에요.')
   if (members.length >= m.capacity) throw new Error('정원이 다 찼어요.')
+  if (db.kicks?.some((k) => k.meetupId === m.id && k.userId === me.id)) throw new Error('주최자가 내보낸 모임이라 다시 참여할 수 없어요.')
   const block = noshowStatusOf(db, me.id).blockedUntil
   if (block && m.hostId !== me.id) {
     const d = new Date(block)

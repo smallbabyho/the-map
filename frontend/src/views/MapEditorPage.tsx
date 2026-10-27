@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useCurrentUser } from '../auth'
 import { HeaderActions } from '../components/AppRail'
@@ -16,7 +16,7 @@ import { useMapDraft } from '../components/editor/useMapDraft'
 import { CheckIcon, ChevronLeftIcon, GlobeIcon, LockIcon, PinIcon } from '../components/icons'
 import { MapView, type MapInsets } from '../components/map'
 import { getTheme, themeVars } from '../components/themes'
-import { getMapCollab } from '../db/api'
+import { canEditMap, getMapCollab } from '../db/api'
 import type { MapCollab, Pin } from '../types'
 import { Tour, type TourStep } from '../components/onboarding/Tour'
 import { MapViewer } from './MapViewer'
@@ -155,7 +155,21 @@ export function MapEditorPage() {
   useEffect(() => {
     if (userId && mapReady) loadCollab()
   }, [userId, mapReady, loadCollab])
-  const canEdit = isOwner || collab?.myRole === 'editor'
+  // 순례방에서 '코스 고치기' 로 왔으면 (?meetup=모임id): 모임 참여자도 고칠 수 있다 (DB 가 다시 확인한다)
+  const meetupId = useSearchParams().get('meetup')
+  const [courseEditor, setCourseEditor] = useState<boolean | null>(null)
+  useEffect(() => {
+    if (!meetupId || !userId || !mapReady) return
+    let cancelled = false
+    canEditMap(mapId)
+      .then((ok) => !cancelled && setCourseEditor(ok))
+      .catch(() => !cancelled && setCourseEditor(false))
+    return () => {
+      cancelled = true
+    }
+  }, [meetupId, userId, mapReady, mapId])
+  const collabEditor = isOwner || collab?.myRole === 'editor'
+  const canEdit = collabEditor || courseEditor === true
 
   // 로그인 안 한 상태에서 지도를 못 찾으면 (내 비공개 지도일 수 있으니) 로그인으로
   const needLogin = user === null && draft.status === 'notfound'
@@ -244,9 +258,11 @@ export function MapEditorPage() {
     return () => window.removeEventListener('keydown', onKey)
   }, [])
 
-  const goBack = () => {
-    if (draft.dirty && !window.confirm('저장하지 않은 변경이 있어요. 나갈까요?')) return
-    router.push('/')
+  /** 나가기: 순례방에서 왔으면 순례방으로 (고친 코스는 저장하고 간다), 아니면 내 지도로 */
+  const goBack = async () => {
+    if (meetupId && draft.dirty) await saveRef.current()
+    if (draft.dirty && !meetupId && !window.confirm('저장하지 않은 변경이 있어요. 나갈까요?')) return
+    router.push(meetupId ? `/meetups/${meetupId}/room` : '/')
   }
 
   if (draft.status === 'loading' || user === undefined || needLogin) return <EditorLoading />
@@ -266,7 +282,7 @@ export function MapEditorPage() {
   }
 
   // 로그인했는데 권한 확인 중이면 잠깐 기다린다 (편집자인데 읽기 화면이 깜빡이지 않게)
-  if (!isOwner && user && !collab) return <EditorLoading />
+  if (!isOwner && user && (!collab || (meetupId && courseEditor === null && collab.myRole !== 'editor'))) return <EditorLoading />
   if (!canEdit) {
     // 남의 공개 지도 → 읽기 전용
     return <MapViewer detail={{ map, pins, legs: draft.serverLegs }} />
@@ -344,7 +360,7 @@ export function MapEditorPage() {
           <div className="hidden md:block" data-tour="map-look">
             <MapLookButton open={mapDecoOpen} onClick={toggleMapDeco} />
           </div>
-          {collab && user && (
+          {collab && user && collabEditor && (
             <div className="hidden md:block" data-tour="collab">
               <CollabButton mapId={map.id} myId={user.id} collab={collab} onChange={loadCollab} />
             </div>
@@ -396,7 +412,8 @@ export function MapEditorPage() {
         <div className="shrink-0 space-y-3 px-4 pb-3 pt-1 md:px-5 md:pt-5">
           <div className="hidden items-center md:flex">
             <button type="button" onClick={goBack} className="-ml-1.5 flex items-center gap-0.5 rounded-lg py-1 pl-1 pr-2 text-sm text-(--c-muted) hover:bg-black/5">
-              <ChevronLeftIcon size={16} />내 지도
+              <ChevronLeftIcon size={16} />
+              {meetupId ? '순례방으로' : '내 지도'}
             </button>
           </div>
           <div className="flex items-center gap-2">
@@ -486,7 +503,7 @@ export function MapEditorPage() {
             <span className="md:hidden" data-tour="map-look">
               <MapLookButton open={mapDecoOpen} onClick={toggleMapDeco} variant="inline" />
             </span>
-            {collab && user && (
+            {collab && user && collabEditor && (
               <span className="md:hidden" data-tour="collab">
                 <CollabButton mapId={map.id} myId={user.id} collab={collab} onChange={loadCollab} variant="inline" />
               </span>

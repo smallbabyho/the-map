@@ -126,7 +126,22 @@ export function RoomCourse({ mapDetail, me, members, checkins, onUncheck, onArri
 }
 
 /** 참여자 목록 + 각자 몇 곳 도착했는지 */
-export function RoomMembers({ members, hostId, pinCount, checkins, meId }: { members: MeetupMember[]; hostId: string; pinCount: number; checkins: MeetupCheckin[]; meId: string }) {
+export function RoomMembers({
+  members,
+  hostId,
+  pinCount,
+  checkins,
+  meId,
+  onKick,
+}: {
+  members: MeetupMember[]
+  hostId: string
+  pinCount: number
+  checkins: MeetupCheckin[]
+  meId: string
+  /** 주최자에게만: 강제 퇴장 */
+  onKick?: (userId: string, nickname: string) => void
+}) {
   const doneOf = (userId: string) => checkins.filter((c) => c.userId === userId).length
   return (
     <ul className="space-y-2">
@@ -152,6 +167,16 @@ export function RoomMembers({ members, hostId, pinCount, checkins, meId }: { mem
             <span className="shrink-0 text-xs font-semibold text-(--c-muted)">
               {done}/{pinCount}
             </span>
+            {onKick && m.userId !== hostId && (
+              <button
+                type="button"
+                onClick={() => onKick(m.userId, m.nickname)}
+                className="shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold text-(--c-muted) transition hover:bg-red-500/10 hover:text-red-500"
+                title="강제 퇴장 (다시 참여 못 함)"
+              >
+                내보내기
+              </button>
+            )}
           </li>
         )
       })}

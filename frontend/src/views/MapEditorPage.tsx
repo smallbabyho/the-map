@@ -527,12 +527,13 @@ export function MapEditorPage() {
           </div>
         </div>
 
-        <div className="flex shrink-0 items-center justify-between gap-3 border-t border-(--c-border) px-5 py-2.5 text-[0.8125rem]">
+        {/* 장소 수 · 이동 시간 + 핀 도구. 자리가 모자라면 도구가 다음 줄로 내려간다 */}
+        <div className="flex shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-1.5 border-t border-(--c-border) px-5 py-2.5 text-[0.8125rem]">
           <span className="shrink-0 font-semibold">
             장소 <span className="text-(--c-accent)">{pins.length}</span>곳
             {totalMin > 0 && <span className="ml-2 font-normal text-(--c-muted)">이동 총 {totalMin >= 60 ? `${Math.floor(totalMin / 60)}시간 ${totalMin % 60}분` : `${totalMin}분`}</span>}
           </span>
-          <div className="flex shrink-0 items-center gap-1">
+          <div className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-1">
             <button
               type="button"
               onClick={() => setLinkOpen(true)}

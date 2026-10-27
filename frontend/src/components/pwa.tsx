@@ -1,7 +1,7 @@
 'use client'
 
 import { usePathname } from 'next/navigation'
-import { useEffect, useState, useSyncExternalStore } from 'react'
+import { Suspense, useEffect, useState, useSyncExternalStore } from 'react'
 import { createPortal } from 'react-dom'
 import { CloseIcon } from './icons'
 
@@ -53,7 +53,10 @@ export function PwaSetup() {
   const guide = useSyncExternalStore(subscribe, () => guideOpen, () => false)
   return (
     <>
-      <IosInstallBanner />
+      {/* 주소(usePathname)를 읽어서 Suspense 안에 (밖이면 화면을 미리 그려 둘 수 없다) */}
+      <Suspense fallback={null}>
+        <IosInstallBanner />
+      </Suspense>
       {guide && (
         <InstallGuide
           onClose={() => {

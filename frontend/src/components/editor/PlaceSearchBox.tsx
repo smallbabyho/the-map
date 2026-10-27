@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { getPlaceStats } from '../../db/api'
 import type { PlaceStats } from '../../types'
 import { CloseIcon, PlusIcon, SearchIcon } from '../icons'
-import { hasKakaoKey, isCustomPlace, searchPlaces, type PlaceSearchResult } from '../map'
+import { formatDistance, hasKakaoKey, isCustomPlace, searchPlaces, type PlaceSearchResult } from '../map'
 import { PlaceStatsLine } from '../place/PlaceStats'
 
 interface Props {
@@ -42,7 +42,7 @@ export function PlaceSearchBox({ onPick, variant = 'panel' }: Props) {
     setError('')
     setStats(null)
     try {
-      const list = await searchPlaces(q)
+      const list = await searchPlaces(q, { nearView: true })
       if (id === reqId.current) setResults(list)
       const ids = list.map((r) => r.externalId).filter((x) => !isCustomPlace(x))
       if (ids.length)
@@ -111,6 +111,12 @@ export function PlaceSearchBox({ onPick, variant = 'panel' }: Props) {
               ‘{query.trim()}’ 검색 결과가 없어요.
             </p>
           ) : (
+            <>
+            {hasKakaoKey && (
+              <p className="border-b border-(--c-border) px-4 py-2 text-[0.6875rem] font-semibold text-(--c-muted)">
+                {results[0]?.distanceM != null ? '📍 지금 보는 지도 근처' : '🗺️ 근처에 없어서 전국에서 찾았어요'}
+              </p>
+            )}
             <ul className="divide-y divide-(--c-border)">
               {results.map((r) => (
                 <li key={r.externalId} className="transition hover:bg-black/[0.03]">
@@ -126,6 +132,7 @@ export function PlaceSearchBox({ onPick, variant = 'panel' }: Props) {
                       <div className="flex items-baseline gap-2">
                         <span className="truncate text-[0.9375rem] font-semibold">{r.name}</span>
                         {r.category && <span className="shrink-0 text-xs text-(--c-muted)">{r.category}</span>}
+                        {r.distanceM != null && <span className="ml-auto shrink-0 text-xs font-semibold text-(--c-accent)">{formatDistance(r.distanceM)}</span>}
                       </div>
                       <p className="mt-0.5 truncate text-[0.8125rem] text-(--c-muted)">{r.address}</p>
                     </div>
@@ -138,6 +145,7 @@ export function PlaceSearchBox({ onPick, variant = 'panel' }: Props) {
                 </li>
               ))}
             </ul>
+            </>
           )}
         </div>
       )}

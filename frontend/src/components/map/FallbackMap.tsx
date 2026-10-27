@@ -7,7 +7,7 @@ import { PickPopup } from './PickPopup'
 import { pathMidpoint } from './routing'
 import { DEFAULT_LOOK, LINE_WIDTH, partLine, styledLine, type Segment } from './segments'
 import { DEFAULT_CENTER, NO_INSETS, type MapViewProps, type PickedPoint } from './types'
-import { useLongPress } from './useLongPress'
+import { PressRing, useLongPress } from './useLongPress'
 
 interface Props extends MapViewProps {
   segments: Segment[]
@@ -62,7 +62,7 @@ export function FallbackMap({ pins, segments, theme, look = DEFAULT_LOOK, select
   })
   const pos = new Map(pins.map((p) => [p.id, project(p.place.lat, p.place.lng)]))
   const canPick = onAddPlace != null
-  useLongPress(ref, canPick, (x, y) => {
+  const pressing = useLongPress(ref, canPick, (x, y) => {
     pickedAtRef.current = Date.now()
     setPicked(unproject(x, y))
   })
@@ -86,6 +86,7 @@ export function FallbackMap({ pins, segments, theme, look = DEFAULT_LOOK, select
         backgroundSize: '48px 48px',
       }}
     >
+      <PressRing at={pressing} />
       {size.w > 0 && segments.length > 0 && (
         <svg className="pointer-events-none absolute inset-0" width={size.w} height={size.h}>
           {segments.map((seg) => {

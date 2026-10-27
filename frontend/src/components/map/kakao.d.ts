@@ -19,15 +19,18 @@ declare namespace kakao.maps {
   class LatLngBounds {
     constructor()
     extend(latlng: LatLng): void
+    getSouthWest(): LatLng
+    getNorthEast(): LatLng
   }
   class Map {
     constructor(container: HTMLElement, options: { center: LatLng; level?: number })
     setCenter(latlng: LatLng): void
     getCenter(): LatLng
+    getBounds(): LatLngBounds
     panTo(latlng: LatLng): void
     panBy(dx: number, dy: number): void
     setBounds(bounds: LatLngBounds, paddingTop?: number, paddingRight?: number, paddingBottom?: number, paddingLeft?: number): void
-    setLevel(level: number): void
+    setLevel(level: number, options?: { animate?: boolean | { duration: number }; anchor?: LatLng }): void
     getLevel(): number
     relayout(): void
     getProjection(): MapProjection
@@ -50,8 +53,8 @@ declare namespace kakao.maps.event {
   interface MouseEvent {
     latLng: LatLng
   }
-  function addListener(target: Map, type: 'rightclick' | 'click' | 'dragstart' | 'zoom_start' | 'zoom_changed', handler: (e: MouseEvent) => void): void
-  function removeListener(target: Map, type: 'rightclick' | 'click' | 'dragstart' | 'zoom_start' | 'zoom_changed', handler: (e: MouseEvent) => void): void
+  function addListener(target: Map, type: 'rightclick' | 'click' | 'dragstart' | 'zoom_start' | 'zoom_changed' | 'idle', handler: (e: MouseEvent) => void): void
+  function removeListener(target: Map, type: 'rightclick' | 'click' | 'dragstart' | 'zoom_start' | 'zoom_changed' | 'idle', handler: (e: MouseEvent) => void): void
 }
 
 declare namespace kakao.maps.services {

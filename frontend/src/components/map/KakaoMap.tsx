@@ -9,9 +9,11 @@ import { MapControls } from './MapControls'
 import { PickPopup } from './PickPopup'
 import { pathMidpoint } from './routing'
 import { DEFAULT_LOOK, LINE_WIDTH, partLine, styledLine, type Segment } from './segments'
-import { useLongPress } from './useLongPress'
+import { PressRing, useLongPress } from './useLongPress'
 import { DEFAULT_CENTER, NO_INSETS, type MapViewProps, type PickedPoint } from './types'
 import { useMyLocation, type MyPosition } from './useMyLocation'
+import { setSearchArea } from './placeSearch'
+import { distanceMeters } from '../../lib/arrival'
 
 interface Props extends MapViewProps {
   segments: Segment[]
@@ -77,6 +79,25 @@ export function KakaoMap({ pins, segments, theme, look = DEFAULT_LOOK, selectedP
       window.removeEventListener('resize', onResize)
     }
   }, [])
+
+  // 1-1) 지금 보이는 범위를 장소 검색에 알려 준다 (검색이 이 근처부터 찾게). 화면 가운데 → 모서리까지 거리 = 반경
+  useEffect(() => {
+    const map = mapRef.current
+    if (!ready || !map) return
+    const ev = window.kakao!.maps.event
+    const update = () => {
+      const c = map.getCenter()
+      const ne = map.getBounds().getNorthEast()
+      const center = { lat: c.getLat(), lng: c.getLng() }
+      setSearchArea({ ...center, radius: distanceMeters(center, { lat: ne.getLat(), lng: ne.getLng() }) })
+    }
+    update()
+    ev.addListener(map, 'idle', update)
+    return () => {
+      ev.removeListener(map, 'idle', update)
+      setSearchArea(null)
+    }
+  }, [ready])
 
   // 2) 경로선 · 구간 라벨 그리기
   useEffect(() => {
@@ -262,15 +283,15 @@ export function KakaoMap({ pins, segments, theme, look = DEFAULT_LOOK, selectedP
     }
   }, [ready, me.pos])
 
-  // 7) 클릭 · 우클릭 → 그 지점에 팝업 (근처 장소 고르기). 다른 곳을 누르면 그 자리로 옮겨 간다. 핀 클릭은 핀이 막는다.
+  // 7) 꾹 누르기(아래 useLongPress) · 우클릭 → 그 지점에 팝업 (근처 장소 고르기). 한 번 누르기는 팝업을 닫기만 한다
+  //    (한 번 누를 때마다 뜨면 지도를 둘러보다 자꾸 걸린다)
   useEffect(() => {
     const map = mapRef.current
     if (!ready || !map || !canPick) return
     const ev = window.kakao!.maps.event
-    const pick = (e: kakao.maps.event.MouseEvent) => setPicked({ lat: e.latLng.getLat(), lng: e.latLng.getLng() })
-    const onRight = pick
-    // 길게 누르기 직후 손을 떼면 click 이 같이 오므로, 방금 연 팝업은 그대로 둔다
-    const onClick = (e: kakao.maps.event.MouseEvent) => Date.now() - pickedAtRef.current > 700 && pick(e)
+    const onRight = (e: kakao.maps.event.MouseEvent) => setPicked({ lat: e.latLng.getLat(), lng: e.latLng.getLng() })
+    // 꾹 누른 직후 손을 떼면 click 이 같이 오므로, 방금 연 팝업은 그대로 둔다
+    const onClick = () => Date.now() - pickedAtRef.current > 700 && setPicked(null)
     ev.addListener(map, 'rightclick', onRight)
     ev.addListener(map, 'click', onClick)
     return () => {
@@ -305,9 +326,9 @@ export function KakaoMap({ pins, segments, theme, look = DEFAULT_LOOK, selectedP
     }
   }, [ready])
 
-  // 모바일: 길게 누르기 = 우클릭
+  // 꾹 누르기 (모바일 · 데스크톱) = 장소 고르기
   const pressRef = useRef<HTMLDivElement>(null)
-  useLongPress(pressRef, ready && canPick, (x, y) => {
+  const pressing = useLongPress(pressRef, ready && canPick, (x, y) => {
     const ll = mapRef.current?.getProjection().coordsFromContainerPoint(new window.kakao!.maps.Point(x, y))
     if (!ll) return
     pickedAtRef.current = Date.now()
@@ -380,6 +401,7 @@ export function KakaoMap({ pins, segments, theme, look = DEFAULT_LOOK, selectedP
         <div ref={zoomWrapRef} className="absolute inset-0">
           <div ref={containerRef} className="absolute inset-0" />
         </div>
+        <PressRing at={pressing} />
       </div>
       {picked &&
         popupHost &&
@@ -398,8 +420,9 @@ export function KakaoMap({ pins, segments, theme, look = DEFAULT_LOOK, selectedP
       {ready && (
         <MapControls
           insets={insets}
-          onZoomIn={() => mapRef.current?.setLevel(Math.max(1, mapRef.current.getLevel() - 1))}
-          onZoomOut={() => mapRef.current?.setLevel(Math.min(14, mapRef.current.getLevel() + 1))}
+          // 버튼 확대 · 축소도 휠처럼 부드럽게 (애니메이션 없이 바꾸면 한 단계씩 툭툭 바뀐다)
+          onZoomIn={() => mapRef.current?.setLevel(Math.max(1, mapRef.current.getLevel() - 1), { animate: { duration: 300 } })}
+          onZoomOut={() => mapRef.current?.setLevel(Math.min(14, mapRef.current.getLevel() + 1), { animate: { duration: 300 } })}
           onFit={pins.length > 0 ? fitAll : undefined}
           onLocate={goToMe}
           locating={me.locating}

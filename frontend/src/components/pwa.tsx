@@ -1,5 +1,6 @@
 'use client'
 
+import { usePathname } from 'next/navigation'
 import { useEffect, useState, useSyncExternalStore } from 'react'
 import { createPortal } from 'react-dom'
 import { CloseIcon } from './icons'
@@ -50,14 +51,106 @@ export function PwaSetup() {
     }
   }, [])
   const guide = useSyncExternalStore(subscribe, () => guideOpen, () => false)
-  return guide ? (
-    <InstallGuide
-      onClose={() => {
-        guideOpen = false
-        emit()
-      }}
-    />
-  ) : null
+  return (
+    <>
+      <IosInstallBanner />
+      {guide && (
+        <InstallGuide
+          onClose={() => {
+            guideOpen = false
+            emit()
+          }}
+        />
+      )}
+    </>
+  )
+}
+
+const BANNER_KEY = 'the-map:ios-install-banner'
+const BANNER_SNOOZE = 14 * 864e5 // '다음에' 를 누르면 2주 동안 안 띄운다
+
+/** 아이폰 사파리 (홈 화면 추가는 사파리에서만, 아이패드는 공유 버튼이 위에 있어서 뺀다) */
+function isIphoneSafari() {
+  const ua = navigator.userAgent
+  return /iphone|ipod/i.test(ua) && /safari/i.test(ua) && !/crios|fxios|edgios|kakaotalk|naver|instagram|fban|fbav|line\//i.test(ua)
+}
+
+/** 사파리 공유 버튼 모양 (네모 + 위 화살표) */
+function ShareGlyph({ size = 18 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M8 9H6.5A1.5 1.5 0 0 0 5 10.5v9A1.5 1.5 0 0 0 6.5 21h11a1.5 1.5 0 0 0 1.5-1.5v-9A1.5 1.5 0 0 0 17.5 9H16" />
+      <path d="M12 14V3M8.5 6.5 12 3l3.5 3.5" />
+    </svg>
+  )
+}
+
+/**
+ * 아이폰 사파리 하단 안내 띠: 사파리는 사이트가 '홈 화면에 추가' 를 대신 해 줄 수 없어서,
+ * 아래쪽 공유 버튼을 가리키며 방법을 알려 준다. 화면을 꽉 쓰는 지도 편집 · 순례방에서는 띄우지 않는다.
+ */
+function IosInstallBanner() {
+  const pathname = usePathname()
+  const [show, setShow] = useState(false)
+  const fullScreen = /^\/maps\/[^/]+$/.test(pathname) || /^\/meetups\/[^/]+\/room/.test(pathname)
+
+  useEffect(() => {
+    if (!isIphoneSafari() || isStandalone()) return
+    try {
+      const at = Number(localStorage.getItem(BANNER_KEY) ?? 0)
+      if (Date.now() - at < BANNER_SNOOZE) return
+    } catch {
+      return // 저장소를 못 쓰면 닫아도 매번 뜨니까 아예 안 띄운다
+    }
+    const t = window.setTimeout(() => setShow(true), 3000)
+    return () => window.clearTimeout(t)
+  }, [])
+
+  if (!show || fullScreen) return null
+  const close = () => {
+    setShow(false)
+    try {
+      localStorage.setItem(BANNER_KEY, String(Date.now()))
+    } catch {
+      // 이번에만 닫힌다
+    }
+  }
+
+  return (
+    // 아래 탭 바(64px) 위에 띄운다
+    <div className="tm-intro fixed inset-x-3 z-[60] md:hidden" style={{ bottom: 'calc(72px + env(safe-area-inset-bottom))' }} role="dialog" aria-label="홈 화면에 앱으로 추가하기">
+      <div className="relative rounded-2xl bg-(--c-ink) p-3.5 pr-10 text-(--c-bg) shadow-2xl">
+        <button type="button" onClick={close} className="absolute right-2 top-2 grid size-8 place-items-center rounded-full opacity-70 hover:opacity-100" aria-label="닫기">
+          <CloseIcon size={16} />
+        </button>
+        <p className="flex items-center gap-1.5 text-sm font-bold">
+          {/* eslint-disable-next-line @next/next/no-img-element -- 작은 앱 아이콘 하나라 최적화가 필요 없다 */}
+          <img src="/icons/icon-192.png" alt="" width={22} height={22} className="rounded-md" /> 홈 화면에 앱으로 두세요
+        </p>
+        <p className="mt-1.5 flex flex-wrap items-center gap-1 text-[0.8125rem] opacity-85">
+          아래 <span className="inline-flex items-center gap-0.5 rounded-md bg-white/15 px-1.5 py-0.5 font-semibold"><ShareGlyph size={15} /> 공유</span>
+          → <b>홈 화면에 추가</b> 를 누르면 앱처럼 열려요.
+        </p>
+        <div className="mt-2.5 flex gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              guideOpen = true
+              emit()
+            }}
+            className="rounded-full bg-(--c-accent) px-3 py-1.5 text-xs font-bold text-(--c-accent-text)"
+          >
+            자세히 보기
+          </button>
+          <button type="button" onClick={close} className="rounded-full px-3 py-1.5 text-xs font-semibold opacity-75">
+            다음에
+          </button>
+        </div>
+        {/* 사파리 아래쪽 공유 버튼을 가리키는 꼬리 */}
+        <span className="absolute -bottom-1.5 left-1/2 size-3 -translate-x-1/2 rotate-45 bg-(--c-ink)" aria-hidden />
+      </div>
+    </div>
+  )
 }
 
 /** 이미 홈 화면 앱으로 열었는지 (서버에서 그릴 땐 true: 설치 안내를 먼저 그렸다 지우지 않게) */

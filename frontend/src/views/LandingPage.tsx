@@ -135,7 +135,7 @@ export function LandingPage({ embedded = false }: { embedded?: boolean }) {
           {[...THEMES, ...THEMES].map((t, i) => (
             <span key={i} className="flex items-center gap-10">
               {t}
-              <span className="text-(--c-lime)">✦</span>
+              <span className="text-(--c-strip-mark)">✦</span>
             </span>
           ))}
         </div>

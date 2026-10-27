@@ -5,6 +5,14 @@ import { SAMPLE_PLACES } from './samplePlaces'
 export interface PlaceSearchResult extends Omit<Place, 'id'> {
   address: string
   category: string
+  /** 지금 보는 지도 근처에서 찾았을 때: 지도 가운데에서 떨어진 거리(m) */
+  distanceM?: number
+}
+
+/** 지금 화면에 보이는 지도 범위. 카카오맵이 움직일 때마다 알려 주고(KakaoMap), 장소 검색이 이 근처부터 찾는다 */
+let viewArea: { lat: number; lng: number; radius: number } | null = null
+export function setSearchArea(area: { lat: number; lng: number; radius: number } | null) {
+  viewArea = area
 }
 
 /**
@@ -13,11 +21,21 @@ export interface PlaceSearchResult extends Omit<Place, 'id'> {
  * @example
  * const results = await searchPlaces('성수 카페')
  */
-export async function searchPlaces(keyword: string): Promise<PlaceSearchResult[]> {
+export async function searchPlaces(keyword: string, { nearView = false } = {}): Promise<PlaceSearchResult[]> {
   const q = keyword.trim()
   if (!q) return []
   if (!hasKakaoKey) return searchSamples(q)
 
+  // 지금 보는 지도 근처(최대 20km)에서 먼저, 없으면 전국에서
+  const area = nearView ? viewArea : null
+  if (area) {
+    const near = await keywordSearch(q, area)
+    if (near.length) return near
+  }
+  return keywordSearch(q, null)
+}
+
+async function keywordSearch(q: string, area: { lat: number; lng: number; radius: number } | null): Promise<PlaceSearchResult[]> {
   const k = await loadKakao()
   return new Promise((resolve, reject) => {
     new k.maps.services.Places().keywordSearch(
@@ -32,6 +50,7 @@ export async function searchPlaces(keyword: string): Promise<PlaceSearchResult[]
               lng: Number(d.x),
               address: d.road_address_name || d.address_name,
               category: d.category_group_name,
+              ...(area && d.distance && { distanceM: Number(d.distance) }),
             })),
           )
         } else if (status === k.maps.services.Status.ZERO_RESULT) {
@@ -40,7 +59,9 @@ export async function searchPlaces(keyword: string): Promise<PlaceSearchResult[]
           reject(new Error('장소 검색 중 문제가 생겼어요. 잠시 후 다시 시도해 주세요.'))
         }
       },
-      { size: 15 },
+      area
+        ? { size: 15, location: new k.maps.LatLng(area.lat, area.lng), radius: Math.round(Math.min(20000, Math.max(1500, area.radius))), sort: 'accuracy' }
+        : { size: 15 },
     )
   })
 }

@@ -178,6 +178,15 @@ export function useMapDraft(mapId: string) {
     touch()
   }
 
+  /** 방금 지운 핀 되돌리기 (원래 자리로) */
+  const restorePin = (pin: Pin, index: number) => {
+    // 그 사이 자동 저장으로 서버에서 이미 지워졌으면 새 핀으로 다시 넣는다
+    const back = pin.id.startsWith(TMP) || removedPinIds.includes(pin.id) ? pin : { ...pin, id: tmpId() }
+    setPins((ps) => (ps.some((p) => p.id === back.id) ? ps : [...ps.slice(0, index), back, ...ps.slice(index)]))
+    setRemovedPinIds((ids) => ids.filter((id) => id !== pin.id))
+    touch()
+  }
+
   const movePin = (fromIndex: number, toIndex: number) => {
     if (fromIndex === toIndex) return
     setPins((ps) => {
@@ -324,6 +333,7 @@ export function useMapDraft(mapId: string) {
     updatePin,
     renamePlace,
     removePin,
+    restorePin,
     movePin,
     reorderPins,
     updateLeg,

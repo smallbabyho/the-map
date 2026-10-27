@@ -66,7 +66,11 @@ function mainRideIcon(steps?: { kind: TransitStepKind; minutes: number }[]) {
 
 /** 핀 · 구간 → 지도에 그릴 구간 목록 (실제 길 포함). 구간 정보가 없는 핀 사이는 도보로 본다. */
 export function useSegments(pins: Pin[], legs: MapLegView[]): Segment[] {
-  const pairs = useMemo(() => pairsOf(pins, legs), [pins, legs])
+  // 메모 · 사진 · 이름을 고칠 때마다 경로선을 전부 다시 그리지 않게, 좌표 · 순서 · 이동수단 · 시간이 바뀔 때만 다시 계산
+  const shape =
+    pins.map((p) => `${p.id}@${p.place.lat},${p.place.lng}`).join(';') + '|' + legs.map((l) => `${l.fromPinId}>${l.toPinId}:${l.mode}:${l.durationMin}`).join(';')
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- shape 가 pins · legs 중 경로에 쓰이는 값 전부
+  const pairs = useMemo(() => pairsOf(pins, legs), [shape])
   const { routeOf, version } = useRoutes(pairs.map((p) => ({ from: at(p.from), to: at(p.to), mode: p.mode })))
 
   return useMemo(

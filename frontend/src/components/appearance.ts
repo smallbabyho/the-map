@@ -86,14 +86,23 @@ export function syncAppearance() {
   apply(readPref())
 }
 
+/**
+ * 라이트 · 다크 · 자동 바꾸기. 바뀌면 페이지를 새로고침한다:
+ * 지도 타일 · 캔버스 등 일부 요소가 그 자리에서 색을 다 못 따라와 어색하게 남아서, 처음부터 그 모드로 다시 그린다.
+ * (새로고침 직후엔 <head> 스크립트가 저장된 설정을 먼저 적용해서 깜빡이지 않는다. 저장 안 한 편집이 있으면 브라우저가 먼저 묻는다)
+ */
 export function setAppearancePref(pref: AppearancePref) {
+  const before = readPref()
   try {
     if (pref === 'auto') localStorage.removeItem(STORAGE_KEY)
     else localStorage.setItem(STORAGE_KEY, pref)
   } catch {
-    // 저장을 못 해도 이번 화면에는 적용
+    // 저장을 못 해도 이번 화면에는 적용 (새로고침하면 설정이 사라지니 하지 않는다)
+    apply(pref)
+    return
   }
   apply(pref)
+  if (pref !== before) window.location.reload()
 }
 
 function subscribe(l: () => void) {

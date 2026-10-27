@@ -633,6 +633,25 @@ function recordUse(db: Db, mapId: string, userId: string, kind: UseRow['kind']) 
  * @example
  * const list = await getMeetups('joined')
  */
+/**
+ * 이 지도로 모이는 성지순례 중 아직 안 지난 것 (취소 제외, 가까운 날 순)
+ *
+ * @example
+ * const rooms = await getMapMeetups(map.id)
+ */
+export async function getMapMeetups(mapId: string): Promise<MeetupSummary[]> {
+  await tick()
+  const db = load()
+  const me = mockCurrentUser()
+  const now = new Date().toISOString()
+  return db.meetups
+    .filter((m) => m.mapId === mapId && m.status !== 'canceled' && m.meetAt >= now)
+    .filter((m) => m.visibility !== 'private' || (!!me && db.members.some((r) => r.meetupId === m.id && r.userId === me.id)))
+    .map((m) => toMeetupSummary(db, m))
+    .sort((a, b) => a.meetAt.localeCompare(b.meetAt))
+    .slice(0, 20)
+}
+
 export async function getMeetups(filter: MeetupFilter = 'all'): Promise<MeetupSummary[]> {
   await tick()
   const db = load()

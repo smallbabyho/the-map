@@ -15,7 +15,7 @@ import { SortableContext, sortableKeyboardCoordinates, useSortable, verticalList
 import { CSS } from '@dnd-kit/utilities'
 import { Fragment, useState } from 'react'
 import type { Pin, TravelMode } from '../../types'
-import { ChevronRightIcon, GripIcon } from '../icons'
+import { GripIcon, TrashIcon } from '../icons'
 import { LegEditor } from './LegEditor'
 import type { DraftLeg } from './useMapDraft'
 
@@ -26,10 +26,12 @@ interface Props {
   onSelect: (pinId: string) => void
   onMove: (fromIndex: number, toIndex: number) => void
   onLegChange: (fromPinId: string, toPinId: string, patch: { mode?: TravelMode; durationMin?: number | null }) => void
+  /** 목록에서 바로 지우기 */
+  onRemove: (pinId: string) => void
 }
 
 /** 핀 목록. 왼쪽 손잡이를 끌어서 순서 변경, 핀 사이에는 이동구간 입력. */
-export function PinList({ pins, legs, selectedPinId, onSelect, onMove, onLegChange }: Props) {
+export function PinList({ pins, legs, selectedPinId, onSelect, onMove, onLegChange, onRemove }: Props) {
   const [dragging, setDragging] = useState(false)
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
@@ -59,7 +61,7 @@ export function PinList({ pins, legs, selectedPinId, onSelect, onMove, onLegChan
         <ol className="py-2">
           {pins.map((pin, i) => (
             <Fragment key={pin.id}>
-              <PinRow pin={pin} index={i} selected={pin.id === selectedPinId} onSelect={() => onSelect(pin.id)} />
+              <PinRow pin={pin} index={i} selected={pin.id === selectedPinId} onSelect={() => onSelect(pin.id)} onRemove={() => onRemove(pin.id)} />
               {/* 끄는 동안에는 구간 입력을 숨겨서 순서 바꾸기 쉽게 */}
               {!dragging && legs[i] && (
                 <li className="relative list-none">
@@ -74,7 +76,7 @@ export function PinList({ pins, legs, selectedPinId, onSelect, onMove, onLegChan
   )
 }
 
-function PinRow({ pin, index, selected, onSelect }: { pin: Pin; index: number; selected: boolean; onSelect: () => void }) {
+function PinRow({ pin, index, selected, onSelect, onRemove }: { pin: Pin; index: number; selected: boolean; onSelect: () => void; onRemove: () => void }) {
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({ id: pin.id })
   const sub = [pin.visitedAt?.replaceAll('-', '.'), pin.memo].filter(Boolean).join(' · ')
 
@@ -117,7 +119,15 @@ function PinRow({ pin, index, selected, onSelect }: { pin: Pin; index: number; s
             // eslint-disable-next-line @next/next/no-img-element -- data URL/외부 URL 미리보기
             <img src={pin.photoUrl} alt="" className="size-10 shrink-0 rounded-lg object-cover" />
           )}
-          <ChevronRightIcon size={16} className="shrink-0 text-(--c-muted)/60" />
+        </button>
+        <button
+          type="button"
+          onClick={onRemove}
+          className="grid size-9 shrink-0 place-items-center rounded-full text-(--c-muted)/70 transition hover:bg-red-500/10 hover:text-red-500"
+          aria-label={`${pin.place.name} 삭제`}
+          title="이 장소 지우기"
+        >
+          <TrashIcon size={16} />
         </button>
       </div>
     </li>

@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
-import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useCurrentUser } from '../auth'
 import { HeaderActions } from '../components/AppRail'
 import { PinEditPanel } from '../components/editor/PinEditPanel'
@@ -11,14 +11,13 @@ import { OptimizeCourseButton } from '../components/editor/OptimizeCourseButton'
 import { PlaceSearchBox } from '../components/editor/PlaceSearchBox'
 import { CollabButton } from '../components/editor/CollabButton'
 import { MapLookButton, MapLookPanel } from '../components/editor/MapLookPicker'
-import { StoryCardButton } from '../components/share/StoryCardButton'
-import { ExportMapButton } from '../components/share/ExportMapButton'
+import { ShareMenu } from '../components/editor/ShareMenu'
 import { useMapDraft } from '../components/editor/useMapDraft'
 import { CheckIcon, ChevronLeftIcon, GlobeIcon, LockIcon, PinIcon } from '../components/icons'
 import { MapView, type MapInsets } from '../components/map'
 import { getTheme, themeVars } from '../components/themes'
 import { getMapCollab } from '../db/api'
-import type { MapCollab } from '../types'
+import type { MapCollab, Pin } from '../types'
 import { Tour, type TourStep } from '../components/onboarding/Tour'
 import { MapViewer } from './MapViewer'
 import { daysUntil, planDday } from '../lib/planDate'
@@ -65,42 +64,70 @@ function useViewport() {
   return { ...vp, desktop: vp.w >= DESKTOP_MIN }
 }
 
-/** 모바일 하단 시트: 손잡이를 끌거나 눌러서 높이 조절 (낮게 / 중간 / 높게) */
-function useBottomSheet(viewportH: number) {
-  const SNAPS = [0.28, 0.52, 0.88]
-  const [snap, setSnap] = useState(1)
-  const [dragH, setDragH] = useState<number | null>(null)
-  const start = useRef<{ y: number; h: number; moved: boolean } | null>(null)
-  const height = dragH ?? Math.round(SNAPS[snap] * viewportH)
+const SHEET_SNAPS = [0.28, 0.52, 0.88]
 
-  const handlers = {
-    onPointerDown: (e: ReactPointerEvent) => {
-      e.currentTarget.setPointerCapture(e.pointerId)
-      start.current = { y: e.clientY, h: height, moved: false }
-    },
-    onPointerMove: (e: ReactPointerEvent) => {
-      const s = start.current
-      if (!s) return
-      const dy = e.clientY - s.y
-      if (Math.abs(dy) > 4) s.moved = true
-      if (s.moved) setDragH(Math.min(viewportH * 0.92, Math.max(viewportH * 0.18, s.h - dy)))
-    },
-    onPointerUp: () => {
-      const s = start.current
-      start.current = null
-      if (!s) return
-      if (!s.moved) {
-        setSnap((i) => (i + 1) % SNAPS.length)
-      } else if (dragH != null) {
-        const ratio = dragH / viewportH
-        let best = 0
-        SNAPS.forEach((r, i) => Math.abs(r - ratio) < Math.abs(SNAPS[best] - ratio) && (best = i))
-        setSnap(best)
-      }
-      setDragH(null)
-    },
-  }
-  return { height, dragging: dragH != null, handlers }
+/** 시트 높이를 DOM 에 바로 쓴다 (animate: 손을 뗀 뒤 단계로 맞출 때만 부드럽게) */
+function setSheetHeight(el: HTMLElement, px: number, animate: boolean) {
+  el.style.transition = animate ? '' : 'none'
+  el.style.height = `${px}px`
+}
+
+/**
+ * 모바일 하단 시트: 손잡이를 끌거나 눌러서 높이 조절 (낮게 / 중간 / 높게).
+ * 끄는 동안엔 화면을 다시 그리지 않고 시트 높이만 직접 바꾼다 (손가락이 움직일 때마다 편집 화면 전체를 그리면 휴대폰에서 버벅인다).
+ * 손을 떼면 가까운 단계로 맞추고, 그때 한 번 지도 · 패널 영역이 바뀐다.
+ */
+function useBottomSheet(viewportH: number) {
+  const [snap, setSnap] = useState(1)
+  const [sheetEl, setSheetEl] = useState<HTMLElement | null>(null)
+  const [handleEl, setHandleEl] = useState<HTMLElement | null>(null)
+  const height = Math.round(SHEET_SNAPS[snap] * viewportH)
+
+  useEffect(() => {
+    if (!sheetEl || !handleEl) return
+    let drag: { y: number; h: number; moved: boolean; last: number } | null = null
+    const down = (e: PointerEvent) => {
+      handleEl.setPointerCapture(e.pointerId)
+      const h = sheetEl.getBoundingClientRect().height
+      drag = { y: e.clientY, h, moved: false, last: h }
+    }
+    const move = (e: PointerEvent) => {
+      if (!drag) return
+      const dy = e.clientY - drag.y
+      if (Math.abs(dy) > 4) drag.moved = true
+      if (!drag.moved) return
+      drag.last = Math.min(viewportH * 0.92, Math.max(viewportH * 0.18, drag.h - dy))
+      setSheetHeight(sheetEl, drag.last, false)
+    }
+    const up = () => {
+      const d = drag
+      drag = null
+      if (!d) return
+      setSnap((cur) => {
+        let next = (cur + 1) % SHEET_SNAPS.length // 그냥 누르면 다음 단계
+        if (d.moved) {
+          const ratio = d.last / viewportH
+          next = 0
+          SHEET_SNAPS.forEach((r, i) => Math.abs(r - ratio) < Math.abs(SHEET_SNAPS[next] - ratio) && (next = i))
+        }
+        // 같은 단계로 돌아오면 React 가 style 을 다시 쓰지 않으니 여기서 맞춘다
+        setSheetHeight(sheetEl, Math.round(SHEET_SNAPS[next] * viewportH), true)
+        return next
+      })
+    }
+    handleEl.addEventListener('pointerdown', down)
+    handleEl.addEventListener('pointermove', move)
+    handleEl.addEventListener('pointerup', up)
+    handleEl.addEventListener('pointercancel', up)
+    return () => {
+      handleEl.removeEventListener('pointerdown', down)
+      handleEl.removeEventListener('pointermove', move)
+      handleEl.removeEventListener('pointerup', up)
+      handleEl.removeEventListener('pointercancel', up)
+    }
+  }, [sheetEl, handleEl, viewportH])
+
+  return { height, setSheetEl, setHandleEl }
 }
 
 export function MapEditorPage() {
@@ -137,20 +164,39 @@ export function MapEditorPage() {
   }, [needLogin, mapId, router])
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const vp = useViewport()
-  const sheet = useBottomSheet(vp.h || 800)
+  const { height: sheetHeight, setSheetEl, setHandleEl } = useBottomSheet(vp.h || 800)
 
   const theme = getTheme(map?.theme)
   const selectedIndex = pins.findIndex((p) => p.id === selectedId)
   const selectedPin = selectedIndex >= 0 ? pins[selectedIndex] : null
   // 옆 창: 핀을 고르면 핀 꾸미기, 🎨 지도 꾸미기를 누르면 지도 꾸미기 (같은 자리, 하나만)
   const [decoOpen, setDecoOpen] = useState(false)
+  /** 목록에서 방금 지운 핀 (5초 동안 되돌리기) */
+  const [undo, setUndo] = useState<{ pin: Pin; index: number } | null>(null)
+  useEffect(() => {
+    if (!undo) return
+    const t = window.setTimeout(() => setUndo(null), 5000)
+    return () => window.clearTimeout(t)
+  }, [undo])
+  /** 핀을 꾸미다가 지도 꾸미기를 열었으면 그 핀. 지도 꾸미기를 닫으면 그 핀 꾸미기로 돌아간다 */
+  const [returnPinId, setReturnPinId] = useState<string | null>(null)
   // 지도 꾸미기를 연 채로 핀을 고르면 지도 꾸미기는 닫는다 (핀 창을 닫았을 때 다시 뜨지 않게)
-  if (decoOpen && selectedPin) setDecoOpen(false)
+  if (decoOpen && selectedPin) {
+    setDecoOpen(false)
+    setReturnPinId(null)
+  }
   const mapDecoOpen = decoOpen && !selectedPin
   const sidePanelOpen = !!selectedPin || mapDecoOpen
+  const closeMapDeco = () => {
+    setDecoOpen(false)
+    if (returnPinId && pins.some((p) => p.id === returnPinId)) setSelectedId(returnPinId)
+    setReturnPinId(null)
+  }
   const toggleMapDeco = () => {
+    if (mapDecoOpen) return closeMapDeco()
+    setReturnPinId(selectedId)
     setSelectedId(null)
-    setDecoOpen((v) => !v || !!selectedPin)
+    setDecoOpen(true)
   }
   const totalMin = legs.reduce((sum, l) => sum + (l.durationMin ?? 0), 0)
 
@@ -165,6 +211,7 @@ export function MapEditorPage() {
   const save = async () => {
     const idMap = await draft.save()
     if (idMap && selectedId && idMap[selectedId]) setSelectedId(idMap[selectedId])
+    if (idMap && returnPinId && idMap[returnPinId]) setReturnPinId(idMap[returnPinId])
   }
 
   // Ctrl/Cmd + S 로 저장
@@ -228,9 +275,23 @@ export function MapEditorPage() {
   // 지도에서 패널이 가리는 부분 (핀 전체보기 때 피해서 맞춤)
   const insets: MapInsets = vp.desktop
     ? { top: 72, right: 0, bottom: 0, left: RAIL_W + PANEL_W + (sidePanelOpen ? DETAIL_W + 24 : 0) }
-    : { top: 64, right: 0, bottom: sidePanelOpen ? Math.round(vp.h * 0.62) : sheet.height, left: 0 }
+    : { top: 64, right: 0, bottom: sidePanelOpen ? Math.round(vp.h * 0.62) : sheetHeight, left: 0 }
 
   const saveLabel = draft.saving ? '저장 중…' : draft.dirty ? '저장' : draft.justSaved ? '저장됨' : '저장'
+
+  /** 목록에서 바로 지우기: 확인 창 대신 5초 동안 '되돌리기' */
+  const removeFromList = (pinId: string) => {
+    const index = pins.findIndex((p) => p.id === pinId)
+    if (index < 0) return
+    setUndo({ pin: pins[index], index })
+    draft.removePin(pinId)
+    if (selectedId === pinId) setSelectedId(null)
+  }
+
+  /** 공유 메뉴: 데스크톱은 오른쪽 위, 모바일은 시트 안 (한 화면에 하나만 그린다: 이미지 카드 · 내보내기 창이 겹치지 않게) */
+  const shareMenu = (align: 'left' | 'right') => (
+    <ShareMenu map={map} pins={pins} story={{ map, pins, legs, theme, ownerName: user?.nickname }} exportData={{ map, pins, legs }} dirty={draft.dirty} align={align} />
+  )
 
   const saveButton = (
     <button
@@ -266,16 +327,20 @@ export function MapEditorPage() {
 
 
       {/* 상단 떠 있는 바 */}
-      <div className="pointer-events-none absolute inset-x-3 top-3 z-20 flex items-start justify-between gap-2 md:left-auto md:right-4 md:top-4">
+      {/* 상단 떠 있는 바: (모바일) ← · 장소 검색 · 저장 / (데스크톱) 장소 검색 · 꾸미기 · 같이 꾸미기 · 공유 · 저장 · 프로필 */}
+      <div className="pointer-events-none absolute inset-x-3 top-3 z-30 flex items-start gap-2 md:left-auto md:right-4 md:top-4">
         <button
           type="button"
           onClick={goBack}
-          className="tm-float pointer-events-auto grid size-10 place-items-center rounded-full bg-(--c-surface) text-(--c-text) md:hidden"
+          className="tm-float pointer-events-auto grid size-10 shrink-0 place-items-center rounded-full bg-(--c-surface) text-(--c-text) md:hidden"
           aria-label="내 지도로"
         >
           <ChevronLeftIcon size={20} />
         </button>
-        <div className="pointer-events-auto flex items-center gap-2">
+        <div className="pointer-events-auto min-w-0 flex-1 md:w-64 md:flex-none lg:w-80" data-tour="place-search">
+          <PlaceSearchBox variant="floating" onPick={(place) => draft.addPlace(place)} />
+        </div>
+        <div className="pointer-events-auto flex shrink-0 items-center gap-2">
           <div className="hidden md:block" data-tour="map-look">
             <MapLookButton open={mapDecoOpen} onClick={toggleMapDeco} />
           </div>
@@ -284,10 +349,29 @@ export function MapEditorPage() {
               <CollabButton mapId={map.id} myId={user.id} collab={collab} onChange={loadCollab} />
             </div>
           )}
+          {vp.desktop && shareMenu('right')}
           <div data-tour="save">{saveButton}</div>
-          <HeaderActions user={user} active="maps" floating />
+          <div className="hidden md:block">
+            <HeaderActions user={user} active="maps" floating showSearch={false} />
+          </div>
         </div>
       </div>
+
+      {undo && (
+        <div role="status" className="tm-float absolute left-1/2 top-16 z-40 flex w-max max-w-[calc(100%-32px)] -translate-x-1/2 items-center gap-3 rounded-full bg-gray-900/90 py-2 pl-4 pr-2 text-sm text-white backdrop-blur md:top-20">
+          <span className="truncate">‘{undo.pin.place.name}’ 지웠어요</span>
+          <button
+            type="button"
+            onClick={() => {
+              draft.restorePin(undo.pin, undo.index)
+              setUndo(null)
+            }}
+            className="shrink-0 rounded-full bg-white/15 px-3 py-1 font-bold hover:bg-white/25"
+          >
+            되돌리기
+          </button>
+        </div>
+      )}
 
       {draft.saveError && (
         <div role="alert" className="tm-float absolute left-1/2 top-16 z-40 -translate-x-1/2 rounded-full bg-red-500 px-4 py-2 text-sm font-medium text-white">
@@ -299,14 +383,13 @@ export function MapEditorPage() {
 
       {/* 왼쪽 패널 (데스크톱) / 하단 시트 (모바일) */}
       <section
-        className={`absolute inset-x-0 bottom-0 z-20 flex flex-col rounded-t-3xl bg-(--c-surface) shadow-[0_-8px_30px_rgb(15_23_42/0.12)] md:inset-y-0 md:right-auto md:rounded-none md:border-r md:border-(--c-border) md:shadow-[4px_0_24px_rgb(15_23_42/0.06)] ${
-          sheet.dragging ? '' : 'transition-[height] duration-200'
-        }`}
-        style={vp.desktop ? { left: RAIL_W, width: PANEL_W } : { height: sheet.height }}
+        ref={setSheetEl}
+        className="absolute inset-x-0 bottom-0 z-20 flex flex-col rounded-t-3xl bg-(--c-surface) shadow-[0_-8px_30px_rgb(15_23_42/0.12)] transition-[height] duration-200 md:inset-y-0 md:right-auto md:rounded-none md:border-r md:border-(--c-border) md:shadow-[4px_0_24px_rgb(15_23_42/0.06)]"
+        style={vp.desktop ? { left: RAIL_W, width: PANEL_W } : { height: sheetHeight }}
         aria-label="지도 편집"
       >
         {/* 시트 손잡이 (모바일) */}
-        <div {...sheet.handlers} className="flex shrink-0 cursor-grab touch-none justify-center pb-1 pt-2.5 md:hidden" aria-label="패널 높이 조절" role="button">
+        <div ref={setHandleEl} className="flex shrink-0 cursor-grab touch-none justify-center pb-1 pt-2.5 md:hidden" aria-label="패널 높이 조절" role="button">
           <span className="h-1.5 w-10 rounded-full bg-black/15" />
         </div>
 
@@ -398,8 +481,8 @@ export function MapEditorPage() {
             )
           )}
 
-          {/* 할 일 버튼은 한 줄로: (모바일) 꾸미기 · 같이 꾸미기 + 모임 열기 · 이미지 카드 */}
-          <div className="flex flex-wrap items-center gap-2">
+          {/* (모바일) 꾸미기 · 같이 꾸미기 · 공유. 데스크톱은 오른쪽 위에 있다 */}
+          <div className="flex flex-wrap items-center gap-2 md:hidden">
             <span className="md:hidden" data-tour="map-look">
               <MapLookButton open={mapDecoOpen} onClick={toggleMapDeco} variant="inline" />
             </span>
@@ -408,22 +491,7 @@ export function MapEditorPage() {
                 <CollabButton mapId={map.id} myId={user.id} collab={collab} onChange={loadCollab} variant="inline" />
               </span>
             )}
-            <Link
-              href={`/meetups/new?mapId=${map.id}`}
-              onClick={(e) => {
-                if (draft.dirty && !window.confirm('저장하지 않은 변경이 있어요. 저장하지 않고 모임 만들기로 갈까요?')) e.preventDefault()
-              }}
-              className="flex h-9 items-center gap-1.5 rounded-full border border-(--c-border) px-3 text-[0.8125rem] font-semibold transition hover:bg-black/[0.03]"
-              title="이 지도로 성지순례 모집하기"
-            >
-              <span aria-hidden>🚩</span> 모임 열기
-            </Link>
-            <StoryCardButton className="h-9! w-auto! rounded-full! px-3 text-[0.8125rem]! font-semibold!" data={{ map, pins, legs, theme, ownerName: user?.nickname }} />
-            <ExportMapButton className="h-9! w-auto! rounded-full! px-3 text-[0.8125rem]! font-semibold!" data={{ map, pins, legs }} />
-          </div>
-
-          <div data-tour="place-search">
-            <PlaceSearchBox onPick={(place) => draft.addPlace(place)} />
+            {!vp.desktop && shareMenu('left')}
           </div>
         </div>
 
@@ -432,7 +500,19 @@ export function MapEditorPage() {
             장소 <span className="text-(--c-accent)">{pins.length}</span>곳
             {totalMin > 0 && <span className="ml-2 font-normal text-(--c-muted)">이동 총 {totalMin >= 60 ? `${Math.floor(totalMin / 60)}시간 ${totalMin % 60}분` : `${totalMin}분`}</span>}
           </span>
-          <OptimizeCourseButton pins={pins} onReorder={draft.reorderPins} />
+          <div className="flex shrink-0 items-center gap-1">
+            {pins.length > 1 && (
+              <button
+                type="button"
+                onClick={() => draft.reorderPins([...pins].reverse().map((p) => p.id))}
+                className="rounded-full px-2.5 py-1 text-xs font-semibold text-(--c-muted) transition hover:bg-black/5 hover:text-(--c-text)"
+                title="코스 순서를 거꾸로 (도착지에서 출발)"
+              >
+                ⇅ 순서 뒤집기
+              </button>
+            )}
+            <OptimizeCourseButton pins={pins} onReorder={draft.reorderPins} />
+          </div>
         </div>
 
         <div className="tm-scroll min-h-0 flex-1 overflow-y-auto pb-[env(safe-area-inset-bottom)]" data-tour="pins">
@@ -443,7 +523,7 @@ export function MapEditorPage() {
               </span>
               <p className="mt-4 font-semibold">첫 장소를 추가해 보세요</p>
               <p className="mt-1 text-sm text-(--c-muted)">
-                위 검색창에서 장소를 찾거나, 지도를 눌러 근처 장소를 골라 핀을 꽂아 보세요. 순서대로 선이 이어져요.
+                위쪽 검색창에서 장소를 찾거나, 지도를 눌러 근처 장소를 골라 핀을 꽂아 보세요. 순서대로 선이 이어져요.
               </p>
             </div>
           ) : (
@@ -454,6 +534,7 @@ export function MapEditorPage() {
               onSelect={(id) => setSelectedId((cur) => (cur === id ? null : id))}
               onMove={draft.movePin}
               onLegChange={draft.updateLeg}
+              onRemove={removeFromList}
             />
           )}
         </div>
@@ -462,7 +543,7 @@ export function MapEditorPage() {
       {/* 옆 창 (핀 꾸미기 · 지도 꾸미기): 데스크톱은 목록 옆, 모바일은 하단 시트 */}
       {mapDecoOpen && (
         <>
-          <div className="absolute inset-0 z-30 bg-black/20 md:hidden" onClick={() => setDecoOpen(false)} aria-hidden />
+          <div className="absolute inset-0 z-30 bg-black/20 md:hidden" onClick={closeMapDeco} aria-hidden />
           <section
             className="tm-float absolute inset-x-0 bottom-0 z-40 flex h-[62dvh] flex-col overflow-hidden rounded-t-3xl bg-(--c-surface) md:bottom-4 md:right-auto md:top-4 md:h-auto md:rounded-2xl"
             style={vp.desktop ? { left: RAIL_W + PANEL_W + 12, width: DETAIL_W } : undefined}
@@ -476,7 +557,7 @@ export function MapEditorPage() {
               onTheme={draft.setTheme}
               category={map.category}
               categoryLabel={map.categoryLabel ?? null}
-              onClose={() => setDecoOpen(false)}
+              onClose={closeMapDeco}
             />
           </section>
         </>

@@ -528,6 +528,20 @@ export async function getMeetups(filter: MeetupFilter = 'all'): Promise<MeetupSu
   return toSummaries(rows)
 }
 
+/** 이 지도로 모이는 성지순례 중 아직 안 지난 것 (취소 제외, 가까운 날 순). 비공개 모임은 RLS 가 참여자에게만 */
+export async function getMapMeetups(mapId: string): Promise<MeetupSummary[]> {
+  const { data, error } = await supabase
+    .from('meetups')
+    .select(MEETUP_COLS)
+    .eq('map_id', mapId)
+    .neq('status', 'canceled')
+    .gte('meet_at', new Date().toISOString())
+    .order('meet_at')
+    .limit(20)
+  if (error) fail(error)
+  return toSummaries(data as MeetupRow[])
+}
+
 export async function getMeetup(meetupId: string, inviteCode?: string): Promise<{ meetup: MeetupSummary; mapDetail: MapDetail | null } | null> {
   let { data: row } = await supabase.from('meetups').select(MEETUP_COLS).eq('id', meetupId).maybeSingle<MeetupRow>()
   // 비공개 모임: 참여 전에는 초대 코드가 맞아야 보인다

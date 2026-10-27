@@ -18,6 +18,7 @@ import { KakaoShareButton } from '../components/share/KakaoShareButton'
 import { StoryCardButton } from '../components/share/StoryCardButton'
 import { ExportMapButton } from '../components/share/ExportMapButton'
 import { ReportButton } from '../components/report/ReportDialog'
+import { MapMeetupList } from '../components/meetup/MapMeetupList'
 import { TransitSteps } from '../components/TransitSteps'
 import { copyMap, getUser } from '../db/api'
 import type { MapDetail, User } from '../types'
@@ -194,6 +195,8 @@ export function MapViewer({ detail }: { detail: MapDetail }) {
             )
           })}
         </ol>
+
+        <MapMeetupList mapId={map.id} newHref={meetupHref} />
       </section>
     </div>
   )

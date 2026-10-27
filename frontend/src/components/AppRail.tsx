@@ -84,15 +84,28 @@ export function AppRail({ active }: { active?: NavKey }) {
  * 오른쪽 위 묶음: 내 프로필(사진 · 이름) + ☰ 메뉴. 지도 화면은 이것만 떠 있게 쓴다 (floating).
  * user 를 안 주면 직접 가져온다.
  */
-export function HeaderActions({ user: given, active, floating = false }: { user?: User | null; active?: NavKey; floating?: boolean }) {
+export function HeaderActions({
+  user: given,
+  active,
+  floating = false,
+  showSearch = true,
+}: {
+  user?: User | null
+  active?: NavKey
+  floating?: boolean
+  /** 지도 편집 화면처럼 자기 검색창이 있으면 false (둘러보기로 가는 검색 버튼 숨김) */
+  showSearch?: boolean
+}) {
   const fetched = useCurrentUser()
   const user = given === undefined ? fetched : given
   const box = floating ? 'tm-float rounded-full bg-(--c-surface) p-1' : ''
   return (
     <div className={`flex items-center gap-1.5 ${box}`}>
-      <Link href="/explore" className="grid size-9 shrink-0 place-items-center rounded-full text-(--c-text) transition hover:bg-black/5" aria-label="검색" title="지도 · 사람 검색">
-        <SearchIcon size={19} />
-      </Link>
+      {showSearch && (
+        <Link href="/explore" className="grid size-9 shrink-0 place-items-center rounded-full text-(--c-text) transition hover:bg-black/5" aria-label="검색" title="지도 · 사람 검색">
+          <SearchIcon size={19} />
+        </Link>
+      )}
       {user === undefined ? (
         <span className="size-9" />
       ) : user ? (

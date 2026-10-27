@@ -23,6 +23,7 @@ declare namespace kakao.maps {
   class Map {
     constructor(container: HTMLElement, options: { center: LatLng; level?: number })
     setCenter(latlng: LatLng): void
+    getCenter(): LatLng
     panTo(latlng: LatLng): void
     panBy(dx: number, dy: number): void
     setBounds(bounds: LatLngBounds, paddingTop?: number, paddingRight?: number, paddingBottom?: number, paddingLeft?: number): void

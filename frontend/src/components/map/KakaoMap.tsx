@@ -18,6 +18,11 @@ interface Props extends MapViewProps {
   onLoadError: (message: string) => void
 }
 
+/** 핀 고를 때 · 패널 크기가 바뀔 때 지도가 미끄러지는 시간 */
+const GLIDE_MS = 550
+/** 장소 하나를 볼 때 확대 정도 (카카오 레벨, 작을수록 확대. 4 ≈ 동네 골목이 보이는 정도) */
+const FOCUS_LEVEL = 4
+
 export function KakaoMap({ pins, segments, theme, look = DEFAULT_LOOK, selectedPinId, onSelectPin, insets = NO_INSETS, onAddPlace, onLoadError, autoLocate }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<kakao.maps.Map | null>(null)
@@ -102,7 +107,9 @@ export function KakaoMap({ pins, segments, theme, look = DEFAULT_LOOK, selectedP
     return () => drawn.forEach((o) => o.setMap(null))
   }, [ready, segments, theme.route, look.lineStyle, look.lineWidth])
 
-  // 3) 핀 마커 (선택이 바뀌어도 경로선은 다시 그리지 않는다)
+  // 3) 핀 마커 (선택이 바뀌어도 경로선은 다시 그리지 않는다).
+  // 마커에 보이는 값(위치 · 순번 · 아이콘 · 색 · 이름)이 바뀔 때만 다시 만든다: 메모를 칠 때마다 마커를 전부 새로 만들면 휴대폰에서 버벅인다
+  const markerShape = pins.map((p) => [p.id, p.place.lat, p.place.lng, p.icon, p.color, p.place.name].join('|')).join(';')
   useEffect(() => {
     const map = mapRef.current
     if (!ready || !map) return
@@ -124,7 +131,55 @@ export function KakaoMap({ pins, segments, theme, look = DEFAULT_LOOK, selectedP
     })
 
     return () => drawn.forEach((o) => o.setMap(null))
-  }, [ready, pins, selectedPinId, look.markerShape])
+    // pins 는 markerShape 가 바뀔 때만 (위 설명)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, markerShape, selectedPinId, look.markerShape])
+
+  /** 지도 중심을 천천히 미끄러지듯 옮긴다 (카카오 panTo 는 너무 빨라서 툭 튀어 보인다). 끌거나 확대하면 멈춘다 */
+  const glide = useRef(0)
+  const glideTo = (target: kakao.maps.LatLng) => {
+    const map = mapRef.current
+    if (!map) return
+    cancelAnimationFrame(glide.current)
+    const from = map.getCenter()
+    const [lat0, lng0, lat1, lng1] = [from.getLat(), from.getLng(), target.getLat(), target.getLng()]
+    const start = performance.now()
+    const step = (now: number) => {
+      const t = Math.min(1, (now - start) / GLIDE_MS)
+      const e = t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2 // 천천히 시작해서 천천히 멈춘다
+      map.setCenter(new window.kakao!.maps.LatLng(lat0 + (lat1 - lat0) * e, lng0 + (lng1 - lng0) * e))
+      if (t < 1) glide.current = requestAnimationFrame(step)
+    }
+    glide.current = requestAnimationFrame(step)
+  }
+  useEffect(() => {
+    const map = mapRef.current
+    if (!ready || !map) return
+    const ev = window.kakao!.maps.event
+    const stop = () => cancelAnimationFrame(glide.current)
+    ev.addListener(map, 'dragstart', stop)
+    ev.addListener(map, 'zoom_start', stop)
+    return () => {
+      stop()
+      ev.removeListener(map, 'dragstart', stop)
+      ev.removeListener(map, 'zoom_start', stop)
+    }
+  }, [ready])
+
+  /**
+   * 그 좌표를 패널에 안 가린 '보이는 영역' 가운데로 한 번에 부드럽게 옮긴다.
+   * (가운데로 순간 이동한 뒤 다시 미끄러지면 화면이 튕겨 보여서, 도착할 중심을 먼저 계산한다)
+   */
+  const panToVisible = (lat: number, lng: number) => {
+    const map = mapRef.current
+    if (!map) return
+    const k = window.kakao!
+    const ins = insetsRef.current
+    const proj = map.getProjection()
+    const at = proj.containerPointFromCoords(new k.maps.LatLng(lat, lng))
+    glideTo(proj.coordsFromContainerPoint(new k.maps.Point(at.x - (ins.left - ins.right) / 2, at.y - (ins.top - ins.bottom) / 2)))
+    shownInsets.current = ins
+  }
 
   // 4) 핀 개수가 바뀌면 전체가 보이게 맞춤
   const fitAll = () => {
@@ -148,32 +203,38 @@ export function KakaoMap({ pins, segments, theme, look = DEFAULT_LOOK, selectedP
     map.setBounds(bounds, ins.top + 60, ins.right + 60, ins.bottom + 60, ins.left + 60)
     shownInsets.current = insetsRef.current
   }
+  // 처음엔 핀 전체가 보이게. 그 뒤로 장소를 하나 추가하면(검색 · 지도 찍기) 그 장소를 잘 보이게 확대해서 가운데로
   const pinCount = pins.length
+  const knownPinIds = useRef<Set<string> | null>(null)
   useEffect(() => {
-    if (ready) fitAll()
-  }, [ready, pinCount])
-
-  /**
-   * 그 좌표를 패널에 안 가린 '보이는 영역' 가운데로 한 번에 부드럽게 옮긴다.
-   * (가운데로 순간 이동한 뒤 다시 미끄러지면 화면이 튕겨 보여서, 도착할 중심을 먼저 계산한다)
-   */
-  const panToVisible = (lat: number, lng: number) => {
     const map = mapRef.current
-    if (!map) return
-    const k = window.kakao!
-    const ins = insetsRef.current
-    const proj = map.getProjection()
-    const at = proj.containerPointFromCoords(new k.maps.LatLng(lat, lng))
-    const center = proj.coordsFromContainerPoint(new k.maps.Point(at.x - (ins.left - ins.right) / 2, at.y - (ins.top - ins.bottom) / 2))
-    map.panTo(center)
-    shownInsets.current = ins
-  }
+    if (!ready || !map) return
+    const list = pinsRef.current
+    const known = knownPinIds.current
+    knownPinIds.current = new Set(list.map((p) => p.id))
+    if (!known) return fitAll()
+    const added = list.filter((p) => !known.has(p.id))
+    if (added.length !== 1) return
+    const { lat, lng } = added[0].place
+    if (map.getLevel() > FOCUS_LEVEL) {
+      // 멀리 보고 있었으면 확대하면서 바로 그 자리로 (멀리서 미끄러지면 오히려 어지럽다)
+      map.setLevel(FOCUS_LEVEL)
+      map.setCenter(new window.kakao!.maps.LatLng(lat, lng))
+      shownInsets.current = { ...NO_INSETS }
+    } else {
+      panToVisible(lat, lng)
+    }
+    // fitAll · panToVisible 은 ref 만 읽는다
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, pinCount])
 
   // 5) 선택한 핀으로 이동. 패널이 가린 부분을 빼고 '보이는 영역'의 가운데로 온다.
   useEffect(() => {
     const pin = pinsRef.current.find((p) => p.id === selectedPinId)
     if (!ready || !pin) return
     panToVisible(pin.place.lat, pin.place.lng)
+    // panToVisible 은 ref 만 읽는다
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, selectedPinId])
 
   // 6) 내 위치 (파란 점 + 오차 범위)
@@ -299,7 +360,10 @@ export function KakaoMap({ pins, segments, theme, look = DEFAULT_LOOK, selectedP
       shownInsets.current = insets
       const dx = (insets.left - insets.right - (prev.left - prev.right)) / 2
       const dy = (insets.top - insets.bottom - (prev.top - prev.bottom)) / 2
-      if (Math.abs(dx) > 1 || Math.abs(dy) > 1) map.panBy(-dx, -dy)
+      if (Math.abs(dx) <= 1 && Math.abs(dy) <= 1) return
+      const proj = map.getProjection()
+      const c = proj.containerPointFromCoords(map.getCenter())
+      glideTo(proj.coordsFromContainerPoint(new window.kakao!.maps.Point(c.x - dx, c.y - dy)))
     }, 120) // 끄는 동안엔 기다렸다가 한 번에
     return () => window.clearTimeout(t)
   }, [ready, insets.top, insets.right, insets.bottom, insets.left])

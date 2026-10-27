@@ -27,6 +27,7 @@ export const joinMapByInvite = impl.joinMapByInvite
 export const removeMapEditor = impl.removeMapEditor
 export const getMeetups = impl.getMeetups
 export const getMeetup = impl.getMeetup
+export const getMapMeetups = impl.getMapMeetups
 export const saveMeetup = impl.saveMeetup
 export const joinMeetup = impl.joinMeetup
 export const leaveMeetup = impl.leaveMeetup

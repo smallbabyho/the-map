@@ -9,10 +9,12 @@ import { PlaceStatsLine } from '../place/PlaceStats'
 
 interface Props {
   onPick: (place: PlaceSearchResult) => void
+  /** floating: 지도 위 오른쪽 위에 떠 있는 둥근 검색창 */
+  variant?: 'panel' | 'floating'
 }
 
 /** 장소 검색창 + 결과 목록. 결과를 누르면 onPick 으로 넘기고 닫힌다. */
-export function PlaceSearchBox({ onPick }: Props) {
+export function PlaceSearchBox({ onPick, variant = 'panel' }: Props) {
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<PlaceSearchResult[] | null>(null)
   const [loading, setLoading] = useState(false)
@@ -70,7 +72,11 @@ export function PlaceSearchBox({ onPick }: Props) {
           e.preventDefault()
           run()
         }}
-        className="flex h-12 items-center gap-2 rounded-xl border-2 border-(--c-accent) bg-(--c-surface) pl-3.5 pr-1.5 transition focus-within:shadow-[0_0_0_4px_color-mix(in_srgb,var(--c-accent)_15%,transparent)]"
+        className={`flex items-center gap-2 bg-(--c-surface) pl-3.5 pr-1.5 transition ${
+          variant === 'floating'
+            ? 'tm-float h-10 rounded-full border border-(--c-border) focus-within:border-(--c-accent)'
+            : 'h-12 rounded-xl border-2 border-(--c-accent) focus-within:shadow-[0_0_0_4px_color-mix(in_srgb,var(--c-accent)_15%,transparent)]'
+        }`}
       >
         <SearchIcon size={18} className="shrink-0 text-(--c-muted)" />
         <input
@@ -90,7 +96,7 @@ export function PlaceSearchBox({ onPick }: Props) {
         <button
           type="submit"
           disabled={!query.trim() || loading}
-          className="h-9 shrink-0 rounded-lg bg-(--c-accent) px-3.5 text-sm font-semibold text-(--c-accent-text) transition disabled:opacity-40"
+          className={`shrink-0 bg-(--c-accent) px-3.5 text-sm font-semibold text-(--c-accent-text) transition disabled:opacity-40 ${variant === 'floating' ? 'h-8 rounded-full' : 'h-9 rounded-lg'}`}
         >
           {loading ? '검색 중' : '검색'}
         </button>

@@ -4,7 +4,7 @@ export { searchPlaces, isCustomPlace, type PlaceSearchResult } from './placeSear
 export { hasKakaoKey } from './loadKakao'
 export type { LiveTrack, MapInsets, MapLegView, MapViewProps } from './types'
 export { useNubi, type NubiState } from './nubi'
-export { hasNubiInProgress, listNubiInProgress } from './nubiStore'
+export { listNubiInProgress, nubiHref } from './nubiStore'
 export { useRoutes, cachedRoute, formatDistance, type Route, type LatLngLike } from './routing'
 export { hasTransitKey, type TransitInfo, type TransitStep } from './transit'
 export { STEP_ICON } from './transit'

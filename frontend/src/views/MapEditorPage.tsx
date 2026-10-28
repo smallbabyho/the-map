@@ -553,9 +553,13 @@ export function MapEditorPage() {
               </button>
             )}
             <OptimizeCourseButton pins={pins} onReorder={draft.reorderPins} />
-            <NubiButton compact title={map.title || '제목 없는 지도'} pins={pins} legs={legs} theme={theme} look={map} storageKey={`map:${map.id}`} />
           </div>
         </div>
+        {pins.length > 0 && (
+          <div className="shrink-0 px-4 pb-2.5">
+            <NubiButton className="w-full" title={map.title || '제목 없는 지도'} pins={pins} legs={legs} theme={theme} look={map} storageKey={`map:${map.id}`} />
+          </div>
+        )}
 
         <div className="tm-scroll min-h-0 flex-1 overflow-y-auto pb-[env(safe-area-inset-bottom)]" data-tour="pins">
           {pins.length === 0 ? (

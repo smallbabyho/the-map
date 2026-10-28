@@ -24,6 +24,8 @@ const TRAIL_MAX_ACCURACY = 60
 /** 이만큼 움직여야 지나온 길에 점을 더한다 */
 const TRAIL_STEP_M = 8
 const TRAIL_MAX = 3000
+/** 위치를 지켜보는 중일 때 도착 버튼이 다시 재지 않고 믿는 마지막 위치의 나이 */
+const STALE_WATCH_MS = 3 * 60_000
 /** 경로선 길이(m) */
 export function pathLength(path: LatLngLike[]) {
   let s = 0
@@ -198,7 +200,8 @@ export function useNubi(pins: Pin[], legs: MapLegView[], storageKey: string, tit
     navigator.geolocation.getCurrentPosition(
       (p) => posAt.current === 0 && onPosition({ lat: p.coords.latitude, lng: p.coords.longitude, accuracy: p.coords.accuracy }),
       () => {},
-      { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 },
+      // 몇 분 전 위치라도 바로 띄워 두면 GPS 가 잡히는 동안 덜 기다린다 (곧 정확한 위치로 바뀐다)
+      { enableHighAccuracy: false, timeout: 10000, maximumAge: 5 * 60_000 },
     )
     watchId.current = navigator.geolocation.watchPosition(
       (p) => onPosition({ lat: p.coords.latitude, lng: p.coords.longitude, accuracy: p.coords.accuracy }),
@@ -234,7 +237,8 @@ export function useNubi(pins: Pin[], legs: MapLegView[], storageKey: string, tit
       const pin = pins.find((p) => p.id === pinId)
       if (!pin) return null
       let pos = posRef.current
-      if (!pos || Date.now() - posAt.current > 30_000) {
+      // 아이폰은 가만히 있으면 새 위치를 안 보내서, 지켜보는 중이면 조금 묵은 위치도 지금 위치로 본다 (다시 재면 10초 넘게 걸린다)
+      if (!pos || Date.now() - posAt.current > (watchId.current != null ? STALE_WATCH_MS : 30_000)) {
         try {
           pos = await currentPosition()
         } catch (e) {
@@ -315,7 +319,7 @@ export function useNubi(pins: Pin[], legs: MapLegView[], storageKey: string, tit
       pinPercents,
       movedM: pathLength(saved?.trail ?? []),
       finished,
-      live: { me: active ? pos : null, trail: saved?.trail ?? [], donePath, visited: [...visited] },
+      live: { me: pos, trail: saved?.trail ?? [], donePath, visited: [...visited] },
       start,
       stop,
       reset,

@@ -8,7 +8,7 @@ import { ChevronLeftIcon } from '../icons'
 import { themeVars, type Theme } from '../themes'
 import { MapView } from './MapView'
 import { useNubi } from './nubi'
-import { hasNubiInProgress } from './nubiStore'
+import { nubiPercent, subscribeNubi } from './nubiStore'
 import { NUBI_DONE } from './nubiColors'
 import { formatDistance } from './routing'
 import type { MapLegView } from './types'
@@ -26,8 +26,6 @@ interface Props {
   onArrive?: (pin: Pin, at: MyPosition) => Promise<void>
   onClose: () => void
 }
-
-const noSubscribe = () => () => {}
 
 /** 누비기 진행 띠 · 다음 장소 카드가 지도를 가리는 높이 (지도가 내 위치를 이만큼 위로 올려 보여 준다) */
 const PANEL_H = 250
@@ -87,6 +85,7 @@ export function NubiMode({ title, pins, legs, theme, look, storageKey, onArrive,
           selectedPinId={selectedId}
           onSelectPin={(id) => setSelectedId((c) => (c === id ? null : id))}
           insets={{ top: 64, right: 0, bottom: PANEL_H, left: 0 }}
+          autoLocate="show"
           live={nubi.live}
         />
       </div>
@@ -256,26 +255,32 @@ export function NubiMode({ title, pins, legs, theme, look, storageKey, onArrive,
  * @example
  * <NubiButton title={map.title} pins={pins} legs={legs} theme={theme} look={map} storageKey={`map:${map.id}`} />
  */
-export function NubiButton({ className = '', compact = false, ...props }: Omit<Props, 'onClose'> & { className?: string; compact?: boolean }) {
+export function NubiButton({ className = '', ...props }: Omit<Props, 'onClose'> & { className?: string }) {
   // 오른쪽 아래 일정 창의 '누비는 중'에서 들어오면(?nubi=1) 바로 연다. 이 버튼은 지도 · 코스를 불러온 뒤 브라우저에서만 그려진다
   const [open, setOpen] = useState(() => typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('nubi') === '1')
-  // localStorage 는 브라우저에서만 읽는다 (서버 화면은 '이 코스 누비기'). 닫으면 다시 그려지며 새로 읽힌다
-  const resume = useSyncExternalStore(noSubscribe, () => hasNubiInProgress(props.storageKey), () => false)
+  // 누비던 중이면 진행도(%), 아니면 -1. localStorage 는 브라우저에서만 읽는다 (서버 화면은 '이 코스 누비기')
+  const resume = useSyncExternalStore(subscribeNubi, () => nubiPercent(props.storageKey), () => -1)
   if (props.pins.length === 0) return null
   return (
     <>
       <button
         type="button"
         onClick={() => setOpen(true)}
-        title="코스를 따라 움직이며 진행도 · 남은 거리를 봐요"
-        className={
-          compact
-            ? `rounded-full px-2.5 py-1 text-xs font-semibold text-(--c-muted) transition hover:bg-black/5 hover:text-(--c-text) ${className}`
-            : `tm-btn flex h-12 items-center justify-center gap-1.5 rounded-xl text-sm font-bold text-white ${className}`
-        }
-        style={compact ? undefined : { background: NUBI_DONE }}
+        className={`tm-btn flex h-14 items-center gap-3 rounded-2xl px-4 text-left text-white ${className}`}
+        style={{ background: NUBI_DONE }}
       >
-        📍 {resume ? '이어서 누비기' : '이 코스 누비기'}
+        <span className="grid size-9 shrink-0 place-items-center rounded-full bg-white/20 text-lg" aria-hidden>
+          📍
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-[0.9375rem] font-bold leading-tight">{resume >= 0 ? '이어서 누비기' : '이 코스 누비기'}</span>
+          <span className="block truncate text-xs leading-tight opacity-85">
+            {resume >= 0 ? `${resume}% 왔어요 · 이어서 남은 코스를 따라가요` : '코스를 따라 진행도 · 남은 거리를 봐요'}
+          </span>
+        </span>
+        <span className="shrink-0 rounded-full bg-white px-3 py-1.5 text-xs font-extrabold" style={{ color: NUBI_DONE }}>
+          시작
+        </span>
       </button>
       {open && (
         <NubiMode

@@ -1,9 +1,12 @@
 'use client'
 
 import Link from 'next/link'
+import { useSyncExternalStore } from 'react'
 import { daysUntil, formatPlanDate, planDday } from '../lib/planDate'
 import type { ConceptMap } from '../types'
 import { CheckIcon, GlobeIcon, LockIcon, TrashIcon } from './icons'
+import { NUBI_DONE } from './map/nubiColors'
+import { nubiHref, nubiPercent, subscribeNubi } from './map/nubiStore'
 import { MapThumb } from './MapThumb'
 import { mapCategoryText } from './mapCategories'
 import { mapPurpose, purposeMeta } from './mapPurpose'
@@ -24,6 +27,9 @@ interface Props {
 export function MapCard({ map, index, shared = false, onDelete, onToggle, selected = false }: Props) {
   const theme = getTheme(map.theme)
   const updated = new Date(map.updatedAt).toLocaleDateString('ko-KR', { year: '2-digit', month: '2-digit', day: '2-digit' })
+  const nubiKey = `map:${map.id}`
+  // 누비던 중이면 진행도(%), 아니면 -1
+  const nubi = useSyncExternalStore(subscribeNubi, () => nubiPercent(nubiKey), () => -1)
 
   return (
     <div className={`tm-card group relative overflow-hidden rounded-2xl ${selected ? 'ring-[3px] ring-(--c-accent)' : ''}`}>
@@ -57,6 +63,17 @@ export function MapCard({ map, index, shared = false, onDelete, onToggle, select
           </div>
         </div>
       </Link>
+      {!onToggle && (
+        // 지도에 들어가지 않고 바로 누비기 (?nubi=1 → 지도가 열리자마자 누비기 화면)
+        <Link
+          href={nubiHref(nubiKey)}
+          className="tm-btn absolute right-3 top-[8.25rem] inline-flex h-9 items-center gap-1 rounded-full px-3.5 text-[0.8125rem] font-bold text-white shadow-md"
+          style={{ background: NUBI_DONE }}
+          aria-label={`${map.title || '제목 없는 지도'} ${nubi >= 0 ? '이어서 누비기' : '바로 누비기'}`}
+        >
+          📍 {nubi >= 0 ? `이어서 누비기 · ${nubi}%` : '바로 누비기'}
+        </Link>
+      )}
       {onToggle ? (
         // 고르는 중: 카드 전체를 덮는 버튼 하나로 고르기만 (지도로 넘어가지 않게)
         <button

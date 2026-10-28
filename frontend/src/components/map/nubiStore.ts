@@ -5,6 +5,8 @@ import type { LatLngLike } from './routing'
 const STORE_PREFIX = 'the-map:nubi:v1:'
 /** 이보다 오래된 누비기는 이어 하지 않고 새로 시작 */
 const RESUME_MS = 24 * 3600_000
+/** 누비기 기록이 바뀌면 window 에 보내는 이벤트 (오른쪽 아래 버튼이 진행도를 바로 갱신) */
+export const NUBI_CHANGE = 'the-map:nubi-change'
 
 export interface Saved {
   startedAt: number
@@ -38,11 +40,27 @@ export function store(key: string, s: Saved | null) {
   } catch {
     // 저장 공간이 없으면 이어 하기만 안 된다
   }
+  window.dispatchEvent(new Event(NUBI_CHANGE))
 }
 
-/** 이 코스를 누비던 중이었나 (시작 버튼을 '이어서 누비기'로) */
-export function hasNubiInProgress(key: string) {
-  return typeof window !== 'undefined' && load(key) != null
+/** 누비기 기록이 바뀔 때 (이 탭 · 다른 탭 모두) */
+export function subscribeNubi(fn: () => void) {
+  const onStorage = (e: StorageEvent) => (e.key == null || e.key.startsWith(STORE_PREFIX)) && fn()
+  window.addEventListener(NUBI_CHANGE, fn)
+  window.addEventListener('storage', onStorage)
+  return () => {
+    window.removeEventListener(NUBI_CHANGE, fn)
+    window.removeEventListener('storage', onStorage)
+  }
+}
+
+/** 이 코스를 누비던 중이면 진행도(%), 아니면 -1 (다 돈 코스도 -1) */
+export function nubiPercent(key: string) {
+  const s = load(key)
+  if (!s) return -1
+  const sum = s.summary
+  if (sum && (sum.finished ?? sum.done >= sum.total)) return -1
+  return sum?.percent ?? 0
 }
 
 /** 누비기 화면을 바로 여는 주소 (`map:<id>` → 지도, `meetup:<id>` → 순례방). ?nubi=1 이면 누비기 버튼이 저절로 열린다 */

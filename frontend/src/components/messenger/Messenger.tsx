@@ -8,12 +8,13 @@ import { getMeetupComments, getMeetups, getMyMaps, subscribeMeetupRoom } from '.
 import { daysUntil, formatPlanDate, planDday } from '../../lib/planDate'
 import type { ConceptMap, MeetupComment, MeetupSummary, User } from '../../types'
 import { ChevronLeftIcon, CloseIcon, HubIcon } from '../icons'
-import { listNubiInProgress } from '../map/nubiStore'
+import { listNubiInProgress, subscribeNubi } from '../map/nubiStore'
 import { NUBI_DONE } from '../map/nubiColors'
 import { dday, formatMeetAt } from '../meetup/format'
 import { RoomChat } from '../meetup/RoomChat'
 
-// 오른쪽 아래에 늘 떠 있는 버튼 (인스타그램 메시지처럼). 아이콘은 일정 · 채팅 · 누비기를 묶은 모양 (HubIcon).
+// 오른쪽 아래에 늘 떠 있는 버튼 (인스타그램 메시지처럼). 아이콘은 일정 · 누비기를 묶은 모양 (HubIcon).
+// 누비는 중인 코스가 있으면 버튼 테두리가 진행도 링이 되고 가운데에 %를 띄운다 (누비기 기록이 바뀌면 바로 갱신).
 // 누르면 작은 창: 누비는 중인 코스 · 다가오는 성지순례 · 곧 갈 지도. 모임을 누르면 창 안에서 바로 그 순례방 채팅.
 // 로그인 직후엔 일정이 있으면 한 번 저절로 열린다. 지도 화면 · 순례방 · 로그인 화면에서는 숨긴다.
 
@@ -82,6 +83,8 @@ function MessengerFor({ me }: { me: User }) {
 
   // 처음 한 번 (배지 숫자용) + 창을 열 때마다 새로
   useEffect(() => load(), [load])
+  // 누비기 진행도는 기록이 바뀔 때마다 (다른 탭에서 누비는 중이어도)
+  useEffect(() => subscribeNubi(() => setNubis(listNubiInProgress())), [])
 
   useEffect(() => {
     if (!open) return
@@ -92,6 +95,8 @@ function MessengerFor({ me }: { me: User }) {
 
   const room = roomId ? meetups?.find((m) => m.id === roomId) : undefined
   const count = (meetups?.length ?? 0) + nubis.length
+  // 버튼에 띄울 누비기: 가장 최근에 시작한 코스
+  const live = nubis[0]
 
   const toggle = () => {
     if (!open) load()
@@ -163,7 +168,7 @@ function MessengerFor({ me }: { me: User }) {
                       {meetups.map((m) => (
                         <li key={m.id}>
                           <button type="button" onClick={() => setRoomId(m.id)} className="flex w-full items-center gap-3 rounded-2xl px-2 py-2.5 text-left hover:bg-black/[0.04]">
-                            <span className="grid size-11 shrink-0 place-items-center rounded-full bg-(--c-accent)/12 text-xl">💬</span>
+                            <span className="grid size-11 shrink-0 place-items-center rounded-full bg-(--c-accent)/12 text-xl">🚩</span>
                             <span className="min-w-0 flex-1">
                               <span className="block truncate font-semibold">{m.title}</span>
                               <span className="block truncate text-xs text-(--c-muted)">
@@ -209,9 +214,21 @@ function MessengerFor({ me }: { me: User }) {
         onClick={toggle}
         aria-expanded={open}
         aria-label={open ? '일정 · 순례방 · 누비기 닫기' : `일정 · 순례방 · 누비기 열기${count ? ` (${count}개)` : ''}`}
+        title={live && !open ? `${live.title} · ${live.percent}% 누비는 중` : undefined}
         className="tm-float fixed bottom-20 right-4 z-[900] grid size-14 place-items-center rounded-full bg-(--c-text) text-2xl text-(--c-surface) transition hover:scale-105 active:scale-95 md:bottom-6 md:right-6"
+        style={live && !open ? { background: `conic-gradient(${NUBI_DONE} ${live.percent * 3.6}deg, var(--c-text) 0deg)` } : undefined}
       >
-        {open ? <CloseIcon size={22} /> : <HubIcon size={28} strokeWidth={1.9} />}
+        {open ? (
+          <CloseIcon size={22} />
+        ) : live ? (
+          // 누비는 중: 진행도 링 안에 % (링이 보이게 안쪽을 한 겹 덮는다)
+          <span className="grid size-[46px] place-items-center rounded-full bg-(--c-text) leading-none">
+            <span className="text-[0.625rem]" aria-hidden>📍</span>
+            <span className="-mt-1 text-[0.8125rem] font-extrabold tabular-nums">{live.percent}%</span>
+          </span>
+        ) : (
+          <HubIcon size={28} strokeWidth={1.9} />
+        )}
         {!open && count > 0 && (
           <span className="absolute -right-0.5 -top-0.5 grid h-5 min-w-5 place-items-center rounded-full bg-red-500 px-1 text-[0.6875rem] font-bold text-white ring-2 ring-(--c-bg)">{count}</span>
         )}

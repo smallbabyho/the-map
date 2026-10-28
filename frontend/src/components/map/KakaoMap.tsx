@@ -14,6 +14,7 @@ import { DEFAULT_CENTER, NO_INSETS, type MapViewProps, type PickedPoint } from '
 import { useMyLocation, type MyPosition } from './useMyLocation'
 import { setSearchArea } from './placeSearch'
 import { distanceMeters } from '../../lib/arrival'
+import { NUBI_DONE } from './nubiColors'
 
 interface Props extends MapViewProps {
   segments: Segment[]
@@ -24,8 +25,10 @@ interface Props extends MapViewProps {
 const GLIDE_MS = 550
 /** 장소 하나를 볼 때 확대 정도 (카카오 레벨, 작을수록 확대. 4 ≈ 동네 골목이 보이는 정도) */
 const FOCUS_LEVEL = 4
+/** 누비기: 지도를 끌어 둘러보면 이 시간 동안은 내 위치를 따라가지 않는다 */
+const FOLLOW_PAUSE_MS = 15_000
 
-export function KakaoMap({ pins, segments, theme, look = DEFAULT_LOOK, selectedPinId, onSelectPin, insets = NO_INSETS, onAddPlace, onLoadError, autoLocate }: Props) {
+export function KakaoMap({ pins, segments, theme, look = DEFAULT_LOOK, selectedPinId, onSelectPin, insets = NO_INSETS, onAddPlace, onLoadError, autoLocate, live }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<kakao.maps.Map | null>(null)
   const [ready, setReady] = useState(false)
@@ -130,19 +133,21 @@ export function KakaoMap({ pins, segments, theme, look = DEFAULT_LOOK, selectedP
 
   // 3) 핀 마커 (선택이 바뀌어도 경로선은 다시 그리지 않는다).
   // 마커에 보이는 값(위치 · 순번 · 아이콘 · 색 · 이름)이 바뀔 때만 다시 만든다: 메모를 칠 때마다 마커를 전부 새로 만들면 휴대폰에서 버벅인다
-  const markerShape = pins.map((p) => [p.id, p.place.lat, p.place.lng, p.icon, p.color, p.place.name].join('|')).join(';')
+  const visitedKey = live?.visited.join(',') ?? ''
+  const markerShape = pins.map((p) => [p.id, p.place.lat, p.place.lng, p.icon, p.color, p.place.name].join('|')).join(';') + '#' + visitedKey
   useEffect(() => {
     const map = mapRef.current
     if (!ready || !map) return
     const k = window.kakao!
     const drawn: kakao.maps.CustomOverlay[] = []
     const pos = new Map(pins.map((p) => [p.id, new k.maps.LatLng(p.place.lat, p.place.lng)]))
+    const visited = new Set(visitedKey ? visitedKey.split(',') : [])
 
     pins.forEach((pin, i) => {
       const selected = pin.id === selectedPinId
       const overlay = new k.maps.CustomOverlay({
         position: pos.get(pin.id)!,
-        content: createMarkerElement(pin, i, selected, () => onSelectRef.current(pin.id), look.markerShape),
+        content: createMarkerElement(pin, i, selected, () => onSelectRef.current(pin.id), look.markerShape, visited.has(pin.id)),
         yAnchor: 1,
         zIndex: selected ? 10 : 2,
         clickable: true,
@@ -259,15 +264,16 @@ export function KakaoMap({ pins, segments, theme, look = DEFAULT_LOOK, selectedP
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, selectedPinId])
 
-  // 6) 내 위치 (파란 점 + 오차 범위)
+  // 6) 내 위치 (파란 점 + 오차 범위). 누비기 중이면 누비기가 받은 위치로
+  const shownMe = live?.me ?? me.pos
   useEffect(() => {
     const map = mapRef.current
-    if (!ready || !map || !me.pos) return
+    if (!ready || !map || !shownMe) return
     const k = window.kakao!
-    const center = new k.maps.LatLng(me.pos.lat, me.pos.lng)
+    const center = new k.maps.LatLng(shownMe.lat, shownMe.lng)
     const circle = new k.maps.Circle({
       center,
-      radius: Math.min(me.pos.accuracy, 500),
+      radius: Math.min(shownMe.accuracy, 500),
       strokeWeight: 1,
       strokeColor: '#3b82f6',
       strokeOpacity: 0.4,
@@ -281,7 +287,47 @@ export function KakaoMap({ pins, segments, theme, look = DEFAULT_LOOK, selectedP
       circle.setMap(null)
       dot.setMap(null)
     }
-  }, [ready, me.pos])
+  }, [ready, shownMe])
+
+  // 6-1) 누비기: 지나온 코스(진하게) + 실제로 움직인 길(파란 선)
+  useEffect(() => {
+    const map = mapRef.current
+    if (!ready || !map || !live) return
+    const k = window.kakao!
+    const line = (path: { lat: number; lng: number }[], weight: number, color: string, opacity: number, style: string, zIndex: number) =>
+      new k.maps.Polyline({ path: path.map((p) => new k.maps.LatLng(p.lat, p.lng)), strokeWeight: weight, strokeColor: color, strokeOpacity: opacity, strokeStyle: style, zIndex })
+    const [outer, inner] = LINE_WIDTH[look.lineWidth]
+    const drawn = [
+      ...(live.donePath.length > 1 ? [line(live.donePath, outer + 4, '#ffffff', 1, 'solid', 3), line(live.donePath, inner + 3, NUBI_DONE, 1, 'solid', 3)] : []),
+      ...(live.trail.length > 1 ? [line(live.trail, 4, '#3b82f6', 0.75, 'solid', 4)] : []),
+    ]
+    drawn.forEach((o) => o.setMap(map))
+    return () => drawn.forEach((o) => o.setMap(null))
+  }, [ready, live?.donePath, live?.trail, look.lineWidth]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 6-2) 누비기: 지도가 내 위치를 따라간다. 지도를 끌면 잠깐(FOLLOW_PAUSE_MS) 멈추고, 내 위치 버튼을 누르면 다시 따라간다
+  const followPausedUntil = useRef(0)
+  const following = useRef(false)
+  useEffect(() => {
+    const map = mapRef.current
+    if (!ready || !map || !live) return
+    const ev = window.kakao!.maps.event
+    const pause = () => (followPausedUntil.current = Date.now() + FOLLOW_PAUSE_MS)
+    ev.addListener(map, 'dragstart', pause)
+    return () => ev.removeListener(map, 'dragstart', pause)
+  }, [ready, live != null]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    const map = mapRef.current
+    const p = live?.me
+    if (!ready || !map || !p || Date.now() < followPausedUntil.current) return
+    if (!following.current) {
+      following.current = true
+      if (map.getLevel() > 3) map.setLevel(3)
+    }
+    panToVisible(p.lat, p.lng)
+    // panToVisible 은 ref 만 읽는다
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, live?.me])
 
   // 7) 꾹 누르기(아래 useLongPress) · 우클릭 → 그 지점에 팝업 (근처 장소 고르기). 한 번 누르기는 팝업을 닫기만 한다
   //    (한 번 누를 때마다 뜨면 지도를 둘러보다 자꾸 걸린다)
@@ -356,7 +402,13 @@ export function KakaoMap({ pins, segments, theme, look = DEFAULT_LOOK, selectedP
     if (map.getLevel() > 4) map.setLevel(4)
     panToVisible(p.lat, p.lng)
   }
-  const goToMe = () => me.locate(centerOnMe)
+  const goToMe = () => {
+    if (live?.me) {
+      followPausedUntil.current = 0
+      return centerOnMe(live.me)
+    }
+    me.locate(centerOnMe)
+  }
 
   // 처음 열 때 내 위치 (한 번만): 새 지도면 내 위치에서 시작, 핀이 있으면 파란 점만
   const autoLocated = useRef(false)
@@ -426,7 +478,7 @@ export function KakaoMap({ pins, segments, theme, look = DEFAULT_LOOK, selectedP
           onFit={pins.length > 0 ? fitAll : undefined}
           onLocate={goToMe}
           locating={me.locating}
-          located={me.pos != null}
+          located={shownMe != null}
         />
       )}
       {me.error && (

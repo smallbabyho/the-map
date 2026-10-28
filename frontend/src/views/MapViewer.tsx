@@ -9,7 +9,7 @@ import { Avatar } from '../components/Avatar'
 import { ChevronLeftIcon, CopyIcon, UsersIcon } from '../components/icons'
 import { formatMinutes } from '../components/legModes'
 import { mapPurpose } from '../components/mapPurpose'
-import { isCustomPlace, MapView, type MapInsets } from '../components/map'
+import { isCustomPlace, MapView, NubiButton, type MapInsets } from '../components/map'
 import { LegModeSwitch, useViewCourse, ViewModePicker, type ViewMode } from '../components/map/ViewModePicker'
 import { getTheme, themeVars } from '../components/themes'
 import { KakaoDirectionsLink } from '../components/map/KakaoDirections'
@@ -124,6 +124,9 @@ export function MapViewer({ detail }: { detail: MapDetail }) {
               성지순례 모집
             </Link>
           </div>
+          {pins.length > 0 && (
+            <NubiButton className="mt-2 w-full" title={map.title || '제목 없는 지도'} pins={pins} legs={view.legs} theme={theme} look={map} storageKey={`map:${map.id}`} />
+          )}
           <KakaoShareButton
             className="mt-2"
             title={map.title || '제목 없는 지도'}

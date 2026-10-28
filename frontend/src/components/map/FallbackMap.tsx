@@ -5,6 +5,7 @@ import { legLabel, modeMeta } from '../legModes'
 import { MapControls } from './MapControls'
 import { PickPopup } from './PickPopup'
 import { pathMidpoint } from './routing'
+import { NUBI_DONE } from './nubiColors'
 import { DEFAULT_LOOK, LINE_WIDTH, partLine, styledLine, type Segment } from './segments'
 import { DEFAULT_CENTER, NO_INSETS, type MapViewProps, type PickedPoint } from './types'
 import { PressRing, useLongPress } from './useLongPress'
@@ -18,7 +19,7 @@ interface Props extends MapViewProps {
  * 카카오 키가 없거나 불러오기 실패했을 때 보여주는 미리보기 지도.
  * 실제 지도 타일 없이 핀 위치·순서·경로만 비율대로 그린다.
  */
-export function FallbackMap({ pins, segments, theme, look = DEFAULT_LOOK, selectedPinId, onSelectPin, insets = NO_INSETS, onAddPlace, notice }: Props) {
+export function FallbackMap({ pins, segments, theme, look = DEFAULT_LOOK, selectedPinId, onSelectPin, insets = NO_INSETS, onAddPlace, notice, live }: Props) {
   const ref = useRef<HTMLDivElement>(null)
   const [size, setSize] = useState({ w: 0, h: 0 })
   const [picked, setPicked] = useState<PickedPoint | null>(null)
@@ -67,6 +68,9 @@ export function FallbackMap({ pins, segments, theme, look = DEFAULT_LOOK, select
     setPicked(unproject(x, y))
   })
   const pickedAt = picked ? project(picked.lat, picked.lng) : null
+  const toPoints = (path: { lat: number; lng: number }[]) => path.map((p) => project(p.lat, p.lng)).map((p) => `${p.x},${p.y}`).join(' ')
+  const visited = new Set(live?.visited)
+  const meAt = live?.me ? project(live.me.lat, live.me.lng) : null
 
   return (
     <div
@@ -108,6 +112,14 @@ export function FallbackMap({ pins, segments, theme, look = DEFAULT_LOOK, select
               </g>
             )
           })}
+          {/* 누비기: 지나온 코스 + 실제로 움직인 길 */}
+          {live && live.donePath.length > 1 && (
+            <g fill="none" strokeLinejoin="round" strokeLinecap="round">
+              <polyline points={toPoints(live.donePath)} stroke="#fff" strokeWidth={LINE_WIDTH[look.lineWidth][0] + 4} />
+              <polyline points={toPoints(live.donePath)} stroke={NUBI_DONE} strokeWidth={LINE_WIDTH[look.lineWidth][1] + 3} />
+            </g>
+          )}
+          {live && live.trail.length > 1 && <polyline points={toPoints(live.trail)} fill="none" stroke="#3b82f6" strokeOpacity={0.75} strokeWidth={4} strokeLinejoin="round" strokeLinecap="round" />}
         </svg>
       )}
 
@@ -137,18 +149,21 @@ export function FallbackMap({ pins, segments, theme, look = DEFAULT_LOOK, select
                 className="tm-marker"
                 data-selected={selected}
                 data-shape={look.markerShape}
+                data-visited={visited.has(pin.id) || undefined}
                 style={{ ['--pin' as string]: pin.color }}
                 onClick={() => onSelectPin(pin.id)}
                 aria-label={`${i + 1}번 ${pin.place.name}`}
               >
                 <span className="tm-marker-head" />
                 <span className="tm-marker-emoji">{pin.icon}</span>
-                <span className="tm-marker-no">{i + 1}</span>
+                <span className="tm-marker-no">{visited.has(pin.id) ? '✓' : i + 1}</span>
                 <span className="tm-marker-label">{pin.place.name}</span>
               </button>
             </div>
           )
         })}
+
+      {meAt && <div className="tm-me absolute z-[5] -translate-x-1/2 -translate-y-1/2" style={{ left: meAt.x, top: meAt.y }} aria-label="내 위치" />}
 
       {picked && pickedAt && (
         <div className="absolute z-20 -translate-x-1/2 -translate-y-full" style={{ left: pickedAt.x, top: pickedAt.y }}>

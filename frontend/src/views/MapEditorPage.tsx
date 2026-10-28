@@ -15,7 +15,7 @@ import { ShareMenu } from '../components/editor/ShareMenu'
 import { LinkImportDialog } from '../components/editor/LinkImportDialog'
 import { useMapDraft } from '../components/editor/useMapDraft'
 import { CheckIcon, ChevronLeftIcon, GlobeIcon, LockIcon, PinIcon } from '../components/icons'
-import { MapView, type MapInsets } from '../components/map'
+import { MapView, NubiButton, type MapInsets } from '../components/map'
 import { getTheme, themeVars } from '../components/themes'
 import { canEditMap, getMapCollab } from '../db/api'
 import type { MapCollab, Pin } from '../types'
@@ -553,6 +553,7 @@ export function MapEditorPage() {
               </button>
             )}
             <OptimizeCourseButton pins={pins} onReorder={draft.reorderPins} />
+            <NubiButton compact title={map.title || '제목 없는 지도'} pins={pins} legs={legs} theme={theme} look={map} storageKey={`map:${map.id}`} />
           </div>
         </div>
 

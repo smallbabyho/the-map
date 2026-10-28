@@ -32,7 +32,8 @@ export function MeetupRoomPage() {
   const [mapDetail, setMapDetail] = useState<MapDetail | null>(null)
   const [messages, setMessages] = useState<MeetupComment[] | null>(null)
   const [checkins, setCheckins] = useState<MeetupCheckin[]>([])
-  const [tab, setTab] = useState<Tab>('chat')
+  // 오른쪽 아래 일정 창의 '누비는 중'에서 들어오면(?nubi=1) 코스 탭부터 (거기 누비기 버튼이 저절로 열린다)
+  const [tab, setTab] = useState<Tab>(() => (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('nubi') === '1' ? 'course' : 'chat'))
   const [busyPinId, setBusyPinId] = useState<string | null>(null)
   const [error, setError] = useState('')
   const router = useRouter()
@@ -158,7 +159,7 @@ export function MeetupRoomPage() {
           )}
         </div>
         {mapDetail && mapDetail.pins.length > 0 ? (
-          <RoomCourse mapDetail={mapDetail} me={me} members={meetup.members} checkins={checkins} onUncheck={uncheck} onArrive={arrive} busyPinId={busyPinId} meetAt={meetup.meetAt} />
+          <RoomCourse mapDetail={mapDetail} me={me} members={meetup.members} checkins={checkins} onUncheck={uncheck} onArrive={arrive} busyPinId={busyPinId} meetAt={meetup.meetAt} meetupId={meetupId} />
         ) : (
           <p className="rounded-xl bg-black/[0.03] px-4 py-6 text-center text-sm text-(--c-muted)">지도가 삭제됐거나 장소가 없어요.</p>
         )}

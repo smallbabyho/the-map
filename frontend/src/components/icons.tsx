@@ -109,3 +109,13 @@ export const MoonIcon = (p: IconProps) => (
 export const AutoModeIcon = (p: IconProps) => (
   <Svg {...p}><circle cx="12" cy="12" r="8" /><path d="M12 4a8 8 0 0 1 0 16Z" fill="currentColor" /></Svg>
 )
+/** 오른쪽 아래 떠 있는 버튼: 일정(달력) · 채팅(말풍선) · 누비기(핀)를 한데 묶은 모양 */
+export const HubIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <rect x="2" y="3" width="9" height="8" rx="2" />
+    <path d="M2 6.3h9M4.8 2v2M8.2 2v2" />
+    <path d="M14.8 3h5.4A1.8 1.8 0 0 1 22 4.8v3a1.8 1.8 0 0 1-1.8 1.8h-3.4l-2.3 1.9V9.6a1.8 1.8 0 0 1-1.5-1.8v-3A1.8 1.8 0 0 1 14.8 3z" />
+    <path d="M12 22.5s-3.8-3.3-3.8-6.2a3.8 3.8 0 0 1 7.6 0c0 2.9-3.8 6.2-3.8 6.2z" />
+    <circle cx="12" cy="16.3" r="1.3" />
+  </Svg>
+)

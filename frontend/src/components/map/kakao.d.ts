@@ -44,7 +44,7 @@ declare namespace kakao.maps {
     setMap(map: Map | null): void
   }
   class Polyline {
-    constructor(options: { path: LatLng[]; strokeWeight?: number; strokeColor?: string; strokeOpacity?: number; strokeStyle?: string })
+    constructor(options: { path: LatLng[]; strokeWeight?: number; strokeColor?: string; strokeOpacity?: number; strokeStyle?: string; zIndex?: number })
     setMap(map: Map | null): void
   }
 }

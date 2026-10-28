@@ -541,3 +541,11 @@ body {
     transform: none;
   }
 }
+
+/* 누비기 모드: 도착한 핀은 순번 대신 초록 ✓ (KakaoMap · FallbackMap, components/map/nubi.ts) */
+.tm-marker[data-visited="true"] .tm-marker-no {
+  background: #10b981;
+}
+.tm-marker[data-visited="true"] .tm-marker-head {
+  box-shadow: 0 0 0 3px #10b981;
+}

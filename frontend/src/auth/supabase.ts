@@ -37,7 +37,12 @@ function authError(message: string): Error {
 
 /** 지금 로그인한 사람 (프로필 포함). 정지된 계정이면 로그아웃시키고 null */
 export async function fetchMe(): Promise<User | null> {
-  const { data } = await supabase.auth.getSession()
+  const { data, error } = await supabase.auth.getSession()
+  // 저장된 로그인이 서버에서 이미 끝났으면(Refresh Token Not Found 등) 이 브라우저의 로그인 기록만 지우고 로그아웃 상태로
+  if (error) {
+    await supabase.auth.signOut({ scope: 'local' }).catch(() => {})
+    return null
+  }
   const uid = data.session?.user.id
   if (!uid) return null
   const { data: p } = await supabase.from('profiles').select(PROFILE_COLS).eq('id', uid).maybeSingle<ProfileRow>()

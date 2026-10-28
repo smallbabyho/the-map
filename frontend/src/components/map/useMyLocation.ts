@@ -9,7 +9,7 @@ export interface MyPosition {
   accuracy: number
 }
 
-const ERROR_MESSAGES: Record<number, string> = {
+export const LOCATION_ERRORS: Record<number, string> = {
   1: '위치 권한이 꺼져 있어요. 주소창 왼쪽 아이콘에서 위치를 허용해 주세요.',
   2: '현재 위치를 찾을 수 없어요. 잠시 후 다시 시도해 주세요.',
   3: '위치를 찾는 데 시간이 너무 오래 걸려요. 다시 시도해 주세요.',
@@ -71,7 +71,7 @@ export function useMyLocation() {
         (e) => {
           setLocating(false)
           pendingFix.current = null
-          if (!silent) setError(ERROR_MESSAGES[e.code] ?? '현재 위치를 가져오지 못했어요.')
+          if (!silent) setError(LOCATION_ERRORS[e.code] ?? '현재 위치를 가져오지 못했어요.')
           if (e.code === 1 && watchId.current != null) {
             navigator.geolocation.clearWatch(watchId.current)
             watchId.current = null

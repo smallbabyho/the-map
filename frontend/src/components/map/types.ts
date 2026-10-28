@@ -1,6 +1,8 @@
 import type { MapLook, Pin, TravelMode } from '../../types'
 import type { Theme } from '../themes'
 import type { PlaceSearchResult } from './placeSearch'
+import type { LatLngLike } from './routing'
+import type { MyPosition } from './useMyLocation'
 
 /** 지도 위에 패널이 덮고 있는 영역(px). 핀을 화면에 맞출 때 이만큼 피해서 보여준다. */
 export interface MapInsets {
@@ -33,6 +35,18 @@ export interface MapViewProps {
    * 권한이 없거나 실패해도 조용히 넘어간다.
    */
   autoLocate?: 'center' | 'show'
+  /** 누비기 모드 (nubi.ts): 지금 위치 · 지나온 길 · 지나온 코스 · 도착한 핀. 있으면 지도가 내 위치를 따라간다 (끌면 잠깐 멈춤) */
+  live?: LiveTrack
+}
+
+export interface LiveTrack {
+  me: MyPosition | null
+  /** 실제로 움직인 길 (GPS) */
+  trail: LatLngLike[]
+  /** 코스선 중 지나온 부분 */
+  donePath: LatLngLike[]
+  /** 도착한 핀 id */
+  visited: string[]
 }
 
 /** 지도에서 찍은 지점 */

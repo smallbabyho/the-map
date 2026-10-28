@@ -7,12 +7,14 @@ import { useCurrentUser } from '../../auth'
 import { getMeetupComments, getMeetups, getMyMaps, subscribeMeetupRoom } from '../../db/api'
 import { daysUntil, formatPlanDate, planDday } from '../../lib/planDate'
 import type { ConceptMap, MeetupComment, MeetupSummary, User } from '../../types'
-import { ChevronLeftIcon, CloseIcon } from '../icons'
+import { ChevronLeftIcon, CloseIcon, HubIcon } from '../icons'
+import { listNubiInProgress } from '../map/nubiStore'
+import { NUBI_DONE } from '../map/nubiColors'
 import { dday, formatMeetAt } from '../meetup/format'
 import { RoomChat } from '../meetup/RoomChat'
 
-// 오른쪽 아래에 늘 떠 있는 💬 버튼 (인스타그램 메시지처럼).
-// 누르면 작은 창: 다가오는 성지순례 · 곧 갈 지도. 모임을 누르면 창 안에서 바로 그 순례방 채팅.
+// 오른쪽 아래에 늘 떠 있는 버튼 (인스타그램 메시지처럼). 아이콘은 일정 · 채팅 · 누비기를 묶은 모양 (HubIcon).
+// 누르면 작은 창: 누비는 중인 코스 · 다가오는 성지순례 · 곧 갈 지도. 모임을 누르면 창 안에서 바로 그 순례방 채팅.
 // 로그인 직후엔 일정이 있으면 한 번 저절로 열린다. 지도 화면 · 순례방 · 로그인 화면에서는 숨긴다.
 
 const JUST_LOGGED_IN = 'the-map:just-logged-in'
@@ -55,6 +57,7 @@ function MessengerFor({ me }: { me: User }) {
   const [plans, setPlans] = useState<ConceptMap[]>([])
   const [loadedAt, setLoadedAt] = useState(0)
   const [roomId, setRoomId] = useState<string | null>(null)
+  const [nubis, setNubis] = useState<ReturnType<typeof listNubiInProgress>>([])
 
   const load = useCallback(() => {
     Promise.all([getMeetups('joined'), getMeetups('hosting'), getMyMaps()])
@@ -71,6 +74,7 @@ function MessengerFor({ me }: { me: User }) {
             .sort((a, b) => a.plannedDate!.localeCompare(b.plannedDate!)),
         )
         setLoadedAt(now)
+        setNubis(listNubiInProgress())
         if (takeJustLoggedIn(me.id) && (soon.length > 0 || maps.some((m) => m.plannedDate))) setOpen(true)
       })
       .catch(() => setMeetups((cur) => cur ?? []))
@@ -87,7 +91,7 @@ function MessengerFor({ me }: { me: User }) {
   }, [open, roomId])
 
   const room = roomId ? meetups?.find((m) => m.id === roomId) : undefined
-  const count = meetups?.length ?? 0
+  const count = (meetups?.length ?? 0) + nubis.length
 
   const toggle = () => {
     if (!open) load()
@@ -99,7 +103,7 @@ function MessengerFor({ me }: { me: User }) {
       {open && (
         <div
           role="dialog"
-          aria-label={room ? `${room.title} 순례방` : '다가오는 일정 · 순례방'}
+          aria-label={room ? `${room.title} 순례방` : '일정 · 순례방 · 누비기'}
           className="tm-float fixed inset-x-2 bottom-[136px] top-16 z-[900] flex flex-col overflow-hidden rounded-3xl bg-(--c-surface) text-(--c-text) md:inset-x-auto md:bottom-24 md:right-6 md:top-auto md:h-[min(600px,calc(100dvh-140px))] md:w-[380px]"
         >
           {room ? (
@@ -107,7 +111,7 @@ function MessengerFor({ me }: { me: User }) {
           ) : (
             <>
               <div className="flex items-center justify-between border-b border-(--c-border) px-5 py-3.5">
-                <h2 className="text-lg font-bold">다가오는 일정</h2>
+                <h2 className="text-lg font-bold">내 일정 · 누비기</h2>
                 <button type="button" onClick={() => setOpen(false)} className="grid size-8 place-items-center rounded-full text-(--c-muted) hover:bg-black/5" aria-label="닫기">
                   <CloseIcon size={16} />
                 </button>
@@ -115,7 +119,7 @@ function MessengerFor({ me }: { me: User }) {
               <div className="tm-scroll min-h-0 flex-1 overflow-y-auto px-3 py-3">
                 {meetups === null ? (
                   <div className="h-24 animate-pulse rounded-2xl bg-black/5" />
-                ) : meetups.length === 0 && plans.length === 0 ? (
+                ) : meetups.length === 0 && plans.length === 0 && nubis.length === 0 ? (
                   <div className="px-4 py-12 text-center">
                     <p className="font-semibold">다가오는 일정이 없어요</p>
                     <p className="mt-1 text-sm text-(--c-muted)">성지순례에 참여하거나, 지도에 가는 날을 적어 보세요.</p>
@@ -125,6 +129,35 @@ function MessengerFor({ me }: { me: User }) {
                   </div>
                 ) : (
                   <>
+                    {nubis.length > 0 && (
+                      <>
+                        <p className="px-2 pb-1.5 text-xs font-bold text-(--c-muted)">📍 누비는 중 · 눌러서 이어 누비기</p>
+                        <ul className="mb-4 space-y-1">
+                          {nubis.map((n) => (
+                            <li key={n.key}>
+                              <Link href={n.href} onClick={() => setOpen(false)} className="flex items-center gap-3 rounded-2xl px-2 py-2.5 hover:bg-black/[0.04]">
+                                {/* 진행도 링 */}
+                                <span
+                                  className="grid size-11 shrink-0 place-items-center rounded-full"
+                                  style={{ background: `conic-gradient(${NUBI_DONE} ${n.percent * 3.6}deg, rgb(0 0 0 / 0.07) 0deg)` }}
+                                >
+                                  <span className="grid size-8 place-items-center rounded-full bg-(--c-surface) text-[0.6875rem] font-extrabold tabular-nums">{n.percent}%</span>
+                                </span>
+                                <span className="min-w-0 flex-1">
+                                  <span className="block truncate font-semibold">{n.title}</span>
+                                  <span className="block text-xs text-(--c-muted)">
+                                    도착 {n.done} / {n.total}곳
+                                  </span>
+                                </span>
+                                <span className="shrink-0 rounded-full px-2 py-0.5 text-[0.6875rem] font-bold text-white" style={{ background: NUBI_DONE }}>
+                                  이어 누비기
+                                </span>
+                              </Link>
+                            </li>
+                          ))}
+                        </ul>
+                      </>
+                    )}
                     {meetups.length > 0 && <p className="px-2 pb-1.5 text-xs font-bold text-(--c-muted)">🚩 참여 중인 성지순례 · 눌러서 순례방</p>}
                     <ul className="space-y-1">
                       {meetups.map((m) => (
@@ -175,10 +208,10 @@ function MessengerFor({ me }: { me: User }) {
         type="button"
         onClick={toggle}
         aria-expanded={open}
-        aria-label={open ? '일정 · 순례방 닫기' : `일정 · 순례방 열기${count ? ` (다가오는 모임 ${count}개)` : ''}`}
+        aria-label={open ? '일정 · 순례방 · 누비기 닫기' : `일정 · 순례방 · 누비기 열기${count ? ` (${count}개)` : ''}`}
         className="tm-float fixed bottom-20 right-4 z-[900] grid size-14 place-items-center rounded-full bg-(--c-text) text-2xl text-(--c-surface) transition hover:scale-105 active:scale-95 md:bottom-6 md:right-6"
       >
-        {open ? <CloseIcon size={22} /> : '💬'}
+        {open ? <CloseIcon size={22} /> : <HubIcon size={28} strokeWidth={1.9} />}
         {!open && count > 0 && (
           <span className="absolute -right-0.5 -top-0.5 grid h-5 min-w-5 place-items-center rounded-full bg-red-500 px-1 text-[0.6875rem] font-bold text-white ring-2 ring-(--c-bg)">{count}</span>
         )}

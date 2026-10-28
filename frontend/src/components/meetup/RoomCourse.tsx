@@ -6,7 +6,7 @@ import type { ArrivalProof, MapDetail, MeetupCheckin, MeetupMember, User } from 
 import { ArrivalDialog } from './ArrivalDialog'
 import { Avatar } from '../Avatar'
 import { CheckIcon } from '../icons'
-import { MapView } from '../map'
+import { MapView, NubiButton } from '../map'
 import { KakaoDirectionsLink } from '../map/KakaoDirections'
 import { LegModeSwitch, useViewCourse, ViewModePicker, type ViewMode } from '../map/ViewModePicker'
 import { getTheme } from '../themes'
@@ -24,13 +24,15 @@ interface Props {
   busyPinId: string | null
   /** 모임 시각 (사진 인증에서 촬영 날짜 확인) */
   meetAt: string
+  /** 누비기 이어 하기 저장 칸 */
+  meetupId: string
 }
 
 /**
  * 순례방 코스: 지도 + 이동수단 바꿔 보기 + 장소마다 '도착' 체크.
  * 장소 옆에 그곳에 도착한 사람들의 얼굴이 모인다 (서로 어디쯤인지 보기).
  */
-export function RoomCourse({ mapDetail, me, members, checkins, onUncheck, onArrive, busyPinId, meetAt }: Props) {
+export function RoomCourse({ mapDetail, me, members, checkins, onUncheck, onArrive, busyPinId, meetAt, meetupId }: Props) {
   const { pins } = mapDetail
   const [selectedId, setSelectedId] = useState<string | null>(null)
   /** 도착 인증 창을 띄운 장소 */
@@ -50,6 +52,19 @@ export function RoomCourse({ mapDetail, me, members, checkins, onUncheck, onArri
       <div className="relative h-56 overflow-hidden rounded-2xl border border-(--c-border)">
         <MapView pins={pins} legs={view.legs} theme={theme} look={mapDetail.map} selectedPinId={selectedId} onSelectPin={(id) => setSelectedId((c) => (c === id ? null : id))} />
       </div>
+      <NubiButton
+        className="mt-3 w-full"
+        title={mapDetail.map.title || '순례 코스'}
+        pins={pins}
+        legs={view.legs}
+        theme={theme}
+        look={mapDetail.map}
+        storageKey={`meetup:${meetupId}`}
+        // 장소 근처에 가면 자동으로 도착 인증 (이미 인증한 곳은 건너뛴다)
+        onArrive={async (pin, at) => {
+          if (!mine.has(pin.id)) await onArrive(pin.id, { lat: at.lat, lng: at.lng, method: 'gps' })
+        }}
+      />
       {pins.length > 1 && <ViewModePicker value={viewMode} onChange={setViewMode} className="mt-3" />}
 
       <div className="mt-4 flex items-center justify-between text-sm">
